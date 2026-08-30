@@ -17,6 +17,16 @@ services:
       - mongo-data:/data/db
       - mongo-config:/data/configdb
     mem_limit: 384m
+    logging: &default-logging
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     labels:
       komodo.skip: # Prevent Komodo from stopping with StopAllContainers
 
@@ -26,7 +36,8 @@ services:
     init: true
     restart: unless-stopped
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
     ports:
       - 9120:9120
     env_file: ./.env
@@ -44,6 +55,7 @@ services:
       ## Optionally mount custom root CA certificate to trust
       # - /path/to/root_ca.crt:/usr/local/share/ca-certificates/root_ca.crt
     mem_limit: 128m
+    logging: *default-logging
     labels:
       komodo.skip: # Prevent Komodo from stopping with StopAllContainers
 
@@ -75,6 +87,8 @@ services:
       # - /path/to/periphery.config.toml:/config/config.toml
       ## Optionally mount custom root CA certificate to trust
       # - /path/to/root_ca.crt:/usr/local/share/ca-certificates/root_ca.crt
+    mem_limit: 256m
+    logging: *default-logging
 
 volumes:
   # Mongo
