@@ -20,6 +20,14 @@ value = "10"
 name = "TZ"
 value = "Etc/UTC"
 
+[[variable]]
+name = "NAS_LAN_IP"
+value = "192.168.2.200"
+
+[[variable]]
+name = "HTTP_PORT"
+value = "80"
+
 ### STACKS ###
 
 [[stack]]
@@ -31,13 +39,14 @@ tags = ["media"]
 [stack.config]
 server = "atlas"
 repo = "pjan/atlas"
+branch = "main"
 run_directory = "stacks/sonarr"
 file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://atlas.local:8989"]
+links = ["http://sonarr.atlas.local", "http://atlas.local:8989"]
 pre_deploy.path = "."
-pre_deploy.command = "docker network inspect media_network >/dev/null 2>&1 || docker network create media_network"
+pre_deploy.command = """for network in media_network proxy_network; do docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"; done"""
 pre_deploy.shell_mode = true
 environment = """
 PORT = 8989
@@ -47,4 +56,37 @@ TZ = [[TZ]]
 UMASK = 002
 CONFIG_DIR = [[APPDATA_DIR]]/sonarr
 DATA_DIR = [[DATA_DIR]]
+"""
+
+[[stack]]
+name = "caddy"
+description = "Caddy reverse proxy"
+deploy = true
+after = ["sonarr"]
+tags = ["infra", "proxy"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+project_name = "caddy"
+run_directory = "stacks/caddy"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://sonarr.atlas.local"]
+config_files = [
+  { path = "conf/Caddyfile", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/sonarr.caddy", services = ["caddy"], requires = "Restart" },
+]
+pre_deploy.path = "."
+pre_deploy.shell_mode = true
+pre_deploy.command = """
+docker network inspect proxy_network >/dev/null 2>&1 || docker network create proxy_network
+HTTP_BIND_IP=[[NAS_LAN_IP]] HTTP_PORT=[[HTTP_PORT]] docker compose -f compose.yaml pull caddy
+HTTP_BIND_IP=[[NAS_LAN_IP]] HTTP_PORT=[[HTTP_PORT]] docker compose -f compose.yaml run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+"""
+environment = """
+HTTP_BIND_IP = [[NAS_LAN_IP]]
+HTTP_PORT = [[HTTP_PORT]]
 """

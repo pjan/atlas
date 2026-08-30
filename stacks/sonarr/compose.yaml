@@ -16,14 +16,16 @@ services:
       - ${CONFIG_DIR}:/config
       - ${DATA_DIR}:/data
     networks:
-      # Joins the shared media network
       - media_network
+      - proxy_network
 
 #################################
 # NETWORK
 #################################
 networks:
   media_network:
-    # Shared network, created once with: docker network create media_network
     name: media_network
+    external: true
+  proxy_network:
+    name: proxy_network
     external: true
