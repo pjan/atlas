@@ -3,6 +3,10 @@ services:
     image: ghcr.io/linuxserver/sonarr:4.0.18
     container_name: sonarr
     restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
     ports:
       - ${PORT}:8989
     volumes:
