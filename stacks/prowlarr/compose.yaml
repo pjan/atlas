@@ -1,0 +1,28 @@
+services:
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:2.5.2
+    container_name: prowlarr
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - UMASK=${UMASK}
+    volumes:
+      - ${CONFIG_DIR}:/config
+    networks:
+      - media_network
+      - proxy_network
+
+#################################
+# NETWORK
+#################################
+networks:
+  media_network:
+    name: media_network
+    external: true
+  proxy_network:
+    name: proxy_network
+    external: true
