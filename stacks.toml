@@ -25,18 +25,26 @@ value = "Etc/UTC"
 [[stack]]
 name = "sonarr"
 description = "sonarr"
+deploy = true
+tags = ["media"]
 
 [stack.config]
 server = "atlas"
 repo = "pjan/atlas"
-deploy = true
-tags = ["media"]
-file_paths = ["stacks/sonarr/compose.yaml"]
+run_directory = "stacks/sonarr"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://atlas.local:8989"]
+pre_deploy.path = "."
+pre_deploy.command = "docker network inspect media_network >/dev/null 2>&1 || docker network create media_network"
+pre_deploy.shell_mode = true
 environment = """
 PORT = 8989
 PUID = [[PUID]]
 PGID = [[PGID]]
 TZ = [[TZ]]
+UMASK = 002
 CONFIG_DIR = [[APPDATA_DIR]]/sonarr
 DATA_DIR = [[DATA_DIR]]
 """
