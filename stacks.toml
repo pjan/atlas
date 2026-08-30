@@ -100,7 +100,7 @@ run_directory = "stacks/caddy"
 file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://caddy.atlas.local", "http://sonarr.atlas.local", "http://radarr.atlas.local"]
+links = ["http://caddy.atlas.local"]
 config_files = [
   { path = "conf/Caddyfile", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/caddy.caddy", services = ["caddy"], requires = "Restart" },
