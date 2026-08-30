@@ -1,0 +1,24 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "docker-compose": {
+    "packageRules": [
+      {
+        "description": "Enforce strict SemVer for LinuxServer images to avoid matching 'version-' or OS tags.",
+        "matchDatasources": ["docker"],
+        "matchPackageNames": [
+          "lscr.io/linuxserver/qbittorrent",
+          "linuxserver/qbittorrent",
+          "ghcr.io/linuxserver/lidarr",
+          "linuxserver/lidarr"
+        ],
+        "versioning": "semver"
+      },
+      {
+        "description": "Ensure image recency to avoid picking up an outdated image with a greater version.",
+        "matchDatasources": ["docker"],
+        "matchCurrentAge": "< 1 month"
+      }
+    ]
+  }
+}
