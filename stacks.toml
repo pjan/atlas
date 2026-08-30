@@ -1,0 +1,46 @@
+### VARIABLES ###
+
+[[variable]]
+name = "SERVER"
+value = "atlas"
+
+[[variable]]
+name = "APPDATA_DIR"
+value = "/volume2/appdata"
+
+[[variable]]
+name = "DATA_DIR"
+value = "/volume1/data"
+
+[[variable]]
+name = "PUID"
+value = "999"
+
+[[variable]]
+name = "PGID"
+value = "10"
+
+[[variable]]
+name = "TZ"
+value = "Etc/UTC"
+
+### STACKS ###
+
+[[stack]]
+name = "sonarr"
+description = "sonarr"
+
+[stack.config]
+server = [[SERVER]]
+repo = "atlas"
+deploy = true
+tags = ["media"]
+config_files = ["stacks/sonarr/compose.yaml"]
+environment = """
+PORT = 8989
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+CONFIG_DIR = [[APPDATA_DIR]]/sonarr
+DATA_DIR = [[DATA_DIR]]
+"""

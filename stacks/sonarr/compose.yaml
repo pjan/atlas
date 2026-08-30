@@ -1,0 +1,22 @@
+services:
+  sonarr:
+    image: ghcr.io/linuxserver/sonarr:4.0.18
+    container_name: sonarr
+    restart: unless-stopped
+    ports:
+      - ${PORT}:8989
+    volumes:
+      - ${CONFIG_DIR}:/config
+      - ${DATA_DIR}:/data
+    networks:
+      # Joins the shared media network
+      - media_network
+
+#################################
+# NETWORK
+#################################
+networks:
+  media_network:
+    # Shared network, created once with: docker network create media_network
+    name: media_network
+    external: true
