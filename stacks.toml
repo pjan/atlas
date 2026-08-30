@@ -78,6 +78,7 @@ links = ["http://sonarr.atlas.local"]
 config_files = [
   { path = "conf/Caddyfile", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/sonarr.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/ugos.caddy", services = ["caddy"], requires = "Restart" },
 ]
 pre_deploy.path = "."
 pre_deploy.shell_mode = true
