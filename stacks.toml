@@ -28,7 +28,7 @@ description = "sonarr"
 
 [stack.config]
 server = "atlas"
-repo = "atlas"
+repo = "pjan/atlas"
 deploy = true
 tags = ["media"]
 config_files = ["stacks/sonarr/compose.yaml"]
