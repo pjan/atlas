@@ -1,10 +1,6 @@
 ### VARIABLES ###
 
 [[variable]]
-name = "SERVER"
-value = "atlas"
-
-[[variable]]
 name = "APPDATA_DIR"
 value = "/volume2/appdata"
 
@@ -31,7 +27,7 @@ name = "sonarr"
 description = "sonarr"
 
 [stack.config]
-server = [[SERVER]]
+server = "atlas"
 repo = "atlas"
 deploy = true
 tags = ["media"]
