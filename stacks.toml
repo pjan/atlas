@@ -138,9 +138,18 @@ config_files = [
 pre_deploy.path = "."
 pre_deploy.shell_mode = true
 pre_deploy.command = """
-docker network inspect proxy_network >/dev/null 2>&1 || docker network create proxy_network
+for network in media_network proxy_network; do docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"; done
 HTTP_BIND_IP=[[NAS_LAN_IP]] HTTP_PORT=[[HTTP_PORT]] docker compose -f compose.yaml pull caddy
 HTTP_BIND_IP=[[NAS_LAN_IP]] HTTP_PORT=[[HTTP_PORT]] docker compose -f compose.yaml run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+"""
+post_deploy.path = "."
+post_deploy.shell_mode = true
+post_deploy.command = """
+for i in 1 2 3 4 5; do
+  docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile && break
+  sleep 2
+done
+docker compose exec -T caddy wget -qO- http://127.0.0.1:2019/config/apps/http/servers/srv0/routes
 """
 environment = """
 HTTP_BIND_IP = [[NAS_LAN_IP]]
