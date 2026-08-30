@@ -44,12 +44,11 @@ run_directory = "stacks/sonarr"
 file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://sonarr.atlas.local", "http://atlas.local:8989"]
+links = ["http://sonarr.atlas.local"]
 pre_deploy.path = "."
 pre_deploy.command = """for network in media_network proxy_network; do docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"; done"""
 pre_deploy.shell_mode = true
 environment = """
-PORT = 8989
 PUID = [[PUID]]
 PGID = [[PGID]]
 TZ = [[TZ]]
@@ -59,10 +58,37 @@ DATA_DIR = [[DATA_DIR]]
 """
 
 [[stack]]
+name = "radarr"
+description = "radarr"
+deploy = true
+tags = ["media"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/radarr"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://radarr.atlas.local"]
+pre_deploy.path = "."
+pre_deploy.command = """for network in media_network proxy_network; do docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"; done"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+UMASK = 002
+CONFIG_DIR = [[APPDATA_DIR]]/radarr
+DATA_DIR = [[DATA_DIR]]
+"""
+
+[[stack]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
-after = ["sonarr"]
+after = ["sonarr", "radarr"]
 tags = ["infra", "proxy"]
 
 [stack.config]
@@ -74,10 +100,11 @@ run_directory = "stacks/caddy"
 file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://sonarr.atlas.local"]
+links = ["http://sonarr.atlas.local", "http://radarr.atlas.local"]
 config_files = [
   { path = "conf/Caddyfile", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/sonarr.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/radarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/ugos.caddy", services = ["caddy"], requires = "Restart" },
 ]
 pre_deploy.path = "."

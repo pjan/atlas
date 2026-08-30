@@ -9,7 +9,8 @@
       "description": "Use SemVer for LinuxServer application images.",
       "matchDatasources": ["docker"],
       "matchPackageNames": [
-        "ghcr.io/linuxserver/sonarr"
+        "lscr.io/linuxserver/sonarr",
+        "lscr.io/linuxserver/radarr"
       ],
       "versioning": "semver"
     },

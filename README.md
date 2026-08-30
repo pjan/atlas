@@ -162,6 +162,8 @@ To add a new app route:
 3. Ensure the app container joins `proxy_network`, or proxy to `host.docker.internal` for host services.
 4. Push to `main`, execute Resource Sync, and let Komodo restart Caddy.
 
+Media app UIs are exposed through Caddy-only local hostnames rather than direct host ports.
+
 Example app route:
 
 ```caddyfile
@@ -189,16 +191,3 @@ To enable it:
 3. Merge the Renovate onboarding PR if one is opened.
 
 Renovate will open PRs for Docker image updates. Komodo polling will detect merged changes to `main`; execute Resource Sync and deploy the affected stack.
-
-## Follow-Up Hardening
-
-After `http://sonarr.atlas.local` is stable, remove Sonarr's direct host port:
-
-```yaml
-ports:
-  - ${PORT}:8989
-```
-
-Keeping only the Caddy route reduces direct service exposure and makes Caddy the single HTTP entrypoint.
-
-Separately, consider moving real secrets out of tracked files and rotating default passwords/secrets. For an existing Komodo install, changing `KOMODO_DATABASE_PASSWORD` in `.env` alone does not rotate the Mongo user password; rotate it inside Mongo as well.
