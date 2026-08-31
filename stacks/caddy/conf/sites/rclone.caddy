@@ -1,9 +1,6 @@
 http://rclone.atlas.local {
 	@rclone_root path /
-	@rclone_login_missing_url {
-		path /login
-		not query url=*
-	}
+	@rclone_login_missing_url `path('/login') && !query({'url': '*'})`
 
 	@rclone_api {
 		path /config/*
