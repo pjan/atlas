@@ -12,7 +12,7 @@ services:
     environment:
       - TZ=${TZ}
       - RCLONE_USER=${RCLONE_USER}
-      - RCLONE_PASS=${RCLONE_PASS}
+      - RCLONE_PASSWORD=${RCLONE_PASSWORD}
       - RCLONE_CACHE_DIR=/cache
     volumes:
       - ${RCLONE_CONFIG_DIR}:/config/rclone
@@ -36,7 +36,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "rclone rc --url http://127.0.0.1:5533/ --user \"$${RCLONE_USER}\" --pass \"$${RCLONE_PASS}\" rc/noopauth >/dev/null",
+          "rclone rc --url http://127.0.0.1:5533/ --user \"$${RCLONE_USER}\" --pass \"$${RCLONE_PASSWORD}\" rc/noopauth >/dev/null",
         ]
       interval: 30s
       timeout: 5s

@@ -226,10 +226,10 @@ Before deploying `rclone`, create these Komodo values:
 
 ```text
 RCLONE_USER
-RCLONE_PASS
+RCLONE_PASSWORD
 ```
 
-`RCLONE_PASS` should be stored as a Komodo secret. `RCLONE_USER` should be a non-default username rather than `admin`.
+`RCLONE_PASSWORD` should be stored as a Komodo secret. `RCLONE_USER` should be a non-default username rather than `admin`.
 
 Deploy order:
 
