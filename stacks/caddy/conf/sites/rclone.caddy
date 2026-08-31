@@ -1,0 +1,21 @@
+http://rclone.atlas.local {
+	@rclone_api {
+		path /config/*
+		path /core/*
+		path /job/*
+		path /mount/*
+		path /operations/*
+		path /options/*
+		path /rc/*
+		path /serve/*
+		path /sync/*
+	}
+
+	handle @rclone_api {
+		reverse_proxy rclone:5533
+	}
+
+	handle {
+		reverse_proxy rclone:5522
+	}
+}

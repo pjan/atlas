@@ -1,0 +1,52 @@
+services:
+  rclone:
+    image: rclone/rclone:1.75.0
+    container_name: rclone
+    restart: unless-stopped
+    init: true
+    user: "${PUID}:${PGID}"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TZ}
+      - RCLONE_USER=${RCLONE_USER}
+      - RCLONE_PASS=${RCLONE_PASS}
+      - RCLONE_CACHE_DIR=/cache
+    volumes:
+      - ${RCLONE_CONFIG_DIR}:/config/rclone
+      - ${RCLONE_CACHE_DIR}:/cache
+      - ${RCLONE_DATA_DIR}:/data
+    command:
+      - gui
+      - --addr=0.0.0.0:5522
+      - --api-addr=0.0.0.0:5533
+      - --no-open-browser
+    networks:
+      - proxy_network
+    mem_limit: 512m
+    pids_limit: 256
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "rclone rc --url http://127.0.0.1:5533/ --user \"$${RCLONE_USER}\" --pass \"$${RCLONE_PASS}\" rc/noopauth >/dev/null",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+#################################
+# NETWORK
+#################################
+networks:
+  proxy_network:
+    name: proxy_network
+    external: true

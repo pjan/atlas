@@ -214,6 +214,42 @@ Port: 8080
 
 ExpressVPN does not provide Gluetun-managed VPN port forwarding. qBittorrent will work without an inbound forwarded torrent port, but peer reachability and seeding performance may be worse than with a VPN provider that supports port forwarding.
 
+### Rclone
+
+The `rclone` stack runs the official `rclone gui` web UI behind Caddy at:
+
+```text
+http://rclone.atlas.local
+```
+
+Before deploying `rclone`, create these Komodo values:
+
+```text
+RCLONE_USER
+RCLONE_PASS
+```
+
+`RCLONE_PASS` should be stored as a Komodo secret. `RCLONE_USER` should be a non-default username rather than `admin`.
+
+Deploy order:
+
+1. Deploy `rclone`.
+2. Deploy or redeploy `caddy`.
+
+First login should use the bookmarked URL below so the web UI knows how to reach the same-origin RC API behind Caddy:
+
+```text
+http://rclone.atlas.local/login?url=http%3A%2F%2Frclone.atlas.local%2F
+```
+
+Operational notes:
+
+- `rclone.atlas.local` is a privileged management surface. Anyone with valid credentials can manage configured remotes and read or write the mounted local data path.
+- This stack mounts all of `[[DATA_DIR]]` at `/data`. That was chosen for flexibility, not least privilege.
+- `rclone.conf` contains remote credentials and tokens. Back up `[[APPDATA_DIR]]/rclone` accordingly.
+- Do not use the UI self-update flow. Upgrade `rclone` by bumping the image tag in this repository.
+- The upstream UI still shows `Mounts` and `Serves`. This stack does not provision FUSE mount support, and it does not publish or route `rclone serve` listeners beyond the main UI hostname.
+
 ## Caddy Configuration
 
 Caddy config is stored declaratively in the repository:

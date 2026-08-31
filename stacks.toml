@@ -278,10 +278,44 @@ TORRENTS_DIR = [[DATA_DIR]]/downloads/torrents
 """
 
 [[stack]]
+name = "rclone"
+description = "Rclone web UI and remote-control stack"
+deploy = true
+tags = ["infra", "storage"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/rclone"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://rclone.atlas.local/login?url=http%3A%2F%2Frclone.atlas.local%2F"]
+pre_deploy.path = "."
+pre_deploy.command = """
+docker network inspect proxy_network >/dev/null 2>&1 || docker network create proxy_network
+install -d -o [[PUID]] -g [[PGID]] -m 2775 \
+  "[[APPDATA_DIR]]/rclone" \
+  "[[TMP_DIR]]/rclone/cache"
+"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+RCLONE_CONFIG_DIR = [[APPDATA_DIR]]/rclone
+RCLONE_CACHE_DIR = [[TMP_DIR]]/rclone/cache
+RCLONE_DATA_DIR = [[DATA_DIR]]
+RCLONE_USER = [[RCLONE_USER]]
+RCLONE_PASS = [[RCLONE_PASS]]
+"""
+
+[[stack]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
-after = ["sonarr", "radarr", "prowlarr", "adguard", "plex", "gluetun", "qbittorrent"]
+after = ["sonarr", "radarr", "prowlarr", "adguard", "plex", "gluetun", "qbittorrent", "rclone"]
 tags = ["infra", "proxy"]
 
 [stack.config]
@@ -301,6 +335,7 @@ config_files = [
   { path = "conf/sites/komodo.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/plex.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/qbittorrent.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/rclone.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/sonarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/radarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/prowlarr.caddy", services = ["caddy"], requires = "Restart" },
