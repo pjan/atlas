@@ -16,12 +16,15 @@ services:
       - ${RCLONE_CONFIG_DIR}:/config/rclone
       - ${RCLONE_CACHE_DIR}:/cache
       - ${RCLONE_DATA_DIR}:/data
+    entrypoint: ["/bin/sh", "-c"]
     command:
-      - gui
-      - --addr=0.0.0.0:5522
-      - --api-addr=0.0.0.0:5533
-      - --no-auth
-      - --no-open-browser
+      - |
+        touch /config/rclone/rclone.conf
+        exec rclone gui \
+          --addr=0.0.0.0:5522 \
+          --api-addr=0.0.0.0:5533 \
+          --no-auth \
+          --no-open-browser
     networks:
       - proxy_network
     mem_limit: 512m
