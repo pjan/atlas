@@ -360,4 +360,6 @@ docker compose exec -T caddy wget -qO- http://127.0.0.1:2019/config/apps/http/se
 environment = """
 HTTP_BIND_IP = [[NAS_LAN_IP]]
 HTTP_PORT = [[HTTP_PORT]]
+RCLONE_USER = [[RCLONE_USER]]
+RCLONE_PASSWORD = [[RCLONE_PASSWORD]]
 """
