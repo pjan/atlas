@@ -1,0 +1,3 @@
+http://qbittorrent.atlas.local {
+	reverse_proxy downloaders-vpn:8080
+}

@@ -154,6 +154,63 @@ To claim a fresh Plex install:
 
 If restoring an existing Plex `/config` with a valid `Preferences.xml`, a claim token is usually not required.
 
+### Gluetun And qBittorrent
+
+qBittorrent is split from Gluetun so the VPN container can be reused by later VPN-bound stacks. qBittorrent uses Gluetun's network namespace, so Gluetun is the container that joins Docker networks and exposes qBittorrent to Caddy.
+
+In Docker terms, qBittorrent does not join `media_network` or `proxy_network` directly. It uses `network_mode: "container:gluetun"`, and Caddy reaches qBittorrent through Gluetun's `downloaders-vpn` network alias.
+
+Before deploying Gluetun, create the ExpressVPN OpenVPN credentials as Komodo variables or secrets:
+
+```text
+EXPRESSVPN_OPENVPN_USER
+EXPRESSVPN_OPENVPN_PASSWORD
+```
+
+The VPN location is configurable through comma-separated Komodo variables:
+
+```text
+EXPRESSVPN_SERVER_COUNTRIES=Netherlands,Belgium,Germany
+EXPRESSVPN_SERVER_CITIES=
+```
+
+Deploy order matters:
+
+1. Deploy `gluetun`.
+2. Deploy `qbittorrent`.
+3. Deploy or redeploy `caddy`.
+
+If Gluetun is recreated, redeploy qBittorrent after Gluetun is healthy so qBittorrent reattaches to the current Gluetun network namespace.
+
+Komodo `after = ["gluetun"]` handles initial deployment ordering, but it does not automatically recreate qBittorrent every time Gluetun is replaced. For Gluetun image or VPN configuration changes, deploy Gluetun first, then redeploy qBittorrent.
+
+qBittorrent is available at:
+
+```text
+http://qbittorrent.atlas.local
+```
+
+There is no direct qBittorrent host UI port. Keep UI access Caddy-only unless an emergency LAN-bound port is deliberately added to the Gluetun stack.
+
+On first startup, LinuxServer qBittorrent prints the temporary admin password in the container logs. Log in, change the password, then configure these paths:
+
+```text
+Incomplete torrents: /data/downloads/torrents/incomplete
+Completed torrents: /data/downloads/torrents/completed
+TV category: /data/downloads/torrents/completed/tv
+Movies category: /data/downloads/torrents/completed/movies
+Music category: /data/downloads/torrents/completed/music
+```
+
+Configure Sonarr and Radarr download clients to use:
+
+```text
+Host: downloaders-vpn
+Port: 8080
+```
+
+ExpressVPN does not provide Gluetun-managed VPN port forwarding. qBittorrent will work without an inbound forwarded torrent port, but peer reachability and seeding performance may be worse than with a VPN provider that supports port forwarding.
+
 ## Caddy Configuration
 
 Caddy config is stored declaratively in the repository:

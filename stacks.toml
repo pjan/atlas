@@ -32,6 +32,14 @@ value = "192.168.2.200"
 name = "HTTP_PORT"
 value = "80"
 
+[[variable]]
+name = "EXPRESSVPN_SERVER_COUNTRIES"
+value = "Netherlands,Belgium,Germany"
+
+[[variable]]
+name = "EXPRESSVPN_SERVER_CITIES"
+value = ""
+
 ### STACKS ###
 
 [[stack]]
@@ -199,10 +207,76 @@ PLEX_CLAIM =
 """
 
 [[stack]]
+name = "gluetun"
+description = "Gluetun VPN client for VPN-bound media services"
+deploy = true
+tags = ["media", "vpn"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/gluetun"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+pre_deploy.path = "."
+pre_deploy.command = """
+for network in media_network proxy_network; do docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"; done
+install -d -o [[PUID]] -g [[PGID]] -m 2775 "[[APPDATA_DIR]]/gluetun"
+"""
+pre_deploy.shell_mode = true
+environment = """
+TZ = [[TZ]]
+CONFIG_DIR = [[APPDATA_DIR]]/gluetun
+EXPRESSVPN_OPENVPN_USER = [[EXPRESSVPN_OPENVPN_USER]]
+EXPRESSVPN_OPENVPN_PASSWORD = [[EXPRESSVPN_OPENVPN_PASSWORD]]
+EXPRESSVPN_SERVER_COUNTRIES = [[EXPRESSVPN_SERVER_COUNTRIES]]
+EXPRESSVPN_SERVER_CITIES = [[EXPRESSVPN_SERVER_CITIES]]
+"""
+
+[[stack]]
+name = "qbittorrent"
+description = "qBittorrent routed through Gluetun"
+deploy = true
+after = ["gluetun"]
+tags = ["media", "download"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/qbittorrent"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://qbittorrent.atlas.local"]
+pre_deploy.path = "."
+pre_deploy.command = """
+test "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null)" = "healthy"
+install -d -o [[PUID]] -g [[PGID]] -m 2775 \
+  "[[APPDATA_DIR]]/qbittorrent" \
+  "[[DATA_DIR]]/downloads/torrents/incomplete" \
+  "[[DATA_DIR]]/downloads/torrents/completed" \
+  "[[DATA_DIR]]/downloads/torrents/completed/tv" \
+  "[[DATA_DIR]]/downloads/torrents/completed/movies" \
+  "[[DATA_DIR]]/downloads/torrents/completed/music"
+"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+UMASK = 002
+CONFIG_DIR = [[APPDATA_DIR]]/qbittorrent
+TORRENTS_DIR = [[DATA_DIR]]/downloads/torrents
+"""
+
+[[stack]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
-after = ["sonarr", "radarr", "prowlarr", "adguard", "plex"]
+after = ["sonarr", "radarr", "prowlarr", "adguard", "plex", "gluetun", "qbittorrent"]
 tags = ["infra", "proxy"]
 
 [stack.config]
@@ -221,6 +295,7 @@ config_files = [
   { path = "conf/sites/caddy.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/komodo.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/plex.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/qbittorrent.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/sonarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/radarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/prowlarr.caddy", services = ["caddy"], requires = "Restart" },

@@ -1,0 +1,56 @@
+services:
+  gluetun:
+    image: qmcgaw/gluetun:v3.41.1
+    container_name: gluetun
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TZ}
+      - VPN_SERVICE_PROVIDER=expressvpn
+      - VPN_TYPE=openvpn
+      - OPENVPN_USER=${EXPRESSVPN_OPENVPN_USER:?missing ExpressVPN OpenVPN username}
+      - OPENVPN_PASSWORD=${EXPRESSVPN_OPENVPN_PASSWORD:?missing ExpressVPN OpenVPN password}
+      - SERVER_COUNTRIES=${EXPRESSVPN_SERVER_COUNTRIES}
+      - SERVER_CITIES=${EXPRESSVPN_SERVER_CITIES:-}
+      - OPENVPN_PROTOCOL=udp
+      - FIREWALL_INPUT_PORTS=8080
+    volumes:
+      - ${CONFIG_DIR}:/gluetun
+    expose:
+      - "8080"
+    networks:
+      media_network:
+        aliases:
+          - downloaders-vpn
+      proxy_network:
+        aliases:
+          - downloaders-vpn
+    mem_limit: 256m
+    pids_limit: 256
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "/gluetun-entrypoint healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+#################################
+# NETWORK
+#################################
+networks:
+  media_network:
+    name: media_network
+    external: true
+  proxy_network:
+    name: proxy_network
+    external: true
