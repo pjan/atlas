@@ -1,4 +1,6 @@
 http://rclone.atlas.local {
+	@rclone_root path /
+
 	@rclone_api {
 		path /config/*
 		path /core/*
@@ -10,6 +12,8 @@ http://rclone.atlas.local {
 		path /serve/*
 		path /sync/*
 	}
+
+	redir @rclone_root /login?url=http%3A%2F%2Frclone.atlas.local%2F 302
 
 	handle @rclone_api {
 		reverse_proxy rclone:5533
