@@ -301,6 +301,8 @@ install -d -o [[PUID]] -g [[PGID]] -m 2775 \
 if [ ! -f "[[APPDATA_DIR]]/rclone/rclone.conf" ]; then
   install -o [[PUID]] -g [[PGID]] -m 0664 /dev/null "[[APPDATA_DIR]]/rclone/rclone.conf"
 fi
+chown [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/rclone/rclone.conf"
+chmod 0664 "[[APPDATA_DIR]]/rclone/rclone.conf"
 """
 pre_deploy.shell_mode = true
 environment = """

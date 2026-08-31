@@ -19,7 +19,10 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        set -eu
         touch /config/rclone/rclone.conf
+        test -r /config/rclone/rclone.conf
+        test -w /config/rclone/rclone.conf
         exec rclone gui \
           --addr=0.0.0.0:5522 \
           --api-addr=0.0.0.0:5533 \
