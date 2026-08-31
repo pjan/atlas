@@ -1,0 +1,50 @@
+services:
+  plex:
+    image: lscr.io/linuxserver/plex:1.43.3.10896-cb3ebc72d-ls321
+    container_name: plex
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - UMASK=${UMASK}
+      - VERSION=docker
+      - PLEX_CLAIM=${PLEX_CLAIM:-}
+      - ADVERTISE_IP=http://${NAS_LAN_IP}:32400/,http://plex.atlas.local/
+    volumes:
+      - ${CONFIG_DIR}:/config
+      - ${MEDIA_DIR}:/data/media:ro
+      - ${TRANSCODE_DIR}:/transcode
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+    ports:
+      - "${NAS_LAN_IP}:32400:32400/tcp"
+    networks:
+      - media_network
+      - proxy_network
+    mem_limit: 2g
+    pids_limit: 512
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:32400/web/index.html >/dev/null || wget -q --spider http://127.0.0.1:32400/web/index.html"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+
+#################################
+# NETWORK
+#################################
+networks:
+  media_network:
+    name: media_network
+    external: true
+  proxy_network:
+    name: proxy_network
+    external: true

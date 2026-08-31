@@ -28,6 +28,12 @@
       "versioning": "semver"
     },
     {
+      "description": "Use LinuxServer Plex tag components for Plex Media Server.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["lscr.io/linuxserver/plex"],
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)-[a-z0-9]+-ls(?<revision>\\d+)$"
+    },
+    {
       "description": "Group Komodo control-plane image updates together.",
       "matchDatasources": ["docker"],
       "matchPackageNames": [

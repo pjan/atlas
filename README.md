@@ -140,6 +140,20 @@ After pushing changes to `main`:
 3. Review the diff.
 4. Execute the sync.
 
+### Plex Claim Token
+
+When deploying Plex for the first time, `PLEX_CLAIM` needs to be set. It is a short-lived token from `https://plex.tv/claim` that attaches the new Plex server to your Plex account during first startup.
+
+To claim a fresh Plex install:
+
+1. Generate a claim token at `https://plex.tv/claim`.
+2. Set `PLEX_CLAIM` on the Plex stack in Komodo.
+3. Deploy Plex.
+4. Confirm the server appears in your Plex account.
+5. Clear `PLEX_CLAIM` and redeploy Plex so the expired token is not retained.
+
+If restoring an existing Plex `/config` with a valid `Preferences.xml`, a claim token is usually not required.
+
 ## Caddy Configuration
 
 Caddy config is stored declaratively in the repository:

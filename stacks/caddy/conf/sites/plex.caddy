@@ -1,0 +1,3 @@
+http://plex.atlas.local {
+	reverse_proxy plex:32400
+}

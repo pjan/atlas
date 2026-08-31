@@ -9,6 +9,10 @@ name = "DATA_DIR"
 value = "/volume1/data"
 
 [[variable]]
+name = "TMP_DIR"
+value = "/volume2/tmp"
+
+[[variable]]
 name = "PUID"
 value = "999"
 
@@ -162,10 +166,43 @@ BACKUP_DIR = /volume1/backups/roonserver
 """
 
 [[stack]]
+name = "plex"
+description = "Plex Media Server"
+deploy = true
+tags = ["media"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/plex"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://plex.atlas.local"]
+pre_deploy.path = "."
+pre_deploy.command = """
+for network in media_network proxy_network; do docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"; done
+mkdir -p "[[APPDATA_DIR]]/plex" "[[TMP_DIR]]/plex/transcode"
+"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+UMASK = 002
+NAS_LAN_IP = [[NAS_LAN_IP]]
+CONFIG_DIR = [[APPDATA_DIR]]/plex
+MEDIA_DIR = [[DATA_DIR]]/media
+TRANSCODE_DIR = [[TMP_DIR]]/plex/transcode
+PLEX_CLAIM =
+"""
+
+[[stack]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
-after = ["sonarr", "radarr", "prowlarr", "adguard"]
+after = ["sonarr", "radarr", "prowlarr", "adguard", "plex"]
 tags = ["infra", "proxy"]
 
 [stack.config]
@@ -183,6 +220,7 @@ config_files = [
   { path = "conf/sites/adguard.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/caddy.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/komodo.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/plex.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/sonarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/radarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/prowlarr.caddy", services = ["caddy"], requires = "Restart" },
