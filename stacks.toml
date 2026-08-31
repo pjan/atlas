@@ -298,6 +298,8 @@ docker network inspect proxy_network >/dev/null 2>&1 || docker network create pr
 install -d -o [[PUID]] -g [[PGID]] -m 2775 \
   "[[APPDATA_DIR]]/rclone" \
   "[[TMP_DIR]]/rclone/cache"
+chown [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/rclone" "[[TMP_DIR]]/rclone/cache"
+chmod 2775 "[[APPDATA_DIR]]/rclone" "[[TMP_DIR]]/rclone/cache"
 if [ ! -f "[[APPDATA_DIR]]/rclone/rclone.conf" ]; then
   install -o [[PUID]] -g [[PGID]] -m 0664 /dev/null "[[APPDATA_DIR]]/rclone/rclone.conf"
 fi
