@@ -135,6 +135,33 @@ CONF_DIR = [[APPDATA_DIR]]/adguard/conf
 """
 
 [[stack]]
+name = "roonserver"
+description = "RoonServer"
+deploy = true
+tags = ["media"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/roonserver"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+pre_deploy.path = "."
+pre_deploy.shell_mode = true
+pre_deploy.command = """
+mkdir -p "[[APPDATA_DIR]]/roonserver" "[[DATA_DIR]]/media/music" "/volume1/backups/roonserver"
+"""
+environment = """
+TZ = [[TZ]]
+ROON_INSTALL_BRANCH = production
+CONFIG_DIR = [[APPDATA_DIR]]/roonserver
+MUSIC_DIR = [[DATA_DIR]]/media/music
+BACKUP_DIR = /volume1/backups/roonserver
+"""
+
+[[stack]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true

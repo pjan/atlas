@@ -22,6 +22,12 @@
       "versioning": "semver"
     },
     {
+      "description": "Use SemVer for RoonServer.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/roonlabs/roonserver"],
+      "versioning": "semver"
+    },
+    {
       "description": "Group Komodo control-plane image updates together.",
       "matchDatasources": ["docker"],
       "matchPackageNames": [

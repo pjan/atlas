@@ -1,0 +1,28 @@
+services:
+  roonserver:
+    image: ghcr.io/roonlabs/roonserver:1.0.8
+    container_name: roonserver
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TZ}
+      - ROON_INSTALL_BRANCH=${ROON_INSTALL_BRANCH}
+    volumes:
+      - ${CONFIG_DIR}:/Roon
+      - ${MUSIC_DIR}:/Music
+      - ${BACKUP_DIR}:/RoonBackups
+    mem_limit: 4g
+    pids_limit: 512
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "{ for f in $$(grep -lxE 'RoonServer(\\.exe|\\.dll)?' /proc/[0-9]*/comm 2>/dev/null); do [ -n \"$$(cat \"$${f%comm}cmdline\" 2>/dev/null)\" ] && exit 0; done; grep -qlE '[R]oonServer\\.(dll|exe)' /proc/[0-9]*/cmdline 2>/dev/null; } || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
