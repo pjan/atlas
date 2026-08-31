@@ -170,9 +170,12 @@ EXPRESSVPN_OPENVPN_PASSWORD
 The VPN location is configurable through comma-separated Komodo variables:
 
 ```text
-EXPRESSVPN_SERVER_COUNTRIES=Netherlands,Belgium,Germany
+EXPRESSVPN_SERVER_COUNTRIES=Singapore
 EXPRESSVPN_SERVER_CITIES=
+EXPRESSVPN_OPENVPN_PROTOCOL=udp
 ```
+
+If Gluetun repeatedly logs OpenVPN TLS negotiation timeouts, first try another country or a shorter country list. If UDP still fails, temporarily set `EXPRESSVPN_OPENVPN_PROTOCOL=tcp`, sync, and redeploy Gluetun.
 
 Deploy order matters:
 
