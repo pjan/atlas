@@ -222,14 +222,20 @@ The `rclone` stack runs the official `rclone gui` web UI behind Caddy at:
 http://rclone.atlas.local
 ```
 
-Before deploying `rclone`, create these Komodo values:
+Before deploying `rclone`, create these Komodo values for Caddy's Basic Auth gate:
 
 ```text
-RCLONE_USER
-RCLONE_PASSWORD
+RCLONE_BASIC_AUTH_USER
+RCLONE_BASIC_AUTH_HASH
 ```
 
-`RCLONE_PASSWORD` should be stored as a Komodo secret. `RCLONE_USER` should be a non-default username rather than `admin`.
+Generate the password hash with Caddy:
+
+```sh
+docker run --rm caddy:2.11.4 caddy hash-password --plaintext '<password>'
+```
+
+`RCLONE_BASIC_AUTH_USER` should be a non-default username rather than `admin`. `RCLONE_BASIC_AUTH_HASH` is a Caddy password hash, not the plaintext password.
 
 Deploy order:
 
@@ -245,6 +251,7 @@ http://rclone.atlas.local/login?url=http%3A%2F%2Frclone.atlas.local%2F
 Operational notes:
 
 - `rclone.atlas.local` is a privileged management surface. Anyone with valid credentials can manage configured remotes and read or write the mounted local data path.
+- Caddy is the authentication boundary for this stack. The rclone RC API runs with `--no-auth` inside the Docker network and should not be exposed directly.
 - This stack mounts all of `[[DATA_DIR]]` at `/data`. That was chosen for flexibility, not least privilege.
 - `rclone.conf` contains remote credentials and tokens. Back up `[[APPDATA_DIR]]/rclone` accordingly.
 - Do not use the UI self-update flow. Upgrade `rclone` by bumping the image tag in this repository.

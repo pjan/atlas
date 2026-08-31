@@ -1,4 +1,8 @@
 http://rclone.atlas.local {
+	basic_auth {
+		{$RCLONE_BASIC_AUTH_USER} {$RCLONE_BASIC_AUTH_HASH}
+	}
+
 	@rclone_bootstrap `path('/') || (path('/login') && !query({'url': '*'}) )`
 
 	@rclone_api {
@@ -17,8 +21,6 @@ http://rclone.atlas.local {
 		route {
 			rewrite * /login
 			uri query url http://rclone.atlas.local/
-			uri query user {$RCLONE_USER}
-			uri query pass {$RCLONE_PASSWORD}
 			redir {uri} 302
 		}
 	}
