@@ -205,11 +205,20 @@ Movies category: /data/downloads/torrents/completed/movies
 Music category: /data/downloads/torrents/completed/music
 ```
 
-Configure Sonarr and Radarr download clients to use:
+Configure Sonarr, Radarr, and Lidarr download clients to use:
 
 ```text
 Host: downloaders-vpn
 Port: 8080
+```
+
+For Lidarr, use category `music`, completed downloads `/data/downloads/torrents/completed/music`, and root folder `/data/media/music`.
+
+Configure Prowlarr's Lidarr app integration to use:
+
+```text
+URL: http://lidarr:8686
+API key: copied from Lidarr
 ```
 
 ExpressVPN does not provide Gluetun-managed VPN port forwarding. qBittorrent will work without an inbound forwarded torrent port, but peer reachability and seeding performance may be worse than with a VPN provider that supports port forwarding.

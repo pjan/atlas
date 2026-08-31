@@ -1,0 +1,3 @@
+http://lidarr.atlas.local {
+	reverse_proxy lidarr:8686
+}

@@ -127,6 +127,42 @@ CONFIG_DIR = [[APPDATA_DIR]]/prowlarr
 """
 
 [[stack]]
+name = "lidarr"
+description = "lidarr"
+deploy = true
+tags = ["media"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/lidarr"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://lidarr.atlas.local"]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+for network in media_network proxy_network; do
+  docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"
+done
+install -d -o [[PUID]] -g [[PGID]] -m 2775 \
+  "[[APPDATA_DIR]]/lidarr" \
+  "[[DATA_DIR]]/media/music" \
+  "[[DATA_DIR]]/downloads/torrents/completed/music"
+"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+UMASK = 002
+CONFIG_DIR = [[APPDATA_DIR]]/lidarr
+DATA_DIR = [[DATA_DIR]]
+"""
+
+[[stack]]
 name = "adguard"
 description = "AdGuard Home DNS resolver"
 deploy = true
@@ -328,7 +364,7 @@ RCLONE_DATA_DIR = [[DATA_DIR]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
-after = ["sonarr", "radarr", "prowlarr", "adguard", "plex", "gluetun", "qbittorrent", "rclone"]
+after = ["sonarr", "radarr", "prowlarr", "lidarr", "adguard", "plex", "gluetun", "qbittorrent", "rclone"]
 tags = ["infra", "proxy"]
 
 [stack.config]
@@ -352,6 +388,7 @@ config_files = [
   { path = "conf/sites/sonarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/radarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/prowlarr.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/lidarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/ugos.caddy", services = ["caddy"], requires = "Restart" },
 ]
 pre_deploy.path = "."

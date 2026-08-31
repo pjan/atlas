@@ -12,6 +12,7 @@
         "lscr.io/linuxserver/sonarr",
         "lscr.io/linuxserver/radarr",
         "lscr.io/linuxserver/prowlarr",
+        "lscr.io/linuxserver/lidarr",
         "lscr.io/linuxserver/qbittorrent"
       ],
       "versioning": "semver"
