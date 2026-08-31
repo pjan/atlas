@@ -111,10 +111,34 @@ CONFIG_DIR = [[APPDATA_DIR]]/prowlarr
 """
 
 [[stack]]
+name = "adguard"
+description = "AdGuard Home DNS resolver"
+deploy = true
+tags = ["infra", "dns"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/adguard"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://adguard.atlas.local"]
+pre_deploy.path = "."
+pre_deploy.command = """docker network inspect proxy_network >/dev/null 2>&1 || docker network create proxy_network"""
+pre_deploy.shell_mode = true
+environment = """
+DNS_BIND_IP = [[NAS_LAN_IP]]
+WORK_DIR = [[APPDATA_DIR]]/adguard/work
+CONF_DIR = [[APPDATA_DIR]]/adguard/conf
+"""
+
+[[stack]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
-after = ["sonarr", "radarr", "prowlarr"]
+after = ["sonarr", "radarr", "prowlarr", "adguard"]
 tags = ["infra", "proxy"]
 
 [stack.config]
@@ -129,6 +153,7 @@ poll_for_updates = true
 links = ["http://caddy.atlas.local"]
 config_files = [
   { path = "conf/Caddyfile", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/adguard.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/caddy.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/sonarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/radarr.caddy", services = ["caddy"], requires = "Restart" },

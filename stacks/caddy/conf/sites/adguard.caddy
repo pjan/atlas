@@ -1,0 +1,3 @@
+http://adguard.atlas.local {
+	reverse_proxy adguard:3000
+}

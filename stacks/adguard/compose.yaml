@@ -1,0 +1,36 @@
+services:
+  adguard:
+    image: adguard/adguardhome:v0.107.79
+    container_name: adguard
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "${DNS_BIND_IP}:53:53/tcp"
+      - "${DNS_BIND_IP}:53:53/udp"
+    volumes:
+      - ${WORK_DIR}:/opt/adguardhome/work
+      - ${CONF_DIR}:/opt/adguardhome/conf
+    networks:
+      - proxy_network
+    mem_limit: 256m
+    pids_limit: 256
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:3000/ && nc -z 127.0.0.1 53"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+#################################
+# NETWORK
+#################################
+networks:
+  proxy_network:
+    name: proxy_network
+    external: true

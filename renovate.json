@@ -16,6 +16,12 @@
       "versioning": "semver"
     },
     {
+      "description": "Use SemVer for AdGuard Home.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["adguard/adguardhome"],
+      "versioning": "semver"
+    },
+    {
       "description": "Group Komodo control-plane image updates together.",
       "matchDatasources": ["docker"],
       "matchPackageNames": [
