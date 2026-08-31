@@ -6,8 +6,6 @@ services:
     network_mode: "container:gluetun"
     security_opt:
       - no-new-privileges:true
-    cap_drop:
-      - ALL
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
