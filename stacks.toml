@@ -291,20 +291,28 @@ run_directory = "stacks/rclone"
 file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://rclone.atlas.local/login?url=http%3A%2F%2Frclone.atlas.local%2F"]
+links = ["http://rclone.atlas.local/"]
 pre_deploy.path = "."
 pre_deploy.command = """
-docker network inspect proxy_network >/dev/null 2>&1 || docker network create proxy_network
-install -d -o [[PUID]] -g [[PGID]] -m 2775 \
+set -eu
+docker network inspect rclone_network >/dev/null 2>&1 || docker network create rclone_network
+install -d -o [[PUID]] -g [[PGID]] -m 0700 \
   "[[APPDATA_DIR]]/rclone" \
   "[[TMP_DIR]]/rclone/cache"
 chown [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/rclone" "[[TMP_DIR]]/rclone/cache"
-chmod 2775 "[[APPDATA_DIR]]/rclone" "[[TMP_DIR]]/rclone/cache"
+chmod 0700 "[[APPDATA_DIR]]/rclone" "[[TMP_DIR]]/rclone/cache"
 if [ ! -f "[[APPDATA_DIR]]/rclone/rclone.conf" ]; then
-  install -o [[PUID]] -g [[PGID]] -m 0664 /dev/null "[[APPDATA_DIR]]/rclone/rclone.conf"
+  install -o [[PUID]] -g [[PGID]] -m 0600 /dev/null "[[APPDATA_DIR]]/rclone/rclone.conf"
 fi
 chown [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/rclone/rclone.conf"
-chmod 0664 "[[APPDATA_DIR]]/rclone/rclone.conf"
+chmod 0600 "[[APPDATA_DIR]]/rclone/rclone.conf"
+docker run --rm \
+  --entrypoint /bin/sh \
+  --user [[PUID]]:[[PGID]] \
+  -v "[[APPDATA_DIR]]/rclone:/config/rclone" \
+  -v "[[TMP_DIR]]/rclone/cache:/cache" \
+  rclone/rclone:1.75.0 \
+  -ec 'tmp="/config/rclone/.write-test.$$"; trap "rm -f \"$tmp\" \"$tmp.old\" /cache/.write-test" EXIT; test -r /config/rclone/rclone.conf; test -w /config/rclone/rclone.conf; touch "$tmp"; mv "$tmp" "$tmp.old"; touch /cache/.write-test'
 """
 pre_deploy.shell_mode = true
 environment = """
@@ -349,7 +357,7 @@ config_files = [
 pre_deploy.path = "."
 pre_deploy.shell_mode = true
 pre_deploy.command = """
-for network in media_network proxy_network; do docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"; done
+for network in media_network proxy_network rclone_network; do docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"; done
 HTTP_BIND_IP=[[NAS_LAN_IP]] HTTP_PORT=[[HTTP_PORT]] docker compose -f compose.yaml pull caddy
 HTTP_BIND_IP=[[NAS_LAN_IP]] HTTP_PORT=[[HTTP_PORT]] docker compose -f compose.yaml run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 """

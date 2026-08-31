@@ -5,27 +5,15 @@ http://rclone.atlas.local {
 
 	@rclone_bootstrap `path('/') || (path('/login') && !query({'url': '*'}) )`
 
-	@rclone_api {
-		path /config/*
-		path /core/*
-		path /job/*
-		path /mount/*
-		path /operations/*
-		path /options/*
-		path /rc/*
-		path /serve/*
-		path /sync/*
-	}
-
 	handle @rclone_bootstrap {
 		route {
 			rewrite * /login
-			uri query url http://rclone.atlas.local/
+			uri query url http://rclone.atlas.local/api/
 			redir {uri} 302
 		}
 	}
 
-	handle @rclone_api {
+	handle_path /api/* {
 		reverse_proxy rclone:5533
 	}
 

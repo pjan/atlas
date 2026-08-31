@@ -16,20 +16,14 @@ services:
       - ${RCLONE_CONFIG_DIR}:/config/rclone
       - ${RCLONE_CACHE_DIR}:/cache
       - ${RCLONE_DATA_DIR}:/data
-    entrypoint: ["/bin/sh", "-c"]
     command:
-      - |
-        set -eu
-        touch /config/rclone/rclone.conf
-        test -r /config/rclone/rclone.conf
-        test -w /config/rclone/rclone.conf
-        exec rclone gui \
-          --addr=0.0.0.0:5522 \
-          --api-addr=0.0.0.0:5533 \
-          --no-auth \
-          --no-open-browser
+      - gui
+      - --addr=0.0.0.0:5522
+      - --api-addr=0.0.0.0:5533
+      - --no-auth
+      - --no-open-browser
     networks:
-      - proxy_network
+      - rclone_network
     mem_limit: 512m
     pids_limit: 256
     logging:
@@ -52,6 +46,6 @@ services:
 # NETWORK
 #################################
 networks:
-  proxy_network:
-    name: proxy_network
+  rclone_network:
+    name: rclone_network
     external: true

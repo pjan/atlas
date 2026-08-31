@@ -242,18 +242,18 @@ Deploy order:
 1. Deploy `rclone`.
 2. Deploy or redeploy `caddy`.
 
-First login should use the bookmarked URL below so the web UI knows how to reach the same-origin RC API behind Caddy:
+Use the normal hostname below. Caddy redirects first-time GUI loads to the rclone launcher URL so the web UI knows how to reach the same-origin RC API:
 
 ```text
-http://rclone.atlas.local/login?url=http%3A%2F%2Frclone.atlas.local%2F
+http://rclone.atlas.local/
 ```
 
 Operational notes:
 
 - `rclone.atlas.local` is a privileged management surface. Anyone with valid credentials can manage configured remotes and read or write the mounted local data path.
-- Caddy is the authentication boundary for this stack. The rclone RC API runs with `--no-auth` inside the Docker network and should not be exposed directly.
+- Caddy is the authentication boundary for this stack. The rclone RC API runs with `--no-auth` on a dedicated `rclone_network` that only Caddy and rclone should join.
 - This stack mounts all of `[[DATA_DIR]]` at `/data`. That was chosen for flexibility, not least privilege.
-- `rclone.conf` contains remote credentials and tokens. Back up `[[APPDATA_DIR]]/rclone` accordingly.
+- `rclone.conf` contains remote credentials and tokens. It is provisioned with `0600` permissions and should be backed up from `[[APPDATA_DIR]]/rclone`.
 - Do not use the UI self-update flow. Upgrade `rclone` by bumping the image tag in this repository.
 - The upstream UI still shows `Mounts` and `Serves`. This stack does not provision FUSE mount support, and it does not publish or route `rclone serve` listeners beyond the main UI hostname.
 

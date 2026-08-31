@@ -25,6 +25,7 @@ services:
       - caddy-config:/config
     networks:
       - proxy_network
+      - rclone_network
     mem_limit: 128m
     pids_limit: 128
     logging:
@@ -42,6 +43,9 @@ services:
 networks:
   proxy_network:
     name: proxy_network
+    external: true
+  rclone_network:
+    name: rclone_network
     external: true
 
 volumes:
