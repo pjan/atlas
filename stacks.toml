@@ -34,7 +34,7 @@ value = "80"
 
 [[variable]]
 name = "EXPRESSVPN_SERVER_COUNTRIES"
-value = "Netherlands,Belgium,Germany"
+value = "Netherlands,Switzerland,Romania"
 
 [[variable]]
 name = "EXPRESSVPN_SERVER_CITIES"
