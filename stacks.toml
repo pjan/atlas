@@ -206,6 +206,8 @@ pre_deploy.command = """
 set -eu
 docker network inspect proxy_network >/dev/null 2>&1 || docker network create proxy_network
 install -d -o 1000 -g 1000 -m 0700 "[[APPDATA_DIR]]/uptime-kuma"
+chown 1000:1000 "[[APPDATA_DIR]]/uptime-kuma"
+chmod 0700 "[[APPDATA_DIR]]/uptime-kuma"
 docker run --rm \
   --entrypoint /bin/sh \
   --user 1000:1000 \
