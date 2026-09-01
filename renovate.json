@@ -36,6 +36,12 @@
       "versioning": "semver"
     },
     {
+      "description": "Use SemVer for Uptime Kuma.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["louislam/uptime-kuma"],
+      "versioning": "semver"
+    },
+    {
       "description": "Use LinuxServer Plex tag components for Plex Media Server.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["lscr.io/linuxserver/plex"],

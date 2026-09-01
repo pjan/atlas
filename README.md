@@ -266,6 +266,63 @@ Operational notes:
 - Do not use the UI self-update flow. Upgrade `rclone` by bumping the image tag in this repository.
 - The upstream UI still shows `Mounts` and `Serves`. This stack does not provision FUSE mount support, and it does not publish or route `rclone serve` listeners beyond the main UI hostname.
 
+### Uptime Kuma
+
+The `uptime-kuma` stack runs Uptime Kuma behind Caddy at:
+
+```text
+http://uptime.atlas.local
+```
+
+Before deploying `uptime-kuma`, create these Komodo values for Caddy's Basic Auth gate:
+
+```text
+UPTIME_KUMA_BASIC_AUTH_USER
+UPTIME_KUMA_BASIC_AUTH_HASH
+```
+
+Generate the password hash with Caddy:
+
+```sh
+docker run --rm caddy:2.11.4 caddy hash-password --plaintext '<password>'
+```
+
+`UPTIME_KUMA_BASIC_AUTH_USER` should be a non-default username rather than `admin`. `UPTIME_KUMA_BASIC_AUTH_HASH` is a Caddy password hash, not the plaintext password.
+
+Deploy order:
+
+1. Deploy `uptime-kuma`.
+2. Deploy or redeploy `caddy`.
+
+On first login, create the Uptime Kuma admin user and enable two-factor authentication. Caddy Basic Auth is an access gate, not transport encryption; traffic to `http://uptime.atlas.local` is still plaintext on the LAN or tailnet path.
+
+This stack intentionally does not mount `/var/run/docker.sock`. Docker socket access is effectively host-level Docker control if Uptime Kuma is compromised. Monitor Atlas through HTTP routes, DNS checks, TCP checks, and push monitors instead.
+
+Recommended initial monitors:
+
+```text
+HTTP: http://caddy.atlas.local
+HTTP: http://komodo.atlas.local
+HTTP: http://sonarr.atlas.local
+HTTP: http://radarr.atlas.local
+HTTP: http://prowlarr.atlas.local
+HTTP: http://lidarr.atlas.local
+HTTP: http://adguard.atlas.local
+HTTP: http://rclone.atlas.local/ with Caddy Basic Auth credentials
+TCP: 192.168.2.200:53
+DNS: sonarr.atlas.local against resolver 192.168.2.200, expected 192.168.2.200
+DNS: komodo.atlas.local against resolver 192.168.2.200, expected 192.168.2.200
+Push: future backup jobs or stack-health poller
+```
+
+Use 60-second intervals for core infra, 120-second intervals for media apps, and at least two retries to avoid noisy alerts during stack redeploys.
+
+Operational notes:
+
+- The Uptime Kuma image runs as UID/GID `1000:1000` because the image ships with a `node` user at that ID and `/app/data` is owned by that user.
+- `[[APPDATA_DIR]]/uptime-kuma` contains monitor config, credentials, notification tokens, and database state. It is provisioned with `0700` permissions and should be backed up.
+- Browser/Chromium monitors are not validated in this stack. The full image is used so they remain available for later testing, but HTTP, TCP, DNS, and push monitors are the supported baseline.
+
 ## Caddy Configuration
 
 Caddy config is stored declaratively in the repository:

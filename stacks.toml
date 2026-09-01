@@ -187,6 +187,39 @@ CONF_DIR = [[APPDATA_DIR]]/adguard/conf
 """
 
 [[stack]]
+name = "uptime-kuma"
+description = "Uptime Kuma monitoring"
+deploy = true
+tags = ["infra", "monitoring"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/uptime-kuma"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://uptime.atlas.local"]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+docker network inspect proxy_network >/dev/null 2>&1 || docker network create proxy_network
+install -d -o 1000 -g 1000 -m 0700 "[[APPDATA_DIR]]/uptime-kuma"
+docker run --rm \
+  --entrypoint /bin/sh \
+  --user 1000:1000 \
+  -v "[[APPDATA_DIR]]/uptime-kuma:/app/data" \
+  louislam/uptime-kuma:2.5.3 \
+  -ec 'tmp="/app/data/.write-test.$$"; trap "rm -f \"$tmp\" \"$tmp.old\"" EXIT; touch "$tmp"; mv "$tmp" "$tmp.old"'
+"""
+pre_deploy.shell_mode = true
+environment = """
+TZ = [[TZ]]
+CONFIG_DIR = [[APPDATA_DIR]]/uptime-kuma
+"""
+
+[[stack]]
 name = "roonserver"
 description = "RoonServer"
 deploy = true
@@ -364,7 +397,7 @@ RCLONE_DATA_DIR = [[DATA_DIR]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
-after = ["sonarr", "radarr", "prowlarr", "lidarr", "adguard", "plex", "gluetun", "qbittorrent", "rclone"]
+after = ["sonarr", "radarr", "prowlarr", "lidarr", "adguard", "uptime-kuma", "plex", "gluetun", "qbittorrent", "rclone"]
 tags = ["infra", "proxy"]
 
 [stack.config]
@@ -389,6 +422,7 @@ config_files = [
   { path = "conf/sites/radarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/prowlarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/lidarr.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/uptime-kuma.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/ugos.caddy", services = ["caddy"], requires = "Restart" },
 ]
 pre_deploy.path = "."
@@ -412,4 +446,6 @@ HTTP_BIND_IP = [[NAS_LAN_IP]]
 HTTP_PORT = [[HTTP_PORT]]
 RCLONE_BASIC_AUTH_USER = [[RCLONE_BASIC_AUTH_USER]]
 RCLONE_BASIC_AUTH_HASH = [[RCLONE_BASIC_AUTH_HASH]]
+UPTIME_KUMA_BASIC_AUTH_USER = [[UPTIME_KUMA_BASIC_AUTH_USER]]
+UPTIME_KUMA_BASIC_AUTH_HASH = [[UPTIME_KUMA_BASIC_AUTH_HASH]]
 """

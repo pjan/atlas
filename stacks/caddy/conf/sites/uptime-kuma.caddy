@@ -1,0 +1,7 @@
+http://uptime.atlas.local {
+	basic_auth {
+		{$UPTIME_KUMA_BASIC_AUTH_USER} {$UPTIME_KUMA_BASIC_AUTH_HASH}
+	}
+
+	reverse_proxy uptime-kuma:3001
+}
