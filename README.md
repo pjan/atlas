@@ -182,7 +182,8 @@ Operational notes:
 
 - This stack does not expose a direct host port. Access is Caddy-only through `http://seerr.atlas.local`.
 - Seerr relies on its own auth plus Plex auth. There is no Caddy Basic Auth gate in the baseline LAN/Tailscale deployment.
-- The container runs as UID/GID `1000:1000`, and `[[APPDATA_DIR]]/seerr` should be backed up with its ownership and permissions preserved.
+- The container runs as UID/GID `1000:1000`. The pre-deploy step creates `[[APPDATA_DIR]]/seerr/logs` and recursively repairs ownership so `/app/config` stays writable after first deploys or migrations.
+- `[[APPDATA_DIR]]/seerr` should be backed up with its ownership and permissions preserved.
 - If Seerr is ever exposed beyond LAN/Tailscale, revisit TLS, SSO, and proxy-layer auth before doing so.
 
 ### Gluetun And qBittorrent

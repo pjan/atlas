@@ -302,8 +302,10 @@ set -eu
 for network in media_network proxy_network; do
   docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"
 done
-install -d -o 1000 -g 1000 -m 0700 "[[APPDATA_DIR]]/seerr"
-chown 1000:1000 "[[APPDATA_DIR]]/seerr"
+install -d -o 1000 -g 1000 -m 0700 \
+  "[[APPDATA_DIR]]/seerr" \
+  "[[APPDATA_DIR]]/seerr/logs"
+chown -R 1000:1000 "[[APPDATA_DIR]]/seerr"
 chmod 0700 "[[APPDATA_DIR]]/seerr"
 """
 pre_deploy.shell_mode = true
