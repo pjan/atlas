@@ -1,0 +1,3 @@
+http://seerr.atlas.local {
+	reverse_proxy seerr:5055
+}

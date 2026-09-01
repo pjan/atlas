@@ -154,6 +154,37 @@ To claim a fresh Plex install:
 
 If restoring an existing Plex `/config` with a valid `Preferences.xml`, a claim token is usually not required.
 
+### Seerr
+
+The `seerr` stack runs Seerr behind Caddy at:
+
+```text
+http://seerr.atlas.local
+```
+
+Deploy order:
+
+1. Deploy `seerr`.
+2. Deploy or redeploy `caddy`.
+3. Complete first-run setup.
+
+On first setup, configure these services inside Seerr:
+
+```text
+Plex URL: http://plex:32400
+Sonarr URL: http://sonarr:8989
+Radarr URL: http://radarr:7878
+```
+
+Use the API keys from Sonarr and Radarr, then choose the correct root folders and quality profiles in Seerr. Lidarr and music requests are intentionally out of scope for the baseline integration.
+
+Operational notes:
+
+- This stack does not expose a direct host port. Access is Caddy-only through `http://seerr.atlas.local`.
+- Seerr relies on its own auth plus Plex auth. There is no Caddy Basic Auth gate in the baseline LAN/Tailscale deployment.
+- The container runs as UID/GID `1000:1000`, and `[[APPDATA_DIR]]/seerr` should be backed up with its ownership and permissions preserved.
+- If Seerr is ever exposed beyond LAN/Tailscale, revisit TLS, SSO, and proxy-layer auth before doing so.
+
 ### Gluetun And qBittorrent
 
 qBittorrent is split from Gluetun so the VPN container can be reused by later VPN-bound stacks. qBittorrent uses Gluetun's network namespace, so Gluetun is the container that joins Docker networks and exposes qBittorrent to Caddy.
@@ -307,6 +338,8 @@ HTTP: http://sonarr.atlas.local
 HTTP: http://radarr.atlas.local
 HTTP: http://prowlarr.atlas.local
 HTTP: http://lidarr.atlas.local
+HTTP: http://seerr.atlas.local
+HTTP: http://seerr.atlas.local/api/v1/settings/public
 HTTP: http://adguard.atlas.local
 HTTP: http://rclone.atlas.local/ with Caddy Basic Auth credentials
 TCP: 192.168.2.200:53

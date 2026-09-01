@@ -282,6 +282,37 @@ PLEX_CLAIM =
 """
 
 [[stack]]
+name = "seerr"
+description = "Seerr request management"
+deploy = true
+tags = ["media", "requests"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/seerr"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://seerr.atlas.local"]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+for network in media_network proxy_network; do
+  docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"
+done
+install -d -o 1000 -g 1000 -m 0700 "[[APPDATA_DIR]]/seerr"
+chown 1000:1000 "[[APPDATA_DIR]]/seerr"
+chmod 0700 "[[APPDATA_DIR]]/seerr"
+"""
+pre_deploy.shell_mode = true
+environment = """
+TZ = [[TZ]]
+CONFIG_DIR = [[APPDATA_DIR]]/seerr
+"""
+
+[[stack]]
 name = "gluetun"
 description = "Gluetun VPN client for VPN-bound media services"
 deploy = true
@@ -399,7 +430,7 @@ RCLONE_DATA_DIR = [[DATA_DIR]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
-after = ["sonarr", "radarr", "prowlarr", "lidarr", "adguard", "uptime-kuma", "plex", "gluetun", "qbittorrent", "rclone"]
+after = ["sonarr", "radarr", "prowlarr", "lidarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "rclone"]
 tags = ["infra", "proxy"]
 
 [stack.config]
@@ -420,6 +451,7 @@ config_files = [
   { path = "conf/sites/plex.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/qbittorrent.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/rclone.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/seerr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/sonarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/radarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/prowlarr.caddy", services = ["caddy"], requires = "Restart" },

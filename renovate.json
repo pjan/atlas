@@ -42,6 +42,12 @@
       "versioning": "semver"
     },
     {
+      "description": "Use SemVer for Seerr.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/seerr-team/seerr"],
+      "versioning": "semver"
+    },
+    {
       "description": "Use LinuxServer Plex tag components for Plex Media Server.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["lscr.io/linuxserver/plex"],
