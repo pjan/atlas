@@ -17,8 +17,6 @@ services:
     environment:
       - RCLONE_BASIC_AUTH_USER=${RCLONE_BASIC_AUTH_USER}
       - RCLONE_BASIC_AUTH_HASH=${RCLONE_BASIC_AUTH_HASH}
-      - UPTIME_KUMA_BASIC_AUTH_USER=${UPTIME_KUMA_BASIC_AUTH_USER}
-      - UPTIME_KUMA_BASIC_AUTH_HASH=${UPTIME_KUMA_BASIC_AUTH_HASH}
     extra_hosts:
       - host.docker.internal:host-gateway
     volumes:
