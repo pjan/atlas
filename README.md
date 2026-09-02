@@ -167,6 +167,7 @@ Shared stack values managed in Komodo:
 PROTONVPN_WIREGUARD_PRIVATE_KEY
 GLUETUN_CONTROL_API_KEY
 SPEEDTEST_TRACKER_APP_KEY
+CLOUDFLARED_TUNNEL_TOKEN
 RCLONE_BASIC_AUTH_USER
 RCLONE_BASIC_AUTH_HASH
 HOMEPAGE_ADGUARD_USERNAME
@@ -483,6 +484,41 @@ After first login, change Speedtest Tracker's default application credentials.
 The stack uses SQLite under `[[APPDATA_DIR]]/speedtest-tracker`, runs a scheduled test every six hours by default with `SPEEDTEST_TRACKER_SCHEDULE=6 */6 * * *`, and prunes results older than 365 days by default. Set `SPEEDTEST_TRACKER_SERVERS` to a comma-separated list of Ookla server IDs if you want pinned test servers; otherwise Speedtest Tracker will choose automatically.
 
 For the Homepage widget, log in to Speedtest Tracker, create a bearer token at `/admin/api-tokens` with `Read Results`, and save it in Komodo as `HOMEPAGE_SPEEDTEST_TRACKER_API_KEY`.
+
+The Homepage widget calls Speedtest Tracker's latest-result API. On a fresh install it will log 404s until at least one speedtest result exists; run an initial test manually from the Speedtest Tracker UI or wait for the first scheduled run.
+
+### Cloudflared
+
+The `cloudflared` stack runs a remotely managed Cloudflare Tunnel connector for Atlas. It joins `proxy_network` and has no host ports; Cloudflare edge traffic is forwarded into Caddy over Docker networking.
+
+Before deploying, create a remotely managed tunnel in Cloudflare Zero Trust and save the tunnel token in Komodo:
+
+```text
+CLOUDFLARED_TUNNEL_TOKEN
+```
+
+Deploy order:
+
+1. Deploy or redeploy `caddy`.
+2. Deploy `cloudflared`.
+
+For each public hostname in the Cloudflare Tunnel dashboard, point the service at Caddy:
+
+```text
+Service: http://caddy:80
+```
+
+Caddy routes by HTTP host. The preferred pattern is to add each public hostname as an additional site address in the relevant Caddy route, for example:
+
+```caddyfile
+http://speedtest.atlas.local, http://speedtest.example.com {
+	reverse_proxy speedtest-tracker:80
+}
+```
+
+Cloudflare's origin HTTP Host Header override can also route a public hostname to an existing `atlas.local` site block, but use it carefully. Some apps generate redirects, callback URLs, CSRF origins, or absolute links from the Host header they receive.
+
+Use Cloudflare Access policies on the public hostnames for admin-facing services. The tunnel removes inbound port exposure, but it does not replace application authentication.
 
 ### Homepage
 
