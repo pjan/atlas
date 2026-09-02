@@ -1,0 +1,20 @@
+title: Atlas
+description: Atlas NAS dashboard for media, operations, and local infrastructure.
+target: _blank
+headerStyle: boxedWidgets
+statusStyle: dot
+useEqualHeights: true
+disableIndexing: true
+layout:
+  Media:
+    style: row
+    columns: 4
+  Operations:
+    style: row
+    columns: 3
+  Network & DNS:
+    style: row
+    columns: 3
+  Storage & NAS:
+    style: row
+    columns: 2

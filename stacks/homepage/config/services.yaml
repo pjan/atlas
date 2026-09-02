@@ -1,0 +1,100 @@
+- Media:
+    - Seerr:
+        icon: seerr.png
+        href: http://seerr.atlas.local
+        description: Request management
+        widget:
+          type: seerr
+          url: http://seerr:5055
+          key: "{{HOMEPAGE_VAR_SEERR_API_KEY}}"
+    - Sonarr:
+        icon: sonarr.png
+        href: http://sonarr.atlas.local
+        description: Series management
+        widget:
+          type: sonarr
+          url: http://sonarr:8989
+          key: "{{HOMEPAGE_VAR_SONARR_API_KEY}}"
+    - Radarr:
+        icon: radarr.png
+        href: http://radarr.atlas.local
+        description: Movie management
+        widget:
+          type: radarr
+          url: http://radarr:7878
+          key: "{{HOMEPAGE_VAR_RADARR_API_KEY}}"
+    - Lidarr:
+        icon: lidarr.png
+        href: http://lidarr.atlas.local
+        description: Music management
+        widget:
+          type: lidarr
+          url: http://lidarr:8686
+          key: "{{HOMEPAGE_VAR_LIDARR_API_KEY}}"
+    - Prowlarr:
+        icon: prowlarr.png
+        href: http://prowlarr.atlas.local
+        description: Indexer management
+        widget:
+          type: prowlarr
+          url: http://prowlarr:9696
+          key: "{{HOMEPAGE_VAR_PROWLARR_API_KEY}}"
+    - qBittorrent:
+        icon: qbittorrent.png
+        href: http://qbittorrent.atlas.local
+        description: Torrent downloads
+        widget:
+          type: qbittorrent
+          url: http://downloaders-vpn:8080
+          key: "{{HOMEPAGE_VAR_QBITTORRENT_API_KEY}}"
+    - Plex:
+        icon: plex.png
+        href: http://plex.atlas.local
+        description: Media streaming
+        widget:
+          type: plex
+          url: http://plex:32400
+          key: "{{HOMEPAGE_VAR_PLEX_TOKEN}}"
+
+- Operations:
+    - Komodo:
+        icon: komodo.png
+        href: http://komodo.atlas.local
+        description: Stack orchestration
+        widget:
+          type: komodo
+          url: http://host.docker.internal:9120
+          key: "{{HOMEPAGE_VAR_KOMODO_API_KEY}}"
+          secret: "{{HOMEPAGE_VAR_KOMODO_API_SECRET}}"
+          showSummary: true
+    - Uptime Kuma:
+        icon: uptime-kuma.png
+        href: http://uptime.atlas.local
+        description: Availability monitoring
+        siteMonitor: http://uptime-kuma:3001/
+
+- Network & DNS:
+    - Caddy:
+        icon: caddy.png
+        href: http://caddy.atlas.local
+        description: Reverse proxy
+    - AdGuard Home:
+        icon: adguard-home.png
+        href: http://adguard.atlas.local
+        description: DNS and ad blocking
+        widget:
+          type: adguard
+          url: http://adguard:3000
+          username: "{{HOMEPAGE_VAR_ADGUARD_USERNAME}}"
+          password: "{{HOMEPAGE_VAR_ADGUARD_PASSWORD}}"
+
+- Storage & NAS:
+    - Rclone:
+        icon: rclone.png
+        href: http://rclone.atlas.local
+        description: Remote storage UI
+    - UGOS:
+        icon: mdi-nas
+        href: http://ugos.atlas.local
+        description: NAS administration
+        siteMonitor: http://host.docker.internal:9999/

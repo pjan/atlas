@@ -433,10 +433,58 @@ RCLONE_DATA_DIR = [[DATA_DIR]]
 """
 
 [[stack]]
+name = "homepage"
+description = "Homepage dashboard"
+deploy = true
+tags = ["infra", "dashboard"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/homepage"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://homepage.atlas.local"]
+config_files = [
+  { path = "config/settings.yaml", services = ["homepage"], requires = "None" },
+  { path = "config/services.yaml", services = ["homepage"], requires = "None" },
+  { path = "config/widgets.yaml", services = ["homepage"], requires = "None" },
+  { path = "config/bookmarks.yaml", services = ["homepage"], requires = "None" },
+  { path = "config/docker.yaml", services = ["homepage"], requires = "None" },
+  { path = "config/kubernetes.yaml", services = ["homepage"], requires = "None" },
+  { path = "config/proxmox.yaml", services = ["homepage"], requires = "None" },
+  { path = "config/custom.css", services = ["homepage"], requires = "None" },
+  { path = "config/custom.js", services = ["homepage"], requires = "None" },
+]
+pre_deploy.path = "."
+pre_deploy.command = """docker network inspect proxy_network >/dev/null 2>&1 || docker network create proxy_network"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+LOG_TARGETS = stdout
+HOMEPAGE_ALLOWED_HOSTS = homepage.atlas.local
+HOMEPAGE_VAR_ADGUARD_USERNAME = [[HOMEPAGE_ADGUARD_USERNAME]]
+HOMEPAGE_VAR_ADGUARD_PASSWORD = [[HOMEPAGE_ADGUARD_PASSWORD]]
+HOMEPAGE_VAR_KOMODO_API_KEY = [[HOMEPAGE_KOMODO_API_KEY]]
+HOMEPAGE_VAR_KOMODO_API_SECRET = [[HOMEPAGE_KOMODO_API_SECRET]]
+HOMEPAGE_VAR_LIDARR_API_KEY = [[HOMEPAGE_LIDARR_API_KEY]]
+HOMEPAGE_VAR_PLEX_TOKEN = [[HOMEPAGE_PLEX_TOKEN]]
+HOMEPAGE_VAR_PROWLARR_API_KEY = [[HOMEPAGE_PROWLARR_API_KEY]]
+HOMEPAGE_VAR_QBITTORRENT_API_KEY = [[HOMEPAGE_QBITTORRENT_API_KEY]]
+HOMEPAGE_VAR_RADARR_API_KEY = [[HOMEPAGE_RADARR_API_KEY]]
+HOMEPAGE_VAR_SEERR_API_KEY = [[HOMEPAGE_SEERR_API_KEY]]
+HOMEPAGE_VAR_SONARR_API_KEY = [[HOMEPAGE_SONARR_API_KEY]]
+"""
+
+[[stack]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
-after = ["sonarr", "radarr", "prowlarr", "lidarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "rclone"]
+after = ["sonarr", "radarr", "prowlarr", "lidarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "rclone", "homepage"]
 tags = ["infra", "proxy"]
 
 [stack.config]
@@ -453,6 +501,7 @@ config_files = [
   { path = "conf/Caddyfile", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/adguard.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/caddy.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/homepage.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/komodo.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/plex.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/qbittorrent.caddy", services = ["caddy"], requires = "Restart" },

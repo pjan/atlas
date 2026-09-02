@@ -168,6 +168,17 @@ EXPRESSVPN_OPENVPN_USER
 EXPRESSVPN_OPENVPN_PASSWORD
 RCLONE_BASIC_AUTH_USER
 RCLONE_BASIC_AUTH_HASH
+HOMEPAGE_ADGUARD_USERNAME
+HOMEPAGE_ADGUARD_PASSWORD
+HOMEPAGE_KOMODO_API_KEY
+HOMEPAGE_KOMODO_API_SECRET
+HOMEPAGE_LIDARR_API_KEY
+HOMEPAGE_PLEX_TOKEN
+HOMEPAGE_PROWLARR_API_KEY
+HOMEPAGE_QBITTORRENT_API_KEY
+HOMEPAGE_RADARR_API_KEY
+HOMEPAGE_SEERR_API_KEY
+HOMEPAGE_SONARR_API_KEY
 ```
 
 Optional or temporary values:
@@ -366,6 +377,7 @@ HTTP: http://seerr.atlas.local
 HTTP: http://seerr.atlas.local/api/v1/settings/public
 HTTP: http://adguard.atlas.local
 HTTP: http://uptime.atlas.local
+HTTP: http://homepage.atlas.local
 HTTP: http://rclone.atlas.local/ with Caddy Basic Auth credentials
 TCP: 192.168.2.200:53
 DNS: sonarr.atlas.local against resolver 192.168.2.200, expected 192.168.2.200
@@ -381,6 +393,37 @@ Operational notes:
 - `[[APPDATA_DIR]]/uptime-kuma` contains monitor config, credentials, notification tokens, and database state. It is provisioned with `0700` permissions and should be backed up.
 - Browser/Chromium monitors are not validated in this stack. The full image is used so they remain available for later testing, but HTTP, TCP, DNS, and push monitors are the supported baseline.
 - The recommended monitor list above is manual Uptime Kuma UI state, not repo-backed configuration.
+
+### Homepage
+
+The `homepage` stack runs Homepage behind Caddy at:
+
+```text
+http://homepage.atlas.local
+```
+
+Homepage config is managed declaratively in:
+
+```text
+stacks/homepage/config/
+```
+
+Deploy order:
+
+1. Create or populate the Homepage widget variables in Komodo.
+2. Deploy `homepage`.
+3. Deploy or redeploy `caddy`.
+
+Operational notes:
+
+- Homepage is exposed through Caddy only. There is no direct Homepage host port.
+- Homepage does not mount `/var/run/docker.sock` and does not use Docker label discovery in the baseline setup.
+- `HOMEPAGE_ALLOWED_HOSTS` is set to the exact canonical v1 host, `homepage.atlas.local`. If Atlas is later accessed through additional hostnames or direct IPs, append those exact values as a comma-separated list before redeploying `homepage`.
+- Homepage widget credentials stay in Komodo variables. The stack maps them into Homepage's `HOMEPAGE_VAR_*` templating environment variables.
+- `LOG_TARGETS=stdout` keeps Homepage from trying to create `/app/config/logs` inside the read-only config mount.
+- Resource Sync updates `stacks/homepage/config/*` through `config_files` with `requires = "None"`, so normal YAML, CSS, and JS edits do not force a container restart.
+- After Homepage config file changes land through Resource Sync, use Homepage's refresh icon to regenerate the static UI. A `homepage` redeploy is only needed for environment-variable changes or when adding new local static assets.
+- Caddy route changes still require an explicit `caddy` deploy or redeploy after Resource Sync so the Caddy `post_deploy` reload hook updates the live config.
 
 ## Caddy Configuration
 
