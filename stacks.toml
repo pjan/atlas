@@ -208,11 +208,13 @@ docker network inspect proxy_network >/dev/null 2>&1 || docker network create pr
 install -d -o 1000 -g 1000 -m 0700 "[[APPDATA_DIR]]/uptime-kuma"
 chown 1000:1000 "[[APPDATA_DIR]]/uptime-kuma"
 chmod 0700 "[[APPDATA_DIR]]/uptime-kuma"
+UPTIME_KUMA_VALIDATION_IMAGE="$(docker compose -f compose.yaml config --images | head -n 1)"
+test -n "$UPTIME_KUMA_VALIDATION_IMAGE"
 docker run --rm \
   --entrypoint /bin/sh \
   --user 1000:1000 \
   -v "[[APPDATA_DIR]]/uptime-kuma:/app/data" \
-  louislam/uptime-kuma:2.5.3 \
+  "$UPTIME_KUMA_VALIDATION_IMAGE" \
   -ec 'tmp="/app/data/.write-test.$$"; trap "rm -f \"$tmp\" \"$tmp.old\"" EXIT; touch "$tmp"; mv "$tmp" "$tmp.old"'
 """
 pre_deploy.shell_mode = true
@@ -410,12 +412,14 @@ if [ ! -f "[[APPDATA_DIR]]/rclone/rclone.conf" ]; then
 fi
 chown [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/rclone/rclone.conf"
 chmod 0600 "[[APPDATA_DIR]]/rclone/rclone.conf"
+RCLONE_VALIDATION_IMAGE="$(docker compose -f compose.yaml config --images | head -n 1)"
+test -n "$RCLONE_VALIDATION_IMAGE"
 docker run --rm \
   --entrypoint /bin/sh \
   --user [[PUID]]:[[PGID]] \
   -v "[[APPDATA_DIR]]/rclone:/config/rclone" \
   -v "[[TMP_DIR]]/rclone/cache:/cache" \
-  rclone/rclone:1.75.0 \
+  "$RCLONE_VALIDATION_IMAGE" \
   -ec 'tmp="/config/rclone/.write-test.$$"; trap "rm -f \"$tmp\" \"$tmp.old\" /cache/.write-test" EXIT; test -r /config/rclone/rclone.conf; test -w /config/rclone/rclone.conf; touch "$tmp"; mv "$tmp" "$tmp.old"; touch /cache/.write-test'
 """
 pre_deploy.shell_mode = true
@@ -482,6 +486,4 @@ HTTP_BIND_IP = [[NAS_LAN_IP]]
 HTTP_PORT = [[HTTP_PORT]]
 RCLONE_BASIC_AUTH_USER = [[RCLONE_BASIC_AUTH_USER]]
 RCLONE_BASIC_AUTH_HASH = [[RCLONE_BASIC_AUTH_HASH]]
-UPTIME_KUMA_BASIC_AUTH_USER = [[UPTIME_KUMA_BASIC_AUTH_USER]]
-UPTIME_KUMA_BASIC_AUTH_HASH = [[UPTIME_KUMA_BASIC_AUTH_HASH]]
 """

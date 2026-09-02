@@ -15,26 +15,25 @@ This repository manages Docker Compose stacks for the `Atlas` NAS.
 
 ## One-Time NAS Preparation
 
-### 1. Free Ports 80 And 443 In UGOS
+### 1. Free Port 80 In UGOS
 
-UGOS can bind ports `80` and `443` with its built-in nginx service. Caddy needs port `80` for clean local hostnames such as `http://sonarr.atlas.local`.
+UGOS can bind ports `80` and `443` with its built-in nginx service. The current Atlas Caddy stack only binds port `80`, so port `80` must be free for clean local hostnames such as `http://sonarr.atlas.local`. Port `443` only needs to be freed if Atlas later adds HTTPS on Caddy.
 
 In the UGOS dashboard:
 
 1. Open `Control Panel`.
 2. Open `Device Connection`.
 3. Open `Portal Settings`.
-4. Uncheck the options that redirect port `80` and port `443` to the HTTP/HTTPS portal ports.
+4. Uncheck the option that redirects port `80` to the portal HTTP port. If you later add HTTPS on Caddy, also uncheck the option for port `443`.
 5. Apply the change.
 
 Verify over SSH:
 
 ```sh
 sudo ss -ltnp | grep ':80' || echo "port 80 is free"
-sudo ss -ltnp | grep ':443' || echo "port 443 is free"
 ```
 
-Expected result: no UGOS/nginx listener on `0.0.0.0:80` or `0.0.0.0:443`.
+Expected result: no UGOS/nginx listener on `0.0.0.0:80`.
 
 ### 2. Configure UniFi Local DNS
 
@@ -64,7 +63,7 @@ ssh root@192.168.2.200
 cd /volume2/docker/komodo
 ```
 
-Copy the contents of this repository’s komodo/ directory into /volume2/docker/komodo, then edit /volume2/docker/komodo/.env.
+Copy the contents of this repository’s `komodo/` directory into `/volume2/docker/komodo`, then copy `.env.example` to `.env` and edit `/volume2/docker/komodo/.env`.
 
 Generate separate values:
 
@@ -75,14 +74,19 @@ openssl rand -base64 32
 openssl rand -base64 64
 ```
 
-Use them for:
+Use them together with the non-random required values:
 
 ```env
+KOMODO_DATABASE_USERNAME=<mongo-root-username>
 KOMODO_DATABASE_PASSWORD=<32-byte random value>
 KOMODO_INIT_ADMIN_PASSWORD=<32-byte random value>
 KOMODO_WEBHOOK_SECRET=<32-byte random value>
 KOMODO_JWT_SECRET=<64-byte random value>
+COMPOSE_KOMODO_BACKUPS_PATH=/volume1/backups/komodo
+PERIPHERY_ROOT_DIRECTORY=/volume2/docker/komodo
 ```
+
+`PERIPHERY_ROOT_DIRECTORY` must match the real checkout path on the NAS so Periphery can see the repo and stack files under the same path inside and outside the container.
 
 Now start Komodo: 
 
@@ -98,6 +102,7 @@ Important operational notes:
 - Changing `KOMODO_DATABASE_PASSWORD` after Mongo has initialized does not rotate the existing Mongo user password. Rotate the Mongo user inside Mongo before changing this value on a live install.
 - Changing `KOMODO_JWT_SECRET` invalidates existing login sessions.
 - If GitHub or another system sends Komodo webhooks, `KOMODO_WEBHOOK_SECRET` must match that sender.
+- `COMPOSE_KOMODO_BACKUPS_PATH` should point at a persistent NAS path that already exists or can be created by Docker.
 
 ## Komodo Resource Sync
 
@@ -139,6 +144,39 @@ After pushing changes to `main`:
 2. Wait for the `atlas` Resource Sync to show pending changes.
 3. Review the diff.
 4. Execute the sync.
+
+## Required Non-Default Variables
+
+Atlas keeps a small set of values outside repo-tracked defaults. Create them in Komodo before deploying the stacks that need them.
+
+Bootstrap `.env` values for `komodo/`:
+
+```text
+KOMODO_DATABASE_USERNAME
+KOMODO_DATABASE_PASSWORD
+KOMODO_INIT_ADMIN_PASSWORD
+KOMODO_WEBHOOK_SECRET
+KOMODO_JWT_SECRET
+COMPOSE_KOMODO_BACKUPS_PATH
+PERIPHERY_ROOT_DIRECTORY
+```
+
+Shared stack values managed in Komodo:
+
+```text
+EXPRESSVPN_OPENVPN_USER
+EXPRESSVPN_OPENVPN_PASSWORD
+RCLONE_BASIC_AUTH_USER
+RCLONE_BASIC_AUTH_HASH
+```
+
+Optional or temporary values:
+
+```text
+PLEX_CLAIM
+```
+
+`PLEX_CLAIM` is usually only needed for a fresh Plex claim flow and should be cleared after the server is attached.
 
 ### Plex Claim Token
 
@@ -217,7 +255,7 @@ Deploy order matters:
 
 If Gluetun is recreated, redeploy qBittorrent after Gluetun is healthy so qBittorrent reattaches to the current Gluetun network namespace.
 
-Komodo `after = ["gluetun"]` handles initial deployment ordering, but it does not automatically recreate qBittorrent every time Gluetun is replaced. For Gluetun image or VPN configuration changes, deploy Gluetun first, then redeploy qBittorrent.
+Komodo `after = ["gluetun"]` only affects stack ordering. It does not wait for Gluetun to become healthy, and qBittorrent's `pre_deploy` check explicitly requires the `gluetun` container to already be healthy. On first deploy and after Gluetun recreation, deploy Gluetun first, wait until it is healthy, then deploy or redeploy qBittorrent.
 
 qBittorrent is available at:
 
@@ -306,27 +344,12 @@ The `uptime-kuma` stack runs Uptime Kuma behind Caddy at:
 http://uptime.atlas.local
 ```
 
-Before deploying `uptime-kuma`, create these Komodo values for Caddy's Basic Auth gate:
-
-```text
-UPTIME_KUMA_BASIC_AUTH_USER
-UPTIME_KUMA_BASIC_AUTH_HASH
-```
-
-Generate the password hash with Caddy:
-
-```sh
-docker run --rm caddy:2.11.4 caddy hash-password --plaintext '<password>'
-```
-
-`UPTIME_KUMA_BASIC_AUTH_USER` should be a non-default username rather than `admin`. `UPTIME_KUMA_BASIC_AUTH_HASH` is a Caddy password hash, not the plaintext password.
-
 Deploy order:
 
 1. Deploy `uptime-kuma`.
 2. Deploy or redeploy `caddy`.
 
-On first login, create the Uptime Kuma admin user and enable two-factor authentication. Caddy Basic Auth is an access gate, not transport encryption; traffic to `http://uptime.atlas.local` is still plaintext on the LAN or tailnet path.
+On first login, create the Uptime Kuma admin user and enable two-factor authentication. There is no Caddy Basic Auth gate on `http://uptime.atlas.local`; traffic remains plaintext on the LAN or tailnet path.
 
 This stack intentionally does not mount `/var/run/docker.sock`. Docker socket access is effectively host-level Docker control if Uptime Kuma is compromised. Monitor Atlas through HTTP routes, DNS checks, TCP checks, and push monitors instead.
 
@@ -342,6 +365,7 @@ HTTP: http://lidarr.atlas.local
 HTTP: http://seerr.atlas.local
 HTTP: http://seerr.atlas.local/api/v1/settings/public
 HTTP: http://adguard.atlas.local
+HTTP: http://uptime.atlas.local
 HTTP: http://rclone.atlas.local/ with Caddy Basic Auth credentials
 TCP: 192.168.2.200:53
 DNS: sonarr.atlas.local against resolver 192.168.2.200, expected 192.168.2.200
@@ -356,6 +380,7 @@ Operational notes:
 - The Uptime Kuma image runs as UID/GID `1000:1000` because the image ships with a `node` user at that ID and `/app/data` is owned by that user.
 - `[[APPDATA_DIR]]/uptime-kuma` contains monitor config, credentials, notification tokens, and database state. It is provisioned with `0700` permissions and should be backed up.
 - Browser/Chromium monitors are not validated in this stack. The full image is used so they remain available for later testing, but HTTP, TCP, DNS, and push monitors are the supported baseline.
+- The recommended monitor list above is manual Uptime Kuma UI state, not repo-backed configuration.
 
 ## Caddy Configuration
 
@@ -377,9 +402,14 @@ To add a new app route:
 1. Add a new file under `stacks/caddy/conf/sites/`.
 2. Add the file to the Caddy stack `config_files` list in `stacks.toml`.
 3. Ensure the app container joins `proxy_network`, or proxy to `host.docker.internal` for host services.
-4. Push to `main`, execute Resource Sync, and let Komodo restart Caddy.
+4. Push to `main`, execute Resource Sync, then explicitly deploy or redeploy `caddy` so the `post_deploy` reload hook applies the live config.
 
-Media app UIs are exposed through Caddy-only local hostnames rather than direct host ports.
+Most media app UIs are exposed through Caddy-only local hostnames rather than direct host ports. Plex is the current exception and still publishes `192.168.2.200:32400/tcp` for native client discovery and direct access.
+
+Validation note:
+
+- Caddy imports all site files on every validation run.
+- Because `rclone.caddy` uses `basic_auth` placeholders, `RCLONE_BASIC_AUTH_USER` and `RCLONE_BASIC_AUTH_HASH` must be set for Caddy validation even when you are changing an unrelated route.
 
 Example app route:
 
@@ -407,4 +437,4 @@ To enable it:
 2. Grant access to this repository.
 3. Merge the Renovate onboarding PR if one is opened.
 
-Renovate will open PRs for Docker image updates. Komodo polling will detect merged changes to `main`; execute Resource Sync and deploy the affected stack.
+Renovate will open PRs for Docker image updates. Validation commands that run `docker run` during `pre_deploy` derive their image from the stack's own `compose.yaml`, so there is no separate pinned validation image to keep in sync. Komodo polling will detect merged changes to `main`; execute Resource Sync and deploy the affected stack.
