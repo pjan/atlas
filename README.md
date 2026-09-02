@@ -287,7 +287,10 @@ The VPN location is configurable through comma-separated Komodo variables:
 EXPRESSVPN_SERVER_COUNTRIES=Singapore
 EXPRESSVPN_SERVER_CITIES=
 EXPRESSVPN_OPENVPN_PROTOCOL=udp
+EXPRESSVPN_OPENVPN_VERBOSITY=4
 ```
+
+`EXPRESSVPN_OPENVPN_VERBOSITY=4` is intentionally verbose while debugging ExpressVPN TLS negotiation failures. After Gluetun is stable, set it back to `1`, sync, and redeploy Gluetun.
 
 If Gluetun repeatedly logs OpenVPN TLS negotiation timeouts, first try another country or a shorter country list. If UDP still fails, temporarily set `EXPRESSVPN_OPENVPN_PROTOCOL=tcp`, sync, and redeploy Gluetun.
 
@@ -300,7 +303,7 @@ Deploy order matters:
 
 If Gluetun is recreated, redeploy qBittorrent and SABnzbd after Gluetun is healthy so both downloaders reattach to the current Gluetun network namespace.
 
-Komodo `after = ["gluetun"]` only affects stack ordering. It does not wait for Gluetun to become healthy, and the qBittorrent and SABnzbd `pre_deploy` checks explicitly require the `gluetun` container to already be healthy. On first deploy and after Gluetun recreation, deploy Gluetun first, wait until it is healthy, then deploy or redeploy the downloader stacks.
+Komodo `after = ["gluetun"]` only affects stack ordering. It does not wait for Gluetun to become healthy. qBittorrent's `pre_deploy` check currently requires Gluetun to be healthy, while SABnzbd only requires the Gluetun container to be running so its UI can be deployed and configured even during VPN troubleshooting. Downloads still require Gluetun to have a working tunnel.
 
 qBittorrent and SABnzbd are available at:
 
