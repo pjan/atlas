@@ -18,12 +18,13 @@ services:
       - SERVER_COUNTRIES=${EXPRESSVPN_SERVER_COUNTRIES}
       - SERVER_CITIES=${EXPRESSVPN_SERVER_CITIES:-}
       - OPENVPN_PROTOCOL=${EXPRESSVPN_OPENVPN_PROTOCOL}
-      - FIREWALL_INPUT_PORTS=8080
+      - FIREWALL_INPUT_PORTS=8080,8085
       - UPDATER_PERIOD=24h
     volumes:
       - ${CONFIG_DIR}:/gluetun
     expose:
       - "8080"
+      - "8085"
     networks:
       media_network:
         aliases:

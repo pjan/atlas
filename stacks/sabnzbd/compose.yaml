@@ -1,0 +1,32 @@
+services:
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:5.1.2-ls270
+    container_name: sabnzbd
+    restart: unless-stopped
+    network_mode: "container:gluetun"
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - UMASK=${UMASK}
+      - SABNZBD_PORT=${SABNZBD_PORT}
+    volumes:
+      - ${CONFIG_DIR}:/config
+      - ${USENET_DIR}:/data/downloads/usenet
+      - ./custom-cont-init.d:/custom-cont-init.d:ro
+    stop_grace_period: 1m
+    mem_limit: 768m
+    pids_limit: 512
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:${SABNZBD_PORT}/ >/dev/null || wget -qO- http://127.0.0.1:${SABNZBD_PORT}/ >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s

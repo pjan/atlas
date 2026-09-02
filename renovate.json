@@ -66,6 +66,12 @@
       "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)-[a-z0-9]+-ls(?<revision>\\d+)$"
     },
     {
+      "description": "Use LinuxServer SABnzbd tag components.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["lscr.io/linuxserver/sabnzbd"],
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-ls(?<revision>\\d+)$"
+    },
+    {
       "description": "Group Komodo control-plane image updates together.",
       "matchDatasources": ["docker"],
       "matchPackageNames": [

@@ -268,11 +268,11 @@ Operational notes:
 - `[[APPDATA_DIR]]/seerr` should be backed up with its ownership and permissions preserved.
 - If Seerr is ever exposed beyond LAN/Tailscale, revisit TLS, SSO, and proxy-layer auth before doing so.
 
-### Gluetun And qBittorrent
+### Gluetun, qBittorrent, And SABnzbd
 
-qBittorrent is split from Gluetun so the VPN container can be reused by later VPN-bound stacks. qBittorrent uses Gluetun's network namespace, so Gluetun is the container that joins Docker networks and exposes qBittorrent to Caddy.
+qBittorrent and SABnzbd are split from Gluetun so the VPN container can be reused by VPN-bound download stacks. Both downloaders use Gluetun's network namespace, so Gluetun is the container that joins Docker networks and exposes downloader UIs to Caddy.
 
-In Docker terms, qBittorrent does not join `media_network` or `proxy_network` directly. It uses `network_mode: "container:gluetun"`, and Caddy reaches qBittorrent through Gluetun's `downloaders-vpn` network alias.
+In Docker terms, qBittorrent and SABnzbd do not join `media_network` or `proxy_network` directly. They use `network_mode: "container:gluetun"`, and Caddy reaches them through Gluetun's `downloaders-vpn` network alias.
 
 Before deploying Gluetun, create the ExpressVPN OpenVPN credentials as Komodo variables or secrets:
 
@@ -295,19 +295,21 @@ Deploy order matters:
 
 1. Deploy `gluetun`.
 2. Deploy `qbittorrent`.
-3. Deploy or redeploy `caddy`.
+3. Deploy `sabnzbd`.
+4. Deploy or redeploy `caddy`.
 
-If Gluetun is recreated, redeploy qBittorrent after Gluetun is healthy so qBittorrent reattaches to the current Gluetun network namespace.
+If Gluetun is recreated, redeploy qBittorrent and SABnzbd after Gluetun is healthy so both downloaders reattach to the current Gluetun network namespace.
 
-Komodo `after = ["gluetun"]` only affects stack ordering. It does not wait for Gluetun to become healthy, and qBittorrent's `pre_deploy` check explicitly requires the `gluetun` container to already be healthy. On first deploy and after Gluetun recreation, deploy Gluetun first, wait until it is healthy, then deploy or redeploy qBittorrent.
+Komodo `after = ["gluetun"]` only affects stack ordering. It does not wait for Gluetun to become healthy, and the qBittorrent and SABnzbd `pre_deploy` checks explicitly require the `gluetun` container to already be healthy. On first deploy and after Gluetun recreation, deploy Gluetun first, wait until it is healthy, then deploy or redeploy the downloader stacks.
 
-qBittorrent is available at:
+qBittorrent and SABnzbd are available at:
 
 ```text
 http://qbittorrent.atlas.local
+http://sabnzbd.atlas.local
 ```
 
-There is no direct qBittorrent host UI port. Keep UI access Caddy-only unless an emergency LAN-bound port is deliberately added to the Gluetun stack.
+There are no direct qBittorrent or SABnzbd host UI ports. Keep UI access Caddy-only unless an emergency LAN-bound port is deliberately added to the Gluetun stack.
 
 On first startup, LinuxServer qBittorrent prints the temporary admin password in the container logs. Log in, change the password, then configure these paths:
 
@@ -325,6 +327,27 @@ Configure Sonarr, Radarr, and Lidarr download clients to use:
 Host: downloaders-vpn
 Port: 8080
 ```
+
+SABnzbd uses port `8085` inside Gluetun's shared network namespace because qBittorrent already uses `8080`. The repo-managed LinuxServer custom init script patches SABnzbd's service runner before startup so the web UI binds `0.0.0.0:8085`. Treat `SABNZBD_PORT=8085` and the custom init script as the source of truth for the internal listening port.
+
+On first startup, configure SABnzbd through Caddy and keep `External internet access` disabled or limited. Configure these paths:
+
+```text
+Incomplete downloads: /data/downloads/usenet/incomplete
+Completed downloads: /data/downloads/usenet/completed
+TV category: /data/downloads/usenet/completed/tv
+Movies category: /data/downloads/usenet/completed/movies
+Music category: /data/downloads/usenet/completed/music
+```
+
+Configure Sonarr, Radarr, and Lidarr SABnzbd download clients to use:
+
+```text
+Host: downloaders-vpn
+Port: 8085
+```
+
+Keep `/volume2/appdata/sabnzbd` private because it contains SABnzbd API keys and Usenet provider credentials. The stack provisions it as `0700`; download directories remain group-writable for media imports.
 
 For Lidarr, use category `music`, completed downloads `/data/downloads/torrents/completed/music`, and root folder `/data/media/music`.
 
@@ -408,6 +431,7 @@ HTTP: http://prowlarr.atlas.local
 HTTP: http://lidarr.atlas.local
 HTTP: http://seerr.atlas.local
 HTTP: http://seerr.atlas.local/api/v1/settings/public
+HTTP: http://sabnzbd.atlas.local
 HTTP: http://adguard.atlas.local
 HTTP: http://uptime.atlas.local
 HTTP: http://homepage.atlas.local

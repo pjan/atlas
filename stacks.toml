@@ -384,6 +384,50 @@ TORRENTS_DIR = [[DATA_DIR]]/downloads/torrents
 """
 
 [[stack]]
+name = "sabnzbd"
+description = "SABnzbd routed through Gluetun"
+deploy = true
+after = ["gluetun"]
+tags = ["media", "download"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/sabnzbd"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://sabnzbd.atlas.local"]
+config_files = [
+  { path = "custom-cont-init.d/10-set-sabnzbd-port.sh", services = ["sabnzbd"], requires = "Restart" },
+]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+test "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null)" = "healthy"
+install -d -o [[PUID]] -g [[PGID]] -m 2775 \
+  "[[DATA_DIR]]/downloads/usenet/incomplete" \
+  "[[DATA_DIR]]/downloads/usenet/completed" \
+  "[[DATA_DIR]]/downloads/usenet/completed/tv" \
+  "[[DATA_DIR]]/downloads/usenet/completed/movies" \
+  "[[DATA_DIR]]/downloads/usenet/completed/music"
+install -d -o [[PUID]] -g [[PGID]] -m 0700 "[[APPDATA_DIR]]/sabnzbd"
+chown -R [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/sabnzbd"
+chmod 0700 "[[APPDATA_DIR]]/sabnzbd"
+"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+UMASK = 002
+SABNZBD_PORT = 8085
+CONFIG_DIR = [[APPDATA_DIR]]/sabnzbd
+USENET_DIR = [[DATA_DIR]]/downloads/usenet
+"""
+
+[[stack]]
 name = "rclone"
 description = "Rclone web UI and remote-control stack"
 deploy = true
@@ -484,7 +528,7 @@ HOMEPAGE_VAR_SONARR_API_KEY = [[HOMEPAGE_SONARR_API_KEY]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
-after = ["sonarr", "radarr", "prowlarr", "lidarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "rclone", "homepage"]
+after = ["sonarr", "radarr", "prowlarr", "lidarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "sabnzbd", "rclone", "homepage"]
 tags = ["infra", "proxy"]
 
 [stack.config]
@@ -506,6 +550,7 @@ config_files = [
   { path = "conf/sites/plex.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/qbittorrent.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/rclone.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/sabnzbd.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/seerr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/sonarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/radarr.caddy", services = ["caddy"], requires = "Restart" },

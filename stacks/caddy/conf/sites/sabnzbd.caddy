@@ -1,0 +1,3 @@
+http://sabnzbd.atlas.local {
+	reverse_proxy downloaders-vpn:8085
+}
