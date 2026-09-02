@@ -165,6 +165,7 @@ Shared stack values managed in Komodo:
 
 ```text
 PROTONVPN_WIREGUARD_PRIVATE_KEY
+GLUETUN_CONTROL_API_KEY
 RCLONE_BASIC_AUTH_USER
 RCLONE_BASIC_AUTH_HASH
 HOMEPAGE_ADGUARD_USERNAME
@@ -277,9 +278,12 @@ Before deploying Gluetun, create the Proton VPN WireGuard private key as a Komod
 
 ```text
 PROTONVPN_WIREGUARD_PRIVATE_KEY
+GLUETUN_CONTROL_API_KEY
 ```
 
 Generate this key from a Proton VPN WireGuard configuration. Use a paid Proton VPN plan if you want port forwarding, select a P2P server, and enable the Proton NAT-PMP/port-forwarding option when generating the WireGuard config. Do not enable Moderate NAT on that Proton config if you want port forwarding.
+
+Generate `GLUETUN_CONTROL_API_KEY` with `docker run --rm qmcgaw/gluetun:v3.41.1 genkey` or another high-entropy secret generator. The same Komodo secret is passed to Gluetun for control-server API authentication and to Homepage for its Gluetun widget.
 
 The VPN country and Proton server filters are configurable through Komodo variables:
 
@@ -363,6 +367,8 @@ API key: copied from Lidarr
 ```
 
 Proton VPN provides Gluetun-managed VPN port forwarding on supported paid-plan servers. qBittorrent's listening port is updated through Gluetun's `VPN_PORT_FORWARDING_UP_COMMAND` and reset through `VPN_PORT_FORWARDING_DOWN_COMMAND` when forwarding is removed.
+
+Homepage reads Gluetun through the internal control server at `http://downloaders-vpn:8000` using `GLUETUN_CONTROL_API_KEY`. The control server is exposed only on Docker networks, not through Caddy or a host port.
 
 ### Rclone
 
