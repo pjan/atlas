@@ -44,6 +44,18 @@ value = "on"
 name = "PROTONVPN_VPN_PORT_FORWARDING"
 value = "on"
 
+[[variable]]
+name = "SPEEDTEST_TRACKER_SCHEDULE"
+value = "6 */6 * * *"
+
+[[variable]]
+name = "SPEEDTEST_TRACKER_SERVERS"
+value = ""
+
+[[variable]]
+name = "SPEEDTEST_TRACKER_PRUNE_RESULTS_OLDER_THAN"
+value = "365"
+
 ### STACKS ###
 
 [[stack]]
@@ -479,6 +491,40 @@ RCLONE_DATA_DIR = [[DATA_DIR]]
 """
 
 [[stack]]
+name = "speedtest-tracker"
+description = "Speedtest Tracker internet performance history"
+deploy = true
+tags = ["infra", "monitoring"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/speedtest-tracker"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://speedtest.atlas.local"]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+docker network inspect proxy_network >/dev/null 2>&1 || docker network create proxy_network
+install -d -o [[PUID]] -g [[PGID]] -m 2775 "[[APPDATA_DIR]]/speedtest-tracker"
+"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+APP_KEY = [[SPEEDTEST_TRACKER_APP_KEY]]
+APP_URL = http://speedtest.atlas.local
+SPEEDTEST_SCHEDULE = [[SPEEDTEST_TRACKER_SCHEDULE]]
+SPEEDTEST_SERVERS = [[SPEEDTEST_TRACKER_SERVERS]]
+PRUNE_RESULTS_OLDER_THAN = [[SPEEDTEST_TRACKER_PRUNE_RESULTS_OLDER_THAN]]
+CONFIG_DIR = [[APPDATA_DIR]]/speedtest-tracker
+"""
+
+[[stack]]
 name = "homepage"
 description = "Homepage dashboard"
 deploy = true
@@ -525,13 +571,14 @@ HOMEPAGE_VAR_QBITTORRENT_API_KEY = [[HOMEPAGE_QBITTORRENT_API_KEY]]
 HOMEPAGE_VAR_RADARR_API_KEY = [[HOMEPAGE_RADARR_API_KEY]]
 HOMEPAGE_VAR_SEERR_API_KEY = [[HOMEPAGE_SEERR_API_KEY]]
 HOMEPAGE_VAR_SONARR_API_KEY = [[HOMEPAGE_SONARR_API_KEY]]
+HOMEPAGE_VAR_SPEEDTEST_TRACKER_API_KEY = [[HOMEPAGE_SPEEDTEST_TRACKER_API_KEY]]
 """
 
 [[stack]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
-after = ["sonarr", "radarr", "prowlarr", "lidarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "sabnzbd", "rclone", "homepage"]
+after = ["sonarr", "radarr", "prowlarr", "lidarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "sabnzbd", "rclone", "speedtest-tracker", "homepage"]
 tags = ["infra", "proxy"]
 
 [stack.config]
@@ -556,6 +603,7 @@ config_files = [
   { path = "conf/sites/sabnzbd.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/seerr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/sonarr.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/speedtest-tracker.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/radarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/prowlarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/lidarr.caddy", services = ["caddy"], requires = "Restart" },

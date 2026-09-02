@@ -166,6 +166,7 @@ Shared stack values managed in Komodo:
 ```text
 PROTONVPN_WIREGUARD_PRIVATE_KEY
 GLUETUN_CONTROL_API_KEY
+SPEEDTEST_TRACKER_APP_KEY
 RCLONE_BASIC_AUTH_USER
 RCLONE_BASIC_AUTH_HASH
 HOMEPAGE_ADGUARD_USERNAME
@@ -179,6 +180,7 @@ HOMEPAGE_QBITTORRENT_API_KEY
 HOMEPAGE_RADARR_API_KEY
 HOMEPAGE_SEERR_API_KEY
 HOMEPAGE_SONARR_API_KEY
+HOMEPAGE_SPEEDTEST_TRACKER_API_KEY
 ```
 
 Optional or temporary values:
@@ -445,6 +447,7 @@ HTTP: http://sabnzbd.atlas.local
 HTTP: http://adguard.atlas.local
 HTTP: http://uptime.atlas.local
 HTTP: http://homepage.atlas.local
+HTTP: http://speedtest.atlas.local
 HTTP: http://rclone.atlas.local/ with Caddy Basic Auth credentials
 TCP: 192.168.2.200:53
 DNS: sonarr.atlas.local against resolver 192.168.2.200, expected 192.168.2.200
@@ -460,6 +463,26 @@ Operational notes:
 - `[[APPDATA_DIR]]/uptime-kuma` contains monitor config, credentials, notification tokens, and database state. It is provisioned with `0700` permissions and should be backed up.
 - Browser/Chromium monitors are not validated in this stack. The full image is used so they remain available for later testing, but HTTP, TCP, DNS, and push monitors are the supported baseline.
 - The recommended monitor list above is manual Uptime Kuma UI state, not repo-backed configuration.
+
+### Speedtest Tracker
+
+Speedtest Tracker runs behind Caddy at:
+
+```text
+http://speedtest.atlas.local
+```
+
+Before deploying, create `SPEEDTEST_TRACKER_APP_KEY` in Komodo. This is mapped to the container's required `APP_KEY` environment variable; the shorter name is the upstream Speedtest Tracker/Laravel name, while the Komodo value is namespaced for this repo. Generate it with:
+
+```sh
+echo -n 'base64:'; openssl rand -base64 32
+```
+
+After first login, change Speedtest Tracker's default application credentials.
+
+The stack uses SQLite under `[[APPDATA_DIR]]/speedtest-tracker`, runs a scheduled test every six hours by default with `SPEEDTEST_TRACKER_SCHEDULE=6 */6 * * *`, and prunes results older than 365 days by default. Set `SPEEDTEST_TRACKER_SERVERS` to a comma-separated list of Ookla server IDs if you want pinned test servers; otherwise Speedtest Tracker will choose automatically.
+
+For the Homepage widget, log in to Speedtest Tracker, create a bearer token at `/admin/api-tokens` with `Read Results`, and save it in Komodo as `HOMEPAGE_SPEEDTEST_TRACKER_API_KEY`.
 
 ### Homepage
 

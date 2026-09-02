@@ -1,0 +1,3 @@
+http://speedtest.atlas.local {
+	reverse_proxy speedtest-tracker:80
+}

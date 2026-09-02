@@ -13,7 +13,8 @@
         "lscr.io/linuxserver/radarr",
         "lscr.io/linuxserver/prowlarr",
         "lscr.io/linuxserver/lidarr",
-        "lscr.io/linuxserver/qbittorrent"
+        "lscr.io/linuxserver/qbittorrent",
+        "lscr.io/linuxserver/speedtest-tracker"
       ],
       "versioning": "semver"
     },

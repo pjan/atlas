@@ -72,6 +72,17 @@
         href: http://uptime.atlas.local
         description: Availability monitoring
         siteMonitor: http://uptime-kuma:3001/
+    - Speedtest Tracker:
+        icon: speedtest-tracker.png
+        href: http://speedtest.atlas.local
+        description: Internet performance history
+        widget:
+          type: speedtest
+          url: http://speedtest-tracker
+          version: 2
+          key: "{{HOMEPAGE_VAR_SPEEDTEST_TRACKER_API_KEY}}"
+          bitratePrecision: 2
+          fields: ["download", "upload", "ping"]
 
 - Network & DNS:
     - Gluetun:
