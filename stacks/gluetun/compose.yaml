@@ -11,14 +11,14 @@ services:
       - no-new-privileges:true
     environment:
       - TZ=${TZ}
-      - VPN_SERVICE_PROVIDER=expressvpn
-      - VPN_TYPE=openvpn
-      - OPENVPN_USER=${EXPRESSVPN_OPENVPN_USER:?missing ExpressVPN OpenVPN username}
-      - OPENVPN_PASSWORD=${EXPRESSVPN_OPENVPN_PASSWORD:?missing ExpressVPN OpenVPN password}
-      - SERVER_COUNTRIES=${EXPRESSVPN_SERVER_COUNTRIES}
-      - SERVER_CITIES=${EXPRESSVPN_SERVER_CITIES:-}
-      - OPENVPN_PROTOCOL=${EXPRESSVPN_OPENVPN_PROTOCOL}
-      - OPENVPN_VERBOSITY=${EXPRESSVPN_OPENVPN_VERBOSITY}
+      - VPN_SERVICE_PROVIDER=protonvpn
+      - VPN_TYPE=wireguard
+      - WIREGUARD_PRIVATE_KEY=${PROTONVPN_WIREGUARD_PRIVATE_KEY:?missing ProtonVPN WireGuard private key}
+      - SERVER_COUNTRIES=${PROTONVPN_SERVER_COUNTRIES:-Singapore}
+      - PORT_FORWARD_ONLY=${PROTONVPN_PORT_FORWARD_ONLY:-on}
+      - VPN_PORT_FORWARDING=${PROTONVPN_VPN_PORT_FORWARDING:-on}
+      - VPN_PORT_FORWARDING_UP_COMMAND=/bin/sh -c 'wget -O- -nv --retry-connrefused --post-data "json={\"listen_port\":{{PORT}},\"current_network_interface\":\"{{VPN_INTERFACE}}\",\"random_port\":false,\"upnp\":false}" http://127.0.0.1:8080/api/v2/app/setPreferences'
+      - VPN_PORT_FORWARDING_DOWN_COMMAND=/bin/sh -c 'wget -O- -nv --retry-connrefused --post-data "json={\"listen_port\":0,\"current_network_interface\":\"lo\"}" http://127.0.0.1:8080/api/v2/app/setPreferences'
       - FIREWALL_INPUT_PORTS=8080,8085
       - UPDATER_PERIOD=24h
     volumes:

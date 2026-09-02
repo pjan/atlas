@@ -164,8 +164,7 @@ PERIPHERY_ROOT_DIRECTORY
 Shared stack values managed in Komodo:
 
 ```text
-EXPRESSVPN_OPENVPN_USER
-EXPRESSVPN_OPENVPN_PASSWORD
+PROTONVPN_WIREGUARD_PRIVATE_KEY
 RCLONE_BASIC_AUTH_USER
 RCLONE_BASIC_AUTH_HASH
 HOMEPAGE_ADGUARD_USERNAME
@@ -274,25 +273,27 @@ qBittorrent and SABnzbd are split from Gluetun so the VPN container can be reuse
 
 In Docker terms, qBittorrent and SABnzbd do not join `media_network` or `proxy_network` directly. They use `network_mode: "container:gluetun"`, and Caddy reaches them through Gluetun's `downloaders-vpn` network alias.
 
-Before deploying Gluetun, create the ExpressVPN OpenVPN credentials as Komodo variables or secrets:
+Before deploying Gluetun, create the Proton VPN WireGuard private key as a Komodo secret:
 
 ```text
-EXPRESSVPN_OPENVPN_USER
-EXPRESSVPN_OPENVPN_PASSWORD
+PROTONVPN_WIREGUARD_PRIVATE_KEY
 ```
 
-The VPN location is configurable through comma-separated Komodo variables:
+Generate this key from a Proton VPN WireGuard configuration. Use a paid Proton VPN plan if you want port forwarding, select a P2P server, and enable the Proton NAT-PMP/port-forwarding option when generating the WireGuard config. Do not enable Moderate NAT on that Proton config if you want port forwarding.
+
+The VPN country and Proton server filters are configurable through Komodo variables:
 
 ```text
-EXPRESSVPN_SERVER_COUNTRIES=Singapore
-EXPRESSVPN_SERVER_CITIES=
-EXPRESSVPN_OPENVPN_PROTOCOL=udp
-EXPRESSVPN_OPENVPN_VERBOSITY=4
+PROTONVPN_SERVER_COUNTRIES=Singapore
+PROTONVPN_PORT_FORWARD_ONLY=on
+PROTONVPN_VPN_PORT_FORWARDING=on
 ```
 
-`EXPRESSVPN_OPENVPN_VERBOSITY=4` is intentionally verbose while debugging ExpressVPN TLS negotiation failures. After Gluetun is stable, set it back to `1`, sync, and redeploy Gluetun.
+Gluetun is configured for Proton VPN WireGuard, which is preferred here over OpenVPN for lower overhead and simpler credentials. `PORT_FORWARD_ONLY=on` restricts selection to Proton servers that support P2P/port forwarding, and `VPN_PORT_FORWARDING=on` enables Gluetun's native Proton port forwarding integration.
 
-If Gluetun repeatedly logs OpenVPN TLS negotiation timeouts, first try another country or a shorter country list. If UDP still fails, temporarily set `EXPRESSVPN_OPENVPN_PROTOCOL=tcp`, sync, and redeploy Gluetun.
+When Proton allocates or removes a forwarded port, Gluetun calls qBittorrent's local Web API inside the shared network namespace and updates qBittorrent's listening port. For this to work, qBittorrent must have Web UI access enabled on port `8080` and must allow localhost API access without authentication. In qBittorrent, disable router UPnP/NAT-PMP because Proton's forwarded VPN port is managed by Gluetun, not by the LAN router.
+
+If Gluetun cannot find a matching server, choose another `PROTONVPN_SERVER_COUNTRIES` value or temporarily set `PROTONVPN_PORT_FORWARD_ONLY=off` while troubleshooting. Disabling `PROTONVPN_PORT_FORWARD_ONLY` allows non-P2P servers but removes the assumption that Proton port forwarding is available.
 
 Deploy order matters:
 
@@ -361,7 +362,7 @@ URL: http://lidarr:8686
 API key: copied from Lidarr
 ```
 
-ExpressVPN does not provide Gluetun-managed VPN port forwarding. qBittorrent will work without an inbound forwarded torrent port, but peer reachability and seeding performance may be worse than with a VPN provider that supports port forwarding.
+Proton VPN provides Gluetun-managed VPN port forwarding on supported paid-plan servers. qBittorrent's listening port is updated through Gluetun's `VPN_PORT_FORWARDING_UP_COMMAND` and reset through `VPN_PORT_FORWARDING_DOWN_COMMAND` when forwarding is removed.
 
 ### Rclone
 
