@@ -508,19 +508,6 @@ links = ["http://speedtest.atlas.local"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-speedtest_tracker_app_key='[[SPEEDTEST_TRACKER_APP_KEY]]'
-case "$speedtest_tracker_app_key" in
-  ""|"[[SPEEDTEST_TRACKER_APP_KEY]]")
-    echo "SPEEDTEST_TRACKER_APP_KEY must be set in Komodo before deploying speedtest-tracker" >&2
-    exit 1
-    ;;
-  base64:????????????????????????????????????????????)
-    ;;
-  *)
-    echo "SPEEDTEST_TRACKER_APP_KEY must look like base64:<44-character key>" >&2
-    exit 1
-    ;;
-esac
 docker network inspect proxy_network >/dev/null 2>&1 || docker network create proxy_network
 install -d -o [[PUID]] -g [[PGID]] -m 2775 "[[APPDATA_DIR]]/speedtest-tracker"
 """
@@ -605,13 +592,6 @@ poll_for_updates = true
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-cloudflared_tunnel_token='[[CLOUDFLARED_TUNNEL_TOKEN]]'
-case "$cloudflared_tunnel_token" in
-  ""|"[[CLOUDFLARED_TUNNEL_TOKEN]]")
-    echo "CLOUDFLARED_TUNNEL_TOKEN must be set in Komodo before deploying cloudflared" >&2
-    exit 1
-    ;;
-esac
 docker network inspect proxy_network >/dev/null 2>&1 || docker network create proxy_network
 """
 pre_deploy.shell_mode = true
