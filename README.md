@@ -306,9 +306,9 @@ Deploy order matters:
 3. Deploy `sabnzbd`.
 4. Deploy or redeploy `caddy`.
 
-If Gluetun is recreated, redeploy qBittorrent and SABnzbd after Gluetun is healthy so both downloaders reattach to the current Gluetun network namespace.
+If Gluetun is recreated, qBittorrent and SABnzbd must be recreated, not merely restarted, so both downloaders attach to the current Gluetun network namespace. Both downloader stacks keep `after = ["gluetun"]` and use Komodo `extra_args = ["--force-recreate"]`, so a Komodo deploy of either downloader recreates the container instead of leaving it attached to an old Gluetun namespace.
 
-Komodo `after = ["gluetun"]` only affects stack ordering. It does not wait for Gluetun to become healthy. qBittorrent's `pre_deploy` check currently requires Gluetun to be healthy, while SABnzbd only requires the Gluetun container to be running so its UI can be deployed and configured even during VPN troubleshooting. Downloads still require Gluetun to have a working tunnel.
+Komodo `after = ["gluetun"]` affects dependency ordering during Resource Sync deploys. If Gluetun is deployed manually outside a dependency-aware sync/procedure, explicitly deploy qBittorrent and SABnzbd afterwards; their `--force-recreate` deploy args handle the required namespace reattachment.
 
 qBittorrent and SABnzbd are available at:
 
