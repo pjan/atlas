@@ -203,6 +203,39 @@ To claim a fresh Plex install:
 
 If restoring an existing Plex `/config` with a valid `Preferences.xml`, a claim token is usually not required.
 
+### Plex Token For Homepage
+
+The Homepage Plex widget needs a Plex auth token. For Atlas, the simplest source is the `PlexOnlineToken` stored in Plex's `Preferences.xml` after the server has been claimed and signed in to your Plex account.
+
+Run this on the NAS:
+
+```sh
+docker exec plex sh -lc 'sed -n '\''s/.*PlexOnlineToken="\([^"]*\)".*/\1/p'\'' "/config/Library/Application Support/Plex Media Server/Preferences.xml"'
+```
+
+Expected result: a single token value with no surrounding XML.
+
+If you want to read it directly from the host-mounted config directory instead of through the container, run:
+
+```sh
+sed -n 's/.*PlexOnlineToken="\([^"]*\)".*/\1/p' "/volume2/appdata/plex/Library/Application Support/Plex Media Server/Preferences.xml"
+```
+
+Set the returned value in Komodo as:
+
+```text
+HOMEPAGE_PLEX_TOKEN
+```
+
+Then redeploy `homepage` so the updated environment variable is injected into the container.
+
+Notes:
+
+- This only works after Plex has been successfully claimed and signed in to your Plex account.
+- If the command returns nothing, first confirm Plex is claimed and the server is visible in your Plex account.
+- Plex documents a browser-based way to obtain an `X-Plex-Token` from the Plex Web App XML view. The `Preferences.xml` method above is the more direct Atlas-specific approach for the Homepage variable.
+- If you reset your Plex password and sign out connected devices, Plex tokens can be invalidated. If the Homepage Plex widget stops working after an account security change, fetch the token again and update `HOMEPAGE_PLEX_TOKEN`.
+
 ### Seerr
 
 The `seerr` stack runs Seerr behind Caddy at:
