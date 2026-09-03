@@ -1,3 +1,1 @@
-http://speedtest.atlas.local {
-	reverse_proxy speedtest-tracker:80
-}
+import atlas_reverse_proxy speedtest speedtest-tracker:80

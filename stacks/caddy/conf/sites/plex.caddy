@@ -1,3 +1,1 @@
-http://plex.atlas.local {
-	reverse_proxy plex:32400
-}
+import atlas_reverse_proxy plex plex:32400

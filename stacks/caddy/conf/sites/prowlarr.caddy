@@ -1,3 +1,1 @@
-http://prowlarr.atlas.local {
-	reverse_proxy prowlarr:9696
-}
+import atlas_reverse_proxy prowlarr prowlarr:9696

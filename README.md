@@ -168,8 +168,6 @@ PROTONVPN_WIREGUARD_PRIVATE_KEY
 GLUETUN_CONTROL_API_KEY
 SPEEDTEST_TRACKER_APP_KEY
 CLOUDFLARED_TUNNEL_TOKEN
-RCLONE_BASIC_AUTH_USER
-RCLONE_BASIC_AUTH_HASH
 HOMEPAGE_ADGUARD_USERNAME
 HOMEPAGE_ADGUARD_PASSWORD
 HOMEPAGE_KOMODO_API_KEY
@@ -381,21 +379,6 @@ The `rclone` stack runs the official `rclone gui` web UI behind Caddy at:
 http://rclone.atlas.local
 ```
 
-Before deploying `rclone`, create these Komodo values for Caddy's Basic Auth gate:
-
-```text
-RCLONE_BASIC_AUTH_USER
-RCLONE_BASIC_AUTH_HASH
-```
-
-Generate the password hash with Caddy:
-
-```sh
-docker run --rm caddy:2.11.4 caddy hash-password --plaintext '<password>'
-```
-
-`RCLONE_BASIC_AUTH_USER` should be a non-default username rather than `admin`. `RCLONE_BASIC_AUTH_HASH` is a Caddy password hash, not the plaintext password.
-
 Deploy order:
 
 1. Deploy `rclone`.
@@ -409,8 +392,8 @@ http://rclone.atlas.local/
 
 Operational notes:
 
-- `rclone.atlas.local` is a privileged management surface. Anyone with valid credentials can manage configured remotes and read or write the mounted local data path.
-- Caddy is the authentication boundary for this stack. The rclone RC API runs with `--no-auth` on a dedicated `rclone_network` that only Caddy and rclone should join.
+- `rclone.atlas.local` is a privileged management surface. Anyone who reaches it can manage configured remotes and read or write the mounted local data path.
+- The rclone RC API runs with `--no-auth` on a dedicated `rclone_network` that only Caddy and rclone should join.
 - This stack mounts all of `[[DATA_DIR]]` at `/data`. That was chosen for flexibility, not least privilege.
 - `rclone.conf` contains remote credentials and tokens. It is provisioned with `0600` permissions and should be backed up from `[[APPDATA_DIR]]/rclone`.
 - Do not use the UI self-update flow. Upgrade `rclone` by bumping the image tag in this repository.
@@ -436,7 +419,6 @@ This stack intentionally does not mount `/var/run/docker.sock`. Docker socket ac
 Recommended initial monitors:
 
 ```text
-HTTP: http://caddy.atlas.local
 HTTP: http://komodo.atlas.local
 HTTP: http://sonarr.atlas.local
 HTTP: http://radarr.atlas.local
@@ -449,7 +431,7 @@ HTTP: http://adguard.atlas.local
 HTTP: http://uptime.atlas.local
 HTTP: http://homepage.atlas.local
 HTTP: http://speedtest.atlas.local
-HTTP: http://rclone.atlas.local/ with Caddy Basic Auth credentials
+HTTP: http://rclone.atlas.local/
 TCP: 192.168.2.200:53
 DNS: sonarr.atlas.local against resolver 192.168.2.200, expected 192.168.2.200
 DNS: komodo.atlas.local against resolver 192.168.2.200, expected 192.168.2.200
@@ -578,7 +560,6 @@ Most media app UIs are exposed through Caddy-only local hostnames rather than di
 Validation note:
 
 - Caddy imports all site files on every validation run.
-- Because `rclone.caddy` uses `basic_auth` placeholders, `RCLONE_BASIC_AUTH_USER` and `RCLONE_BASIC_AUTH_HASH` must be set for Caddy validation even when you are changing an unrelated route.
 
 Example app route:
 

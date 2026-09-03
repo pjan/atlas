@@ -1,3 +1,1 @@
-http://seerr.atlas.local {
-	reverse_proxy seerr:5055
-}
+import atlas_reverse_proxy seerr seerr:5055

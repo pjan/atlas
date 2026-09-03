@@ -1,3 +1,1 @@
-http://sabnzbd.atlas.local {
-	reverse_proxy downloaders-vpn:8085
-}
+import atlas_reverse_proxy sabnzbd downloaders-vpn:8085

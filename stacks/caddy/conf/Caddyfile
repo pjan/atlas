@@ -1,1 +1,29 @@
+(atlas_reverse_proxy) {
+	http://{args[0]}.atlas.local, http://{args[0]}.atlas.vandaele.io {
+		reverse_proxy {args[1]}
+	}
+}
+
+(atlas_rclone) {
+	http://{args[0]}.atlas.local, http://{args[0]}.atlas.vandaele.io {
+		@rclone_bootstrap `path('/') || (path('/login') && !query({'url': '*'}) )`
+
+		handle @rclone_bootstrap {
+			route {
+				rewrite * /login
+				uri query url http://{host}/api/
+				redir {uri} 302
+			}
+		}
+
+		handle_path /api/* {
+			reverse_proxy {args[1]}
+		}
+
+		handle {
+			reverse_proxy {args[2]}
+		}
+	}
+}
+
 import sites/*.caddy

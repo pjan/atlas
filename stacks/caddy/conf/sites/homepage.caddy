@@ -1,3 +1,1 @@
-http://homepage.atlas.local {
-	reverse_proxy homepage:3000
-}
+import atlas_reverse_proxy homepage homepage:3000

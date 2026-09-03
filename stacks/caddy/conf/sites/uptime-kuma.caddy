@@ -1,3 +1,1 @@
-http://uptime.atlas.local {
-	reverse_proxy uptime-kuma:3001
-}
+import atlas_reverse_proxy uptime uptime-kuma:3001

@@ -1,3 +1,1 @@
-http://komodo.atlas.local, http://komodo.atlas.vandaele.io {
-	reverse_proxy host.docker.internal:9120
-}
+import atlas_reverse_proxy komodo host.docker.internal:9120

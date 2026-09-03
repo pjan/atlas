@@ -558,7 +558,7 @@ PUID = [[PUID]]
 PGID = [[PGID]]
 TZ = [[TZ]]
 LOG_TARGETS = stdout
-HOMEPAGE_ALLOWED_HOSTS = homepage.atlas.local
+HOMEPAGE_ALLOWED_HOSTS = homepage.atlas.local,homepage.atlas.vandaele.io
 HOMEPAGE_VAR_ADGUARD_USERNAME = [[HOMEPAGE_ADGUARD_USERNAME]]
 HOMEPAGE_VAR_ADGUARD_PASSWORD = [[HOMEPAGE_ADGUARD_PASSWORD]]
 HOMEPAGE_VAR_GLUETUN_API_KEY = [[GLUETUN_CONTROL_API_KEY]]
@@ -615,11 +615,9 @@ run_directory = "stacks/caddy"
 file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://caddy.atlas.local"]
 config_files = [
   { path = "conf/Caddyfile", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/adguard.caddy", services = ["caddy"], requires = "Restart" },
-  { path = "conf/sites/caddy.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/homepage.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/komodo.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/plex.caddy", services = ["caddy"], requires = "Restart" },
@@ -654,6 +652,4 @@ docker compose exec -T caddy wget -qO- http://127.0.0.1:2019/config/apps/http/se
 environment = """
 HTTP_BIND_IP = [[NAS_LAN_IP]]
 HTTP_PORT = [[HTTP_PORT]]
-RCLONE_BASIC_AUTH_USER = [[RCLONE_BASIC_AUTH_USER]]
-RCLONE_BASIC_AUTH_HASH = [[RCLONE_BASIC_AUTH_HASH]]
 """

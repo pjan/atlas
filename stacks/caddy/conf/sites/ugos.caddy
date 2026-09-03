@@ -1,3 +1,1 @@
-http://ugos.atlas.local {
-	reverse_proxy host.docker.internal:9999
-}
+import atlas_reverse_proxy ugos host.docker.internal:9999
