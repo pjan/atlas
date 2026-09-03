@@ -415,7 +415,7 @@ Operational notes:
 - There is no direct qui host port. Access is Caddy-only through `http://qui.atlas.local`.
 - qui does not run in Gluetun's network namespace. It is only a control UI and should not share the VPN container lifecycle.
 - Keep qui authentication enabled. Do not set `QUI__AUTH_DISABLED=true`.
-- The stack does not mount `[[DATA_DIR]]/downloads/torrents` in the baseline setup. Adding that mount grants qui read/write/delete capability over torrent downloads and should be done only when enabling filesystem-dependent features.
+- The stack mounts `[[DATA_DIR]]/downloads/torrents` at the container path `/data/downloads/torrents` (via `TORRENTS_DIR`) to enable qui's filesystem-dependent features. This path deliberately matches qBittorrent's own `/data/downloads/torrents` mapping so the save paths qui reads from the qBittorrent API resolve correctly on qui's filesystem. This mount grants qui read/write/delete capability over torrent downloads; switch it to `:ro` in `stacks/qui/compose.yaml` if only read-only browsing is wanted.
 - `[[APPDATA_DIR]]/qui` contains the qui database, admin/session state, and qBittorrent credentials. It is provisioned as private appdata and should be backed up.
 - If `*.atlas.vandaele.io` is exposed through Cloudflare Tunnel, require Cloudflare Access before reaching qui.
 

@@ -22,6 +22,7 @@ services:
       - QUI__DATABASE_ENGINE=sqlite
     volumes:
       - ${CONFIG_DIR}:/config
+      - ${TORRENTS_DIR}:/data/downloads/torrents
     networks:
       - media_network
       - proxy_network

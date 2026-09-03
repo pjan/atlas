@@ -466,6 +466,7 @@ done
 install -d -o [[PUID]] -g [[PGID]] -m 2775 "[[APPDATA_DIR]]/qui"
 chown -R [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/qui"
 chmod 0700 "[[APPDATA_DIR]]/qui"
+install -d -o [[PUID]] -g [[PGID]] -m 2775 "[[DATA_DIR]]/downloads/torrents"
 """
 pre_deploy.shell_mode = true
 environment = """
@@ -474,6 +475,7 @@ PGID = [[PGID]]
 TZ = [[TZ]]
 UMASK = 002
 CONFIG_DIR = [[APPDATA_DIR]]/qui
+TORRENTS_DIR = [[DATA_DIR]]/downloads/torrents
 """
 
 [[stack]]
