@@ -371,6 +371,54 @@ Proton VPN provides Gluetun-managed VPN port forwarding on supported paid-plan s
 
 Homepage reads Gluetun through the internal control server at `http://downloaders-vpn:8000` using `GLUETUN_CONTROL_API_KEY`. The control server is exposed only on Docker networks, not through Caddy or a host port.
 
+### qui
+
+The `qui` stack runs qui as a separate qBittorrent management UI behind Caddy at:
+
+```text
+http://qui.atlas.local
+```
+
+qui is not a qBittorrent alternative WebUI theme. It connects to qBittorrent through the qBittorrent Web API. The existing qBittorrent UI remains available at `http://qbittorrent.atlas.local`.
+
+Deploy order:
+
+1. Deploy `gluetun`.
+2. Deploy or redeploy `qbittorrent`.
+3. Deploy `qui`.
+4. Deploy or redeploy `caddy`.
+
+After first deploy, create the qui admin account immediately. Wait until qBittorrent is reachable before adding the Atlas qBittorrent instance:
+
+```sh
+docker exec qui wget --no-verbose --tries=1 --spider http://downloaders-vpn:8080
+```
+
+Add qBittorrent in qui with:
+
+```text
+Name: Atlas qBittorrent
+URL: http://downloaders-vpn:8080
+Username: qBittorrent username
+Password: qBittorrent password
+```
+
+If adding Prowlarr indexers in qui, use:
+
+```text
+URL: http://prowlarr:9696
+API key: copied from Prowlarr
+```
+
+Operational notes:
+
+- There is no direct qui host port. Access is Caddy-only through `http://qui.atlas.local`.
+- qui does not run in Gluetun's network namespace. It is only a control UI and should not share the VPN container lifecycle.
+- Keep qui authentication enabled. Do not set `QUI__AUTH_DISABLED=true`.
+- The stack does not mount `[[DATA_DIR]]/downloads/torrents` in the baseline setup. Adding that mount grants qui read/write/delete capability over torrent downloads and should be done only when enabling filesystem-dependent features.
+- `[[APPDATA_DIR]]/qui` contains the qui database, admin/session state, and qBittorrent credentials. It is provisioned as private appdata and should be backed up.
+- If `*.atlas.vandaele.io` is exposed through Cloudflare Tunnel, require Cloudflare Access before reaching qui.
+
 ### Rclone
 
 The `rclone` stack runs the official `rclone gui` web UI behind Caddy at:

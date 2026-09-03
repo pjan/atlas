@@ -442,6 +442,41 @@ USENET_DIR = [[DATA_DIR]]/downloads/usenet
 """
 
 [[stack]]
+name = "qui"
+description = "qui qBittorrent web UI"
+deploy = true
+after = ["gluetun", "qbittorrent"]
+tags = ["media", "download"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/qui"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://qui.atlas.local"]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+for network in media_network proxy_network; do
+  docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"
+done
+install -d -o [[PUID]] -g [[PGID]] -m 2775 "[[APPDATA_DIR]]/qui"
+chown -R [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/qui"
+chmod 0700 "[[APPDATA_DIR]]/qui"
+"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+UMASK = 002
+CONFIG_DIR = [[APPDATA_DIR]]/qui
+"""
+
+[[stack]]
 name = "rclone"
 description = "Rclone web UI and remote-control stack"
 deploy = true
@@ -603,7 +638,7 @@ TUNNEL_TOKEN = [[CLOUDFLARED_TUNNEL_TOKEN]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
-after = ["sonarr", "radarr", "prowlarr", "lidarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "sabnzbd", "rclone", "speedtest-tracker", "homepage"]
+after = ["sonarr", "radarr", "prowlarr", "lidarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "sabnzbd", "qui", "rclone", "speedtest-tracker", "homepage"]
 tags = ["infra", "proxy"]
 
 [stack.config]
@@ -621,6 +656,7 @@ config_files = [
   { path = "conf/sites/homepage.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/komodo.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/plex.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/qui.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/qbittorrent.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/rclone.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/sabnzbd.caddy", services = ["caddy"], requires = "Restart" },

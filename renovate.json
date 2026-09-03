@@ -49,6 +49,12 @@
       "versioning": "semver"
     },
     {
+      "description": "Use SemVer for qui.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/autobrr/qui"],
+      "versioning": "semver"
+    },
+    {
       "description": "Use SemVer for Rclone.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["rclone/rclone"],
