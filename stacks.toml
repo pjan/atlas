@@ -50,7 +50,13 @@ value = "6 */6 * * *"
 
 [[variable]]
 name = "SPEEDTEST_TRACKER_SERVERS"
-value = ""
+# Explicit nearby Ookla server IDs (Singapore). Empty auto-select is broken in
+# speedtest-tracker 1.15.0 (SelectSpeedtestServerJob passes "" to an int-typed
+# updateServerId -> TypeError, scheduled tests fail). The job picks one at random
+# per run, so multiple IDs give rotation + resilience. Revert to "" once upstream
+# adds an empty-guard. IDs: 7311 M1, 67827 FPT, 13623 Singtel, 5935 MyRepublic,
+# 31293 Pacific Internet.
+value = "7311,67827,13623,5935,31293"
 
 [[variable]]
 name = "SPEEDTEST_TRACKER_PRUNE_RESULTS_OLDER_THAN"
