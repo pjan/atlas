@@ -13,7 +13,7 @@
         description: Series management
         widget:
           type: sonarr
-          url: http://sonarr:8989
+          url: http://downloaders-vpn:8989
           key: "{{HOMEPAGE_VAR_SONARR_API_KEY}}"
     - Radarr:
         icon: radarr.png
@@ -21,7 +21,7 @@
         description: Movie management
         widget:
           type: radarr
-          url: http://radarr:7878
+          url: http://downloaders-vpn:7878
           key: "{{HOMEPAGE_VAR_RADARR_API_KEY}}"
     - Lidarr:
         icon: lidarr.png
@@ -29,7 +29,7 @@
         description: Music management
         widget:
           type: lidarr
-          url: http://lidarr:8686
+          url: http://downloaders-vpn:8686
           key: "{{HOMEPAGE_VAR_LIDARR_API_KEY}}"
     - Bazarr:
         icon: bazarr.png
@@ -41,7 +41,7 @@
         description: Indexer management
         widget:
           type: prowlarr
-          url: http://prowlarr:9696
+          url: http://downloaders-vpn:9696
           key: "{{HOMEPAGE_VAR_PROWLARR_API_KEY}}"
     - qBittorrent:
         icon: qbittorrent.png

@@ -1,1 +1,1 @@
-import atlas_reverse_proxy sonarr sonarr:8989
+import atlas_reverse_proxy sonarr downloaders-vpn:8989

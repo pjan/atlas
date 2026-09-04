@@ -4,16 +4,13 @@ services:
     container_name: flaresolverr
     restart: unless-stopped
     init: true
+    network_mode: "container:gluetun"
     security_opt:
       - no-new-privileges:true
     environment:
       - LOG_LEVEL=info
       - TZ=${TZ}
       - PORT=8191
-    expose:
-      - "8191"
-    networks:
-      - media_network
     mem_limit: 1024m
     pids_limit: 512
     logging:
@@ -27,11 +24,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-
-#################################
-# NETWORK
-#################################
-networks:
-  media_network:
-    name: media_network
-    external: true

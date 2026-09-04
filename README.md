@@ -257,8 +257,8 @@ On first setup, configure these services inside Seerr:
 
 ```text
 Plex URL: http://plex:32400
-Sonarr URL: http://sonarr:8989
-Radarr URL: http://radarr:7878
+Sonarr URL: http://downloaders-vpn:8989
+Radarr URL: http://downloaders-vpn:7878
 ```
 
 Use the API keys from Sonarr and Radarr, then choose the correct root folders and quality profiles in Seerr. Lidarr and music requests are intentionally out of scope for the baseline integration.
@@ -289,8 +289,8 @@ Deploy order:
 On first setup, configure these services inside Bazarr:
 
 ```text
-Sonarr URL: http://sonarr:8989
-Radarr URL: http://radarr:7878
+Sonarr URL: http://127.0.0.1:8989
+Radarr URL: http://127.0.0.1:7878
 ```
 
 Use the API keys from Sonarr and Radarr. Keep Bazarr path mappings empty if Bazarr, Sonarr, and Radarr all use matching `/data/...` container paths.
@@ -307,10 +307,10 @@ Operational notes:
 
 The `flaresolverr` stack runs FlareSolverr as an internal HTTP API for Prowlarr. It has no Atlas URL, no Caddy route, and no direct host port.
 
-Prowlarr reaches FlareSolverr on `media_network`:
+Prowlarr reaches FlareSolverr inside Gluetun's shared network namespace:
 
 ```text
-FlareSolverr URL: http://flaresolverr:8191
+FlareSolverr URL: http://127.0.0.1:8191
 ```
 
 Deploy order:
@@ -323,7 +323,7 @@ In Prowlarr, add FlareSolverr under `Settings -> Indexer Proxies`. Use an explic
 Operational notes:
 
 - Do not expose FlareSolverr through Caddy or a host port.
-- FlareSolverr is intentionally not routed through Gluetun in the baseline. Prowlarr and FlareSolverr share `media_network`, and FlareSolverr should stay a local helper unless an indexer-specific need proves otherwise.
+- FlareSolverr runs in `network_mode: "container:gluetun"` with Prowlarr and the other VPN-bound media apps. Keep it internal-only and address it over `127.0.0.1:8191` from Prowlarr.
 - Treat FlareSolverr as optional and fragile infrastructure. If an indexer fails, try alternate indexer base URLs before changing Atlas networking.
 - Browser-based challenge solving is memory-heavy. The stack has a higher memory cap than the Arr services and should be watched if Atlas is under memory pressure.
 - FlareSolverr sessions should be cleaned up by clients when they are no longer needed. Avoid permanent sessions unless there is a clear reason.
@@ -332,11 +332,11 @@ Operational notes:
 
 The `recyclarr` stack runs Recyclarr as a background TRaSH Guides sync worker for Sonarr and Radarr. It has no web UI, no Caddy route, and no direct host ports.
 
-Recyclarr reaches the Arr services on `media_network`:
+Recyclarr reaches the VPN-bound Arr services through Gluetun's `downloaders-vpn` alias:
 
 ```text
-Sonarr URL: http://sonarr:8989
-Radarr URL: http://radarr:7878
+Sonarr URL: http://downloaders-vpn:8989
+Radarr URL: http://downloaders-vpn:7878
 ```
 
 Before deploying, create these Komodo variables from the Sonarr and Radarr API keys:
@@ -382,9 +382,9 @@ Operational notes:
 
 ### Gluetun, qBittorrent, And SABnzbd
 
-qBittorrent and SABnzbd are split from Gluetun so the VPN container can be reused by VPN-bound download stacks. Both downloaders use Gluetun's network namespace, so Gluetun is the container that joins Docker networks and exposes downloader UIs to Caddy.
+qBittorrent and SABnzbd are split from Gluetun so the VPN container can be reused by all VPN-bound media stacks. Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, and FlareSolverr now share that same Gluetun network namespace.
 
-In Docker terms, qBittorrent and SABnzbd do not join `media_network` or `proxy_network` directly. They use `network_mode: "container:gluetun"`, and Caddy reaches them through Gluetun's `downloaders-vpn` network alias.
+In Docker terms, qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, and FlareSolverr do not join `media_network` or `proxy_network` directly. They use `network_mode: "container:gluetun"`, and Caddy or other non-VPN containers reach the routed services through Gluetun's `downloaders-vpn` network alias.
 
 Before deploying Gluetun, create the Proton VPN WireGuard private key as a Komodo secret:
 
@@ -400,7 +400,7 @@ Generate `GLUETUN_CONTROL_API_KEY` with `docker run --rm qmcgaw/gluetun:v3.41.1 
 The VPN country and Proton server filters are configurable through Komodo variables:
 
 ```text
-PROTONVPN_SERVER_COUNTRIES=Singapore
+PROTONVPN_SERVER_COUNTRIES=Netherlands
 PROTONVPN_PORT_FORWARD_ONLY=on
 PROTONVPN_VPN_PORT_FORWARDING=on
 ```
@@ -414,13 +414,21 @@ If Gluetun cannot find a matching server, choose another `PROTONVPN_SERVER_COUNT
 Deploy order matters:
 
 1. Deploy `gluetun`.
-2. Deploy `qbittorrent`.
-3. Deploy `sabnzbd`.
-4. Deploy or redeploy `caddy`.
+2. Deploy or redeploy `qbittorrent`.
+3. Deploy or redeploy `sabnzbd`.
+4. Deploy or redeploy `flaresolverr`.
+5. Deploy or redeploy `sonarr`.
+6. Deploy or redeploy `radarr`.
+7. Deploy or redeploy `lidarr`.
+8. Deploy or redeploy `prowlarr`.
+9. Deploy or redeploy `bazarr`.
+10. Deploy or redeploy `homepage`.
+11. Deploy or redeploy `recyclarr`.
+12. Deploy or redeploy `caddy`.
 
-If Gluetun is recreated, qBittorrent and SABnzbd must be recreated, not merely restarted, so both downloaders attach to the current Gluetun network namespace. Both downloader stacks keep `after = ["gluetun"]` and use Komodo `extra_args = ["--force-recreate"]`, so a Komodo deploy of either downloader recreates the container instead of leaving it attached to an old Gluetun namespace.
+If Gluetun is recreated, every container sharing its network namespace must be recreated, not merely restarted, so it reattaches to the current namespace. That includes qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, and FlareSolverr. The repo encodes this with `after = ["gluetun"]`-style dependencies and `extra_args = ["--force-recreate"]` on each VPN-bound stack.
 
-Komodo `after = ["gluetun"]` affects dependency ordering during Resource Sync deploys. If Gluetun is deployed manually outside a dependency-aware sync/procedure, explicitly deploy qBittorrent and SABnzbd afterwards; their `--force-recreate` deploy args handle the required namespace reattachment.
+Komodo `after = ["gluetun"]` affects dependency ordering during Resource Sync deploys. If Gluetun is deployed manually outside a dependency-aware sync/procedure, explicitly redeploy all VPN-bound stacks afterwards; their `--force-recreate` deploy args handle the required namespace reattachment.
 
 qBittorrent and SABnzbd are available at:
 
@@ -444,7 +452,7 @@ Music category: /data/downloads/torrents/completed/music
 Configure Sonarr, Radarr, and Lidarr download clients to use:
 
 ```text
-Host: downloaders-vpn
+Host: 127.0.0.1
 Port: 8080
 ```
 
@@ -463,7 +471,7 @@ Music category: /data/downloads/usenet/completed/music
 Configure Sonarr, Radarr, and Lidarr SABnzbd download clients to use:
 
 ```text
-Host: downloaders-vpn
+Host: 127.0.0.1
 Port: 8085
 ```
 
@@ -474,7 +482,7 @@ For Lidarr, use category `music`, completed downloads `/data/downloads/torrents/
 Configure Prowlarr's Lidarr app integration to use:
 
 ```text
-URL: http://lidarr:8686
+URL: http://127.0.0.1:8686
 API key: copied from Lidarr
 ```
 
@@ -517,7 +525,7 @@ Password: qBittorrent password
 If adding Prowlarr indexers in qui, use:
 
 ```text
-URL: http://prowlarr:9696
+URL: http://downloaders-vpn:9696
 API key: copied from Prowlarr
 ```
 

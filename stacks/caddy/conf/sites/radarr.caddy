@@ -1,1 +1,1 @@
-import atlas_reverse_proxy radarr radarr:7878
+import atlas_reverse_proxy radarr downloaders-vpn:7878

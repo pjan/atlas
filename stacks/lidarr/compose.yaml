@@ -3,6 +3,7 @@ services:
     image: lscr.io/linuxserver/lidarr:3.1.0
     container_name: lidarr
     restart: unless-stopped
+    network_mode: "container:gluetun"
     security_opt:
       - no-new-privileges:true
     environment:
@@ -13,9 +14,6 @@ services:
     volumes:
       - ${CONFIG_DIR}:/config
       - ${DATA_DIR}:/data
-    networks:
-      - media_network
-      - proxy_network
     mem_limit: 512m
     pids_limit: 256
     logging:
@@ -29,14 +27,3 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
-
-#################################
-# NETWORK
-#################################
-networks:
-  media_network:
-    name: media_network
-    external: true
-  proxy_network:
-    name: proxy_network
-    external: true

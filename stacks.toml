@@ -34,7 +34,7 @@ value = "80"
 
 [[variable]]
 name = "PROTONVPN_SERVER_COUNTRIES"
-value = "Singapore"
+value = "Netherlands"
 
 [[variable]]
 name = "PROTONVPN_PORT_FORWARD_ONLY"
@@ -68,6 +68,7 @@ value = "365"
 name = "sonarr"
 description = "sonarr"
 deploy = true
+after = ["gluetun"]
 tags = ["media"]
 
 [stack.config]
@@ -76,11 +77,24 @@ repo = "pjan/atlas"
 branch = "main"
 run_directory = "stacks/sonarr"
 file_paths = ["compose.yaml"]
+extra_args = ["--force-recreate"]
 auto_pull = true
 poll_for_updates = true
 links = ["http://sonarr.atlas.local"]
 pre_deploy.path = "."
-pre_deploy.command = """for network in media_network proxy_network; do docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"; done"""
+pre_deploy.command = """
+set -eu
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
+  test "$status" = "healthy" && break
+  if test "$i" = "12"; then
+    docker logs --tail 80 gluetun >&2 || true
+    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
+    exit 1
+  fi
+  sleep 5
+done
+"""
 pre_deploy.shell_mode = true
 environment = """
 PUID = [[PUID]]
@@ -95,6 +109,7 @@ DATA_DIR = [[DATA_DIR]]
 name = "radarr"
 description = "radarr"
 deploy = true
+after = ["gluetun"]
 tags = ["media"]
 
 [stack.config]
@@ -103,11 +118,24 @@ repo = "pjan/atlas"
 branch = "main"
 run_directory = "stacks/radarr"
 file_paths = ["compose.yaml"]
+extra_args = ["--force-recreate"]
 auto_pull = true
 poll_for_updates = true
 links = ["http://radarr.atlas.local"]
 pre_deploy.path = "."
-pre_deploy.command = """for network in media_network proxy_network; do docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"; done"""
+pre_deploy.command = """
+set -eu
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
+  test "$status" = "healthy" && break
+  if test "$i" = "12"; then
+    docker logs --tail 80 gluetun >&2 || true
+    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
+    exit 1
+  fi
+  sleep 5
+done
+"""
 pre_deploy.shell_mode = true
 environment = """
 PUID = [[PUID]]
@@ -122,7 +150,7 @@ DATA_DIR = [[DATA_DIR]]
 name = "recyclarr"
 description = "Recyclarr TRaSH Guides sync"
 deploy = true
-after = ["sonarr", "radarr"]
+after = ["gluetun", "sonarr", "radarr"]
 tags = ["media", "automation"]
 
 [stack.config]
@@ -163,9 +191,9 @@ TZ = [[TZ]]
 CRON_SCHEDULE = 15 4 * * *
 CONFIG_DIR = [[APPDATA_DIR]]/recyclarr
 DATA_DIR = [[TMP_DIR]]/recyclarr
-SONARR_URL = http://sonarr:8989
+SONARR_URL = http://downloaders-vpn:8989
 SONARR_API_KEY = [[RECYCLARR_SONARR_API_KEY]]
-RADARR_URL = http://radarr:7878
+RADARR_URL = http://downloaders-vpn:7878
 RADARR_API_KEY = [[RECYCLARR_RADARR_API_KEY]]
 """
 
@@ -173,6 +201,7 @@ RADARR_API_KEY = [[RECYCLARR_RADARR_API_KEY]]
 name = "prowlarr"
 description = "prowlarr"
 deploy = true
+after = ["gluetun", "flaresolverr"]
 tags = ["media"]
 
 [stack.config]
@@ -181,11 +210,24 @@ repo = "pjan/atlas"
 branch = "main"
 run_directory = "stacks/prowlarr"
 file_paths = ["compose.yaml"]
+extra_args = ["--force-recreate"]
 auto_pull = true
 poll_for_updates = true
 links = ["http://prowlarr.atlas.local"]
 pre_deploy.path = "."
-pre_deploy.command = """for network in media_network proxy_network; do docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"; done"""
+pre_deploy.command = """
+set -eu
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
+  test "$status" = "healthy" && break
+  if test "$i" = "12"; then
+    docker logs --tail 80 gluetun >&2 || true
+    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
+    exit 1
+  fi
+  sleep 5
+done
+"""
 pre_deploy.shell_mode = true
 environment = """
 PUID = [[PUID]]
@@ -199,6 +241,7 @@ CONFIG_DIR = [[APPDATA_DIR]]/prowlarr
 name = "flaresolverr"
 description = "FlareSolverr for Prowlarr indexer proxying"
 deploy = true
+after = ["gluetun"]
 tags = ["media", "indexers"]
 
 [stack.config]
@@ -207,10 +250,23 @@ repo = "pjan/atlas"
 branch = "main"
 run_directory = "stacks/flaresolverr"
 file_paths = ["compose.yaml"]
+extra_args = ["--force-recreate"]
 auto_pull = true
 poll_for_updates = true
 pre_deploy.path = "."
-pre_deploy.command = """docker network inspect media_network >/dev/null 2>&1 || docker network create media_network"""
+pre_deploy.command = """
+set -eu
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
+  test "$status" = "healthy" && break
+  if test "$i" = "12"; then
+    docker logs --tail 80 gluetun >&2 || true
+    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
+    exit 1
+  fi
+  sleep 5
+done
+"""
 pre_deploy.shell_mode = true
 environment = """
 TZ = [[TZ]]
@@ -220,6 +276,7 @@ TZ = [[TZ]]
 name = "lidarr"
 description = "lidarr"
 deploy = true
+after = ["gluetun"]
 tags = ["media"]
 
 [stack.config]
@@ -228,14 +285,22 @@ repo = "pjan/atlas"
 branch = "main"
 run_directory = "stacks/lidarr"
 file_paths = ["compose.yaml"]
+extra_args = ["--force-recreate"]
 auto_pull = true
 poll_for_updates = true
 links = ["http://lidarr.atlas.local"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-for network in media_network proxy_network; do
-  docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
+  test "$status" = "healthy" && break
+  if test "$i" = "12"; then
+    docker logs --tail 80 gluetun >&2 || true
+    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
+    exit 1
+  fi
+  sleep 5
 done
 install -d -o [[PUID]] -g [[PGID]] -m 2775 \
   "[[APPDATA_DIR]]/lidarr" \
@@ -256,6 +321,7 @@ DATA_DIR = [[DATA_DIR]]
 name = "bazarr"
 description = "Bazarr subtitle management"
 deploy = true
+after = ["gluetun"]
 tags = ["media", "subtitles"]
 
 [stack.config]
@@ -264,14 +330,22 @@ repo = "pjan/atlas"
 branch = "main"
 run_directory = "stacks/bazarr"
 file_paths = ["compose.yaml"]
+extra_args = ["--force-recreate"]
 auto_pull = true
 poll_for_updates = true
 links = ["http://bazarr.atlas.local"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-for network in media_network proxy_network; do
-  docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
+  test "$status" = "healthy" && break
+  if test "$i" = "12"; then
+    docker logs --tail 80 gluetun >&2 || true
+    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
+    exit 1
+  fi
+  sleep 5
 done
 install -d -o [[PUID]] -g [[PGID]] -m 0700 "[[APPDATA_DIR]]/bazarr"
 chown -R [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/bazarr"
@@ -490,7 +564,17 @@ poll_for_updates = true
 links = ["http://qbittorrent.atlas.local"]
 pre_deploy.path = "."
 pre_deploy.command = """
-test "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null)" = "healthy"
+set -eu
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
+  test "$status" = "healthy" && break
+  if test "$i" = "12"; then
+    docker logs --tail 80 gluetun >&2 || true
+    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
+    exit 1
+  fi
+  sleep 5
+done
 install -d -o [[PUID]] -g [[PGID]] -m 2775 \
   "[[APPDATA_DIR]]/qbittorrent" \
   "[[DATA_DIR]]/downloads/torrents/incomplete" \
@@ -532,7 +616,16 @@ config_files = [
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-test "$(docker inspect -f '{{.State.Running}}' gluetun 2>/dev/null)" = "true"
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
+  test "$status" = "healthy" && break
+  if test "$i" = "12"; then
+    docker logs --tail 80 gluetun >&2 || true
+    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
+    exit 1
+  fi
+  sleep 5
+done
 install -d -o [[PUID]] -g [[PGID]] -m 2775 \
   "[[DATA_DIR]]/downloads/usenet/incomplete" \
   "[[DATA_DIR]]/downloads/usenet/completed" \

@@ -3,6 +3,7 @@ services:
     image: lscr.io/linuxserver/prowlarr:2.5.2
     container_name: prowlarr
     restart: unless-stopped
+    network_mode: "container:gluetun"
     security_opt:
       - no-new-privileges:true
     environment:
@@ -12,9 +13,6 @@ services:
       - UMASK=${UMASK}
     volumes:
       - ${CONFIG_DIR}:/config
-    networks:
-      - media_network
-      - proxy_network
     mem_limit: 384m
     pids_limit: 256
     logging:
@@ -28,14 +26,3 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
-
-#################################
-# NETWORK
-#################################
-networks:
-  media_network:
-    name: media_network
-    external: true
-  proxy_network:
-    name: proxy_network
-    external: true

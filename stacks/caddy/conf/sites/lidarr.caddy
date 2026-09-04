@@ -1,1 +1,1 @@
-import atlas_reverse_proxy lidarr lidarr:8686
+import atlas_reverse_proxy lidarr downloaders-vpn:8686
