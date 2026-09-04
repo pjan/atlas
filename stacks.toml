@@ -119,6 +119,47 @@ DATA_DIR = [[DATA_DIR]]
 """
 
 [[stack]]
+name = "recyclarr"
+description = "Recyclarr TRaSH Guides sync"
+deploy = true
+after = ["sonarr", "radarr"]
+tags = ["media", "automation"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/recyclarr"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+config_files = [
+  { path = "config/configs/atlas.yml", services = ["recyclarr"], requires = "None" },
+]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+docker network inspect media_network >/dev/null 2>&1 || docker network create media_network
+install -d -o 1000 -g 1000 -m 0700 \
+  "[[APPDATA_DIR]]/recyclarr" \
+  "[[TMP_DIR]]/recyclarr"
+install -d -o 1000 -g 1000 -m 0755 "[[APPDATA_DIR]]/recyclarr/configs"
+chown -R 1000:1000 "[[APPDATA_DIR]]/recyclarr" "[[TMP_DIR]]/recyclarr"
+chmod 0700 "[[APPDATA_DIR]]/recyclarr" "[[TMP_DIR]]/recyclarr"
+"""
+pre_deploy.shell_mode = true
+environment = """
+TZ = [[TZ]]
+CRON_SCHEDULE = 15 4 * * *
+CONFIG_DIR = [[APPDATA_DIR]]/recyclarr
+DATA_DIR = [[TMP_DIR]]/recyclarr
+SONARR_URL = http://sonarr:8989
+SONARR_API_KEY = [[RECYCLARR_SONARR_API_KEY]]
+RADARR_URL = http://radarr:7878
+RADARR_API_KEY = [[RECYCLARR_RADARR_API_KEY]]
+"""
+
+[[stack]]
 name = "prowlarr"
 description = "prowlarr"
 deploy = true
@@ -648,7 +689,7 @@ TUNNEL_TOKEN = [[CLOUDFLARED_TUNNEL_TOKEN]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
-after = ["sonarr", "radarr", "prowlarr", "lidarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "sabnzbd", "qui", "rclone", "speedtest-tracker", "homepage"]
+after = ["sonarr", "radarr", "recyclarr", "prowlarr", "lidarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "sabnzbd", "qui", "rclone", "speedtest-tracker", "homepage"]
 tags = ["infra", "proxy"]
 
 [stack.config]

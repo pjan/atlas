@@ -180,6 +180,8 @@ HOMEPAGE_RADARR_API_KEY
 HOMEPAGE_SEERR_API_KEY
 HOMEPAGE_SONARR_API_KEY
 HOMEPAGE_SPEEDTEST_TRACKER_API_KEY
+RECYCLARR_SONARR_API_KEY
+RECYCLARR_RADARR_API_KEY
 ```
 
 Optional or temporary values:
@@ -268,6 +270,57 @@ Operational notes:
 - The container runs as UID/GID `1000:1000`. The pre-deploy step creates `[[APPDATA_DIR]]/seerr/logs` and recursively repairs ownership so `/app/config` stays writable after first deploys or migrations.
 - `[[APPDATA_DIR]]/seerr` should be backed up with its ownership and permissions preserved.
 - If Seerr is ever exposed beyond LAN/Tailscale, revisit TLS, SSO, and proxy-layer auth before doing so.
+
+### Recyclarr
+
+The `recyclarr` stack runs Recyclarr as a background TRaSH Guides sync worker for Sonarr and Radarr. It has no web UI, no Caddy route, and no direct host ports.
+
+Recyclarr reaches the Arr services on `media_network`:
+
+```text
+Sonarr URL: http://sonarr:8989
+Radarr URL: http://radarr:7878
+```
+
+Before deploying, create these Komodo variables from the Sonarr and Radarr API keys:
+
+```text
+RECYCLARR_SONARR_API_KEY
+RECYCLARR_RADARR_API_KEY
+```
+
+The repo-managed Recyclarr config lives at:
+
+```text
+stacks/recyclarr/config/configs/atlas.yml
+```
+
+Runtime state is stored in `/volume2/appdata/recyclarr`, and disposable logs/resources are stored in `/volume2/tmp/recyclarr`. Keep `/volume2/appdata/recyclarr` private because it contains sync state and may contain future local secrets if the stack is changed to use `secrets.yml`.
+
+Deploy order:
+
+1. Create `RECYCLARR_SONARR_API_KEY` and `RECYCLARR_RADARR_API_KEY`.
+2. Confirm `sonarr` and `radarr` are deployed and healthy.
+3. Deploy `recyclarr`.
+4. Run a preview sync from the Recyclarr stack directory.
+5. Run the first real sync only after reviewing the preview.
+
+First-sync commands on Atlas:
+
+```sh
+docker compose -f compose.yaml exec recyclarr recyclarr sync --preview
+docker compose -f compose.yaml exec recyclarr recyclarr sync
+```
+
+Operational notes:
+
+- Recyclarr is pinned to an exact Docker tag and updated through Renovate.
+- Recyclarr runs rootless as UID/GID `1000:1000`; it does not use `PUID` or `PGID`.
+- Config changes through Resource Sync do not require a Recyclarr restart. The next cron run reads the updated YAML from the read-only bind mount.
+- The scheduled sync runs daily at `04:15` according to `TZ`.
+- Recyclarr v1 intentionally manages Sonarr and Radarr only. Lidarr is not supported by Recyclarr and is out of scope.
+- Before the first real sync, inventory existing Sonarr and Radarr quality profile names. If Recyclarr should adopt an existing profile, temporarily add `name: <existing profile name>` under the matching `trash_id`, run one real sync, then either keep that name or remove it to let the guide name take over. Skipping this can create duplicate profiles.
+- There is no useful HTTP health endpoint. Monitor the container/process if useful, but treat preview output, sync logs, and last-success alerting as the real operational signals.
 
 ### Gluetun, qBittorrent, And SABnzbd
 

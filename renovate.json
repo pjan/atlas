@@ -73,6 +73,12 @@
       "versioning": "semver"
     },
     {
+      "description": "Use SemVer for Recyclarr.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["recyclarr/recyclarr"],
+      "versioning": "semver"
+    },
+    {
       "description": "Use LinuxServer Plex tag components for Plex Media Server.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["lscr.io/linuxserver/plex"],
