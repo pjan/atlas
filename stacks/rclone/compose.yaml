@@ -1,6 +1,6 @@
 services:
   rclone:
-    image: rclone/rclone:1.75.0
+    image: rclone/rclone:1.75.1
     container_name: rclone
     restart: unless-stopped
     init: true
