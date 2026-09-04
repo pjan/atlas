@@ -145,7 +145,17 @@ install -d -o 1000 -g 1000 -m 0700 \
   "[[TMP_DIR]]/recyclarr"
 install -d -o 1000 -g 1000 -m 0755 "[[APPDATA_DIR]]/recyclarr/configs"
 chown -R 1000:1000 "[[APPDATA_DIR]]/recyclarr" "[[TMP_DIR]]/recyclarr"
-chmod 0700 "[[APPDATA_DIR]]/recyclarr" "[[TMP_DIR]]/recyclarr"
+chmod -R u+rwX,go-rwx "[[APPDATA_DIR]]/recyclarr" "[[TMP_DIR]]/recyclarr"
+chmod 0755 "[[APPDATA_DIR]]/recyclarr/configs"
+RECYCLARR_VALIDATION_IMAGE="$(docker compose -f compose.yaml config --images | head -n 1)"
+test -n "$RECYCLARR_VALIDATION_IMAGE"
+docker run --rm \
+  --entrypoint /bin/sh \
+  --user 1000:1000 \
+  -v "[[APPDATA_DIR]]/recyclarr:/config" \
+  -v "[[TMP_DIR]]/recyclarr:/data" \
+  "$RECYCLARR_VALIDATION_IMAGE" \
+  -ec 'mkdir -p /config/state; tmp="/config/state/.write-test.$$"; trap "rm -f \"$tmp\"" EXIT; touch "$tmp"; touch /data/.write-test; rm -f /data/.write-test'
 """
 pre_deploy.shell_mode = true
 environment = """
@@ -186,6 +196,27 @@ CONFIG_DIR = [[APPDATA_DIR]]/prowlarr
 """
 
 [[stack]]
+name = "flaresolverr"
+description = "FlareSolverr for Prowlarr indexer proxying"
+deploy = true
+tags = ["media", "indexers"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/flaresolverr"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+pre_deploy.path = "."
+pre_deploy.command = """docker network inspect media_network >/dev/null 2>&1 || docker network create media_network"""
+pre_deploy.shell_mode = true
+environment = """
+TZ = [[TZ]]
+"""
+
+[[stack]]
 name = "lidarr"
 description = "lidarr"
 deploy = true
@@ -218,6 +249,41 @@ PGID = [[PGID]]
 TZ = [[TZ]]
 UMASK = 002
 CONFIG_DIR = [[APPDATA_DIR]]/lidarr
+DATA_DIR = [[DATA_DIR]]
+"""
+
+[[stack]]
+name = "bazarr"
+description = "Bazarr subtitle management"
+deploy = true
+tags = ["media", "subtitles"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/bazarr"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://bazarr.atlas.local"]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+for network in media_network proxy_network; do
+  docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"
+done
+install -d -o [[PUID]] -g [[PGID]] -m 0700 "[[APPDATA_DIR]]/bazarr"
+chown -R [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/bazarr"
+chmod 0700 "[[APPDATA_DIR]]/bazarr"
+"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+UMASK = 002
+CONFIG_DIR = [[APPDATA_DIR]]/bazarr
 DATA_DIR = [[DATA_DIR]]
 """
 
@@ -689,7 +755,7 @@ TUNNEL_TOKEN = [[CLOUDFLARED_TUNNEL_TOKEN]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
-after = ["sonarr", "radarr", "recyclarr", "prowlarr", "lidarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "sabnzbd", "qui", "rclone", "speedtest-tracker", "homepage"]
+after = ["sonarr", "radarr", "recyclarr", "prowlarr", "lidarr", "bazarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "sabnzbd", "qui", "rclone", "speedtest-tracker", "homepage"]
 tags = ["infra", "proxy"]
 
 [stack.config]
@@ -704,6 +770,7 @@ poll_for_updates = true
 config_files = [
   { path = "conf/Caddyfile", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/adguard.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/bazarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/homepage.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/komodo.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/plex.caddy", services = ["caddy"], requires = "Restart" },

@@ -1,0 +1,44 @@
+services:
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:1.6.0
+    container_name: bazarr
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - UMASK=${UMASK}
+    volumes:
+      - ${CONFIG_DIR}:/config
+      - ${DATA_DIR}:/data
+    expose:
+      - "6767"
+    networks:
+      - media_network
+      - proxy_network
+    mem_limit: 512m
+    pids_limit: 256
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:6767/ >/dev/null || wget -q --spider http://127.0.0.1:6767/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+#################################
+# NETWORK
+#################################
+networks:
+  media_network:
+    name: media_network
+    external: true
+  proxy_network:
+    name: proxy_network
+    external: true

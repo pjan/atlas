@@ -31,6 +31,10 @@
           type: lidarr
           url: http://lidarr:8686
           key: "{{HOMEPAGE_VAR_LIDARR_API_KEY}}"
+    - Bazarr:
+        icon: bazarr.png
+        href: http://bazarr.atlas.local
+        description: Subtitle management
     - Prowlarr:
         icon: prowlarr.png
         href: http://prowlarr.atlas.local

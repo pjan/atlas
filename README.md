@@ -271,6 +271,63 @@ Operational notes:
 - `[[APPDATA_DIR]]/seerr` should be backed up with its ownership and permissions preserved.
 - If Seerr is ever exposed beyond LAN/Tailscale, revisit TLS, SSO, and proxy-layer auth before doing so.
 
+### Bazarr
+
+The `bazarr` stack runs Bazarr behind Caddy at:
+
+```text
+http://bazarr.atlas.local
+```
+
+Deploy order:
+
+1. Deploy `bazarr`.
+2. Deploy or redeploy `homepage` if the dashboard entry is not hot-reloaded.
+3. Deploy or redeploy `caddy`.
+4. Complete first-run setup.
+
+On first setup, configure these services inside Bazarr:
+
+```text
+Sonarr URL: http://sonarr:8989
+Radarr URL: http://radarr:7878
+```
+
+Use the API keys from Sonarr and Radarr. Keep Bazarr path mappings empty if Bazarr, Sonarr, and Radarr all use matching `/data/...` container paths.
+
+Operational notes:
+
+- This stack does not expose a direct host port. Access is Caddy-only through `http://bazarr.atlas.local`.
+- Bazarr mounts the same `[[DATA_DIR]]` tree at `/data` as Sonarr, Radarr, and Lidarr so subtitle writes happen beside the media files without path translation.
+- Store subtitles `Alongside Media File` unless there is a deliberate media-library reason to do otherwise.
+- Subtitle providers may require separate credentials. Some providers may need anti-captcha services, but FlareSolverr is not a general captcha solver for Bazarr.
+- Keep `/volume2/appdata/bazarr` private because it contains provider credentials and app tokens.
+
+### FlareSolverr
+
+The `flaresolverr` stack runs FlareSolverr as an internal HTTP API for Prowlarr. It has no Atlas URL, no Caddy route, and no direct host port.
+
+Prowlarr reaches FlareSolverr on `media_network`:
+
+```text
+FlareSolverr URL: http://flaresolverr:8191
+```
+
+Deploy order:
+
+1. Deploy `flaresolverr`.
+2. Configure Prowlarr only for indexers that need it.
+
+In Prowlarr, add FlareSolverr under `Settings -> Indexer Proxies`. Use an explicit tag such as `flaresolverr`, then apply the same tag only to matching indexers that actually need Cloudflare challenge handling. A FlareSolverr proxy with no matching tagged indexers may appear disabled in Prowlarr.
+
+Operational notes:
+
+- Do not expose FlareSolverr through Caddy or a host port.
+- FlareSolverr is intentionally not routed through Gluetun in the baseline. Prowlarr and FlareSolverr share `media_network`, and FlareSolverr should stay a local helper unless an indexer-specific need proves otherwise.
+- Treat FlareSolverr as optional and fragile infrastructure. If an indexer fails, try alternate indexer base URLs before changing Atlas networking.
+- Browser-based challenge solving is memory-heavy. The stack has a higher memory cap than the Arr services and should be watched if Atlas is under memory pressure.
+- FlareSolverr sessions should be cleaned up by clients when they are no longer needed. Avoid permanent sessions unless there is a clear reason.
+
 ### Recyclarr
 
 The `recyclarr` stack runs Recyclarr as a background TRaSH Guides sync worker for Sonarr and Radarr. It has no web UI, no Caddy route, and no direct host ports.
@@ -320,6 +377,7 @@ Operational notes:
 - The scheduled sync runs daily at `04:15` according to `TZ`.
 - Recyclarr v1 intentionally manages Sonarr and Radarr only. Lidarr is not supported by Recyclarr and is out of scope.
 - Before the first real sync, inventory existing Sonarr and Radarr quality profile names. If Recyclarr should adopt an existing profile, temporarily add `name: <existing profile name>` under the matching `trash_id`, run one real sync, then either keep that name or remove it to let the guide name take over. Skipping this can create duplicate profiles.
+- If Recyclarr reports `Access to the path '/config/state' is denied`, redeploy the stack so the pre-deploy ownership repair runs. For immediate recovery on Atlas, run `chown -R 1000:1000 /volume2/appdata/recyclarr /volume2/tmp/recyclarr && chmod -R u+rwX,go-rwx /volume2/appdata/recyclarr /volume2/tmp/recyclarr && chmod 0755 /volume2/appdata/recyclarr/configs`, then recreate the Recyclarr container.
 - There is no useful HTTP health endpoint. Monitor the container/process if useful, but treat preview output, sync logs, and last-success alerting as the real operational signals.
 
 ### Gluetun, qBittorrent, And SABnzbd

@@ -13,6 +13,7 @@
         "lscr.io/linuxserver/radarr",
         "lscr.io/linuxserver/prowlarr",
         "lscr.io/linuxserver/lidarr",
+        "lscr.io/linuxserver/bazarr",
         "lscr.io/linuxserver/qbittorrent",
         "lscr.io/linuxserver/speedtest-tracker"
       ],
@@ -76,6 +77,12 @@
       "description": "Use SemVer for Recyclarr.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["recyclarr/recyclarr"],
+      "versioning": "semver"
+    },
+    {
+      "description": "Use SemVer for FlareSolverr.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["flaresolverr/flaresolverr"],
       "versioning": "semver"
     },
     {
