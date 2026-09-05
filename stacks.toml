@@ -419,14 +419,12 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
   fi
   sleep 5
 done
-install -d -o [[PUID]] -g [[PGID]] -m 0700 "[[APPDATA_DIR]]/spottarr"
-chown -R [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/spottarr"
+install -d -o 1654 -g 1654 -m 0700 "[[APPDATA_DIR]]/spottarr"
+chown -R 1654:1654 "[[APPDATA_DIR]]/spottarr"
 chmod 0700 "[[APPDATA_DIR]]/spottarr"
 """
 pre_deploy.shell_mode = true
 environment = """
-PUID = [[PUID]]
-PGID = [[PGID]]
 TZ = [[TZ]]
 CONFIG_DIR = [[APPDATA_DIR]]/spottarr
 USENET_HOSTNAME = [[SPOTTARR_USENET_HOSTNAME]]

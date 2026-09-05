@@ -1,7 +1,7 @@
 - Media:
     - Seerr:
         icon: seerr.png
-        href: http://seerr.atlas.local
+        href: http://seerr.atlas.vandaele.io
         description: Request management
         widget:
           type: seerr
@@ -9,7 +9,7 @@
           key: "{{HOMEPAGE_VAR_SEERR_API_KEY}}"
     - Sonarr:
         icon: sonarr.png
-        href: http://sonarr.atlas.local
+        href: http://sonarr.atlas.vandaele.io
         description: Series management
         widget:
           type: sonarr
@@ -17,7 +17,7 @@
           key: "{{HOMEPAGE_VAR_SONARR_API_KEY}}"
     - Radarr:
         icon: radarr.png
-        href: http://radarr.atlas.local
+        href: http://radarr.atlas.vandaele.io
         description: Movie management
         widget:
           type: radarr
@@ -25,7 +25,7 @@
           key: "{{HOMEPAGE_VAR_RADARR_API_KEY}}"
     - Lidarr:
         icon: lidarr.png
-        href: http://lidarr.atlas.local
+        href: http://lidarr.atlas.vandaele.io
         description: Music management
         widget:
           type: lidarr
@@ -33,7 +33,7 @@
           key: "{{HOMEPAGE_VAR_LIDARR_API_KEY}}"
     - Bazarr:
         icon: bazarr.png
-        href: http://bazarr.atlas.local
+        href: http://bazarr.atlas.vandaele.io
         description: Subtitle management
     - Spottarr:
         icon: mdi-access-point-network
@@ -41,7 +41,7 @@
         description: Spotnet Newznab indexer
     - Prowlarr:
         icon: prowlarr.png
-        href: http://prowlarr.atlas.local
+        href: http://prowlarr.atlas.vandaele.io
         description: Indexer management
         widget:
           type: prowlarr
@@ -49,7 +49,7 @@
           key: "{{HOMEPAGE_VAR_PROWLARR_API_KEY}}"
     - qBittorrent:
         icon: qbittorrent.png
-        href: http://qbittorrent.atlas.local
+        href: http://qbittorrent.atlas.vandaele.io
         description: Torrent downloads
         widget:
           type: qbittorrent
@@ -57,7 +57,7 @@
           key: "{{HOMEPAGE_VAR_QBITTORRENT_API_KEY}}"
     - Plex:
         icon: plex.png
-        href: http://plex.atlas.local
+        href: http://plex.atlas.vandaele.io
         description: Media streaming
         widget:
           type: plex
@@ -67,7 +67,7 @@
 - Operations:
     - Komodo:
         icon: komodo.png
-        href: http://komodo.atlas.local
+        href: http://komodo.atlas.vandaele.io
         description: Stack orchestration
         widget:
           type: komodo
@@ -77,12 +77,12 @@
           showSummary: true
     - Uptime Kuma:
         icon: uptime-kuma.png
-        href: http://uptime.atlas.local
+        href: http://uptime.atlas.vandaele.io
         description: Availability monitoring
         siteMonitor: http://uptime-kuma:3001/
     - Speedtest Tracker:
         icon: speedtest-tracker.png
-        href: http://speedtest.atlas.local
+        href: http://speedtest.atlas.vandaele.io
         description: Internet performance history
         widget:
           type: speedtest
@@ -102,13 +102,9 @@
           key: "{{HOMEPAGE_VAR_GLUETUN_API_KEY}}"
           version: 2
           fields: ["public_ip", "country", "region", "port_forwarded"]
-    - Caddy:
-        icon: caddy.png
-        href: http://caddy.atlas.local
-        description: Reverse proxy
     - AdGuard Home:
         icon: adguard-home.png
-        href: http://adguard.atlas.local
+        href: http://adguard.atlas.vandaele.io
         description: DNS and ad blocking
         widget:
           type: adguard
@@ -119,10 +115,10 @@
 - Storage & NAS:
     - Rclone:
         icon: rclone.png
-        href: http://rclone.atlas.local
+        href: http://rclone.atlas.vandaele.io
         description: Remote storage UI
     - UGOS:
         icon: mdi-nas
-        href: http://ugos.atlas.local
+        href: http://ugos.atlas.vandaele.io
         description: NAS administration
         siteMonitor: http://host.docker.internal:9999/

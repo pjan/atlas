@@ -3,7 +3,6 @@ services:
     image: spottarr/spottarr:1.20.0
     container_name: spottarr
     restart: unless-stopped
-    user: "${PUID}:${PGID}"
     network_mode: "container:gluetun"
     security_opt:
       - no-new-privileges:true

@@ -376,7 +376,7 @@ Operational notes:
 
 - This stack does not expose a direct host port. Access is Caddy-only through `http://spottarr.atlas.local`.
 - Spottarr stores its SQLite data in `/volume2/appdata/spottarr`, mounted at `/data`.
-- The container is not a LinuxServer image. It runs with Compose `user: "999:10"` rather than LSIO `PUID`/`PGID` environment variables.
+- The container is not a LinuxServer image. It runs as Spottarr's upstream non-root `app` user, UID/GID `1654`, rather than LSIO `PUID`/`PGID` environment variables.
 - Keep `/volume2/appdata/spottarr` private because it contains index state and may reveal Usenet-backed search behavior.
 - Coordinate `SPOTTARR_USENET_MAXCONNECTIONS` with SABnzbd and provider limits.
 - Start with the default `SPOTTARR_SPOTNET_RETRIEVEAFTER=2026-01-01T00:00:00Z`; moving earlier increases first-import time, storage, memory pressure, and Usenet request volume.
