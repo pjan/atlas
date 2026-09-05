@@ -31,7 +31,7 @@ services:
       komodo.skip: # Prevent Komodo from stopping with StopAllContainers
 
   core:
-    image: ghcr.io/moghtech/komodo-core:2.3.2
+    image: ghcr.io/moghtech/komodo-core:2.3.3
     container_name: komodo-core
     init: true
     restart: unless-stopped
@@ -63,7 +63,7 @@ services:
   ## or deploy the Periphery binary with systemd using
   ## https://github.com/moghtech/komodo/tree/main/scripts
   periphery:
-    image: ghcr.io/moghtech/komodo-periphery:2.3.2
+    image: ghcr.io/moghtech/komodo-periphery:2.3.3
     container_name: komodo-periphery
     init: true
     restart: unless-stopped
