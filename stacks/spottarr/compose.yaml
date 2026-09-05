@@ -1,0 +1,37 @@
+services:
+  spottarr:
+    image: spottarr/spottarr:1.20.0
+    container_name: spottarr
+    restart: unless-stopped
+    user: "${PUID}:${PGID}"
+    network_mode: "container:gluetun"
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TZ}
+      - USENET__HOSTNAME=${USENET_HOSTNAME:?missing Usenet hostname}
+      - USENET__USERNAME=${USENET_USERNAME:?missing Usenet username}
+      - USENET__PASSWORD=${USENET_PASSWORD:?missing Usenet password}
+      - USENET__PORT=${USENET_PORT}
+      - USENET__USETLS=${USENET_USETLS}
+      - USENET__MAXCONNECTIONS=${USENET_MAXCONNECTIONS}
+      - SPOTNET__RETRIEVEAFTER=${SPOTNET_RETRIEVEAFTER}
+      - SPOTNET__IMPORTBATCHSIZE=${SPOTNET_IMPORTBATCHSIZE}
+      - SPOTNET__RETENTIONDAYS=${SPOTNET_RETENTIONDAYS}
+      - SPOTNET__IMPORTADULTCONTENT=${SPOTNET_IMPORTADULTCONTENT}
+      - NEWZNAB__APIKEY=${NEWZNAB_APIKEY:?missing Spottarr Newznab API key}
+    volumes:
+      - ${CONFIG_DIR}:/data
+    mem_limit: 512m
+    pids_limit: 256
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8383/healthz >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 2h

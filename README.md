@@ -182,6 +182,10 @@ HOMEPAGE_SONARR_API_KEY
 HOMEPAGE_SPEEDTEST_TRACKER_API_KEY
 RECYCLARR_SONARR_API_KEY
 RECYCLARR_RADARR_API_KEY
+SPOTTARR_USENET_HOSTNAME
+SPOTTARR_USENET_USERNAME
+SPOTTARR_USENET_PASSWORD
+SPOTTARR_NEWZNAB_API_KEY
 ```
 
 Optional or temporary values:
@@ -328,6 +332,55 @@ Operational notes:
 - Browser-based challenge solving is memory-heavy. The stack has a higher memory cap than the Arr services and should be watched if Atlas is under memory pressure.
 - FlareSolverr sessions should be cleaned up by clients when they are no longer needed. Avoid permanent sessions unless there is a clear reason.
 
+### Spottarr
+
+The `spottarr` stack runs Spottarr as a Spotnet-backed Newznab indexer behind Caddy at:
+
+```text
+http://spottarr.atlas.local
+```
+
+Spottarr is VPN-bound through Gluetun. Caddy reaches it through:
+
+```text
+http://downloaders-vpn:8383
+```
+
+Deploy order:
+
+1. Create the required Komodo secrets.
+2. Deploy or redeploy `gluetun`.
+3. Deploy `spottarr`.
+4. Deploy or redeploy `homepage` if the dashboard entry is not hot-reloaded.
+5. Deploy or redeploy `caddy`.
+
+Required Komodo secrets:
+
+```text
+SPOTTARR_USENET_HOSTNAME
+SPOTTARR_USENET_USERNAME
+SPOTTARR_USENET_PASSWORD
+SPOTTARR_NEWZNAB_API_KEY
+```
+
+The maintenance API is intentionally disabled by default. If you want `/scalar`, `/openapi/v1.json`, or the reimport/reindex API, add `ADMIN__APIKEY` to the stack environment and back it with a `SPOTTARR_ADMIN_API_KEY` Komodo secret.
+
+Prefer adding Spottarr to Prowlarr as a `Generic Newznab` indexer, then syncing from Prowlarr to the Arr apps. Use:
+
+```text
+URL: http://127.0.0.1:8383
+API key: SPOTTARR_NEWZNAB_API_KEY
+```
+
+Operational notes:
+
+- This stack does not expose a direct host port. Access is Caddy-only through `http://spottarr.atlas.local`.
+- Spottarr stores its SQLite data in `/volume2/appdata/spottarr`, mounted at `/data`.
+- The container is not a LinuxServer image. It runs with Compose `user: "999:10"` rather than LSIO `PUID`/`PGID` environment variables.
+- Keep `/volume2/appdata/spottarr` private because it contains index state and may reveal Usenet-backed search behavior.
+- Coordinate `SPOTTARR_USENET_MAXCONNECTIONS` with SABnzbd and provider limits.
+- Start with the default `SPOTTARR_SPOTNET_RETRIEVEAFTER=2026-01-01T00:00:00Z`; moving earlier increases first-import time, storage, memory pressure, and Usenet request volume.
+
 ### Recyclarr
 
 The `recyclarr` stack runs Recyclarr as a background TRaSH Guides sync worker for Sonarr and Radarr. It has no web UI, no Caddy route, and no direct host ports.
@@ -382,9 +435,9 @@ Operational notes:
 
 ### Gluetun, qBittorrent, And SABnzbd
 
-qBittorrent and SABnzbd are split from Gluetun so the VPN container can be reused by all VPN-bound media stacks. Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, and FlareSolverr now share that same Gluetun network namespace.
+qBittorrent and SABnzbd are split from Gluetun so the VPN container can be reused by all VPN-bound media stacks. Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, and Spottarr now share that same Gluetun network namespace.
 
-In Docker terms, qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, and FlareSolverr do not join `media_network` or `proxy_network` directly. They use `network_mode: "container:gluetun"`, and Caddy or other non-VPN containers reach the routed services through Gluetun's `downloaders-vpn` network alias.
+In Docker terms, qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, and Spottarr do not join `media_network` or `proxy_network` directly. They use `network_mode: "container:gluetun"`, and Caddy or other non-VPN containers reach the routed services through Gluetun's `downloaders-vpn` network alias.
 
 Before deploying Gluetun, create the Proton VPN WireGuard private key as a Komodo secret:
 
@@ -422,11 +475,12 @@ Deploy order matters:
 7. Deploy or redeploy `lidarr`.
 8. Deploy or redeploy `prowlarr`.
 9. Deploy or redeploy `bazarr`.
-10. Deploy or redeploy `homepage`.
-11. Deploy or redeploy `recyclarr`.
-12. Deploy or redeploy `caddy`.
+10. Deploy or redeploy `spottarr`.
+11. Deploy or redeploy `homepage`.
+12. Deploy or redeploy `recyclarr`.
+13. Deploy or redeploy `caddy`.
 
-If Gluetun is recreated, every container sharing its network namespace must be recreated, not merely restarted, so it reattaches to the current namespace. That includes qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, and FlareSolverr. The repo encodes this with `after = ["gluetun"]`-style dependencies and `extra_args = ["--force-recreate"]` on each VPN-bound stack.
+If Gluetun is recreated, every container sharing its network namespace must be recreated, not merely restarted, so it reattaches to the current namespace. That includes qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, and Spottarr. The repo encodes this with `after = ["gluetun"]`-style dependencies and `extra_args = ["--force-recreate"]` on each VPN-bound stack.
 
 Komodo `after = ["gluetun"]` affects dependency ordering during Resource Sync deploys. If Gluetun is deployed manually outside a dependency-aware sync/procedure, explicitly redeploy all VPN-bound stacks afterwards; their `--force-recreate` deploy args handle the required namespace reattachment.
 

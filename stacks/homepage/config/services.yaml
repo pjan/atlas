@@ -35,6 +35,10 @@
         icon: bazarr.png
         href: http://bazarr.atlas.local
         description: Subtitle management
+    - Spottarr:
+        icon: mdi-access-point-network
+        href: http://spottarr.atlas.local
+        description: Spotnet Newznab indexer
     - Prowlarr:
         icon: prowlarr.png
         href: http://prowlarr.atlas.local

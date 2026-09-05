@@ -45,6 +45,34 @@ name = "PROTONVPN_VPN_PORT_FORWARDING"
 value = "on"
 
 [[variable]]
+name = "SPOTTARR_USENET_PORT"
+value = "563"
+
+[[variable]]
+name = "SPOTTARR_USENET_USETLS"
+value = "true"
+
+[[variable]]
+name = "SPOTTARR_USENET_MAXCONNECTIONS"
+value = "5"
+
+[[variable]]
+name = "SPOTTARR_SPOTNET_RETRIEVEAFTER"
+value = "2026-01-01T00:00:00Z"
+
+[[variable]]
+name = "SPOTTARR_SPOTNET_IMPORTBATCHSIZE"
+value = "5000"
+
+[[variable]]
+name = "SPOTTARR_SPOTNET_RETENTIONDAYS"
+value = "365"
+
+[[variable]]
+name = "SPOTTARR_SPOTNET_IMPORTADULTCONTENT"
+value = "false"
+
+[[variable]]
 name = "SPEEDTEST_TRACKER_SCHEDULE"
 value = "6 */6 * * *"
 
@@ -359,6 +387,59 @@ TZ = [[TZ]]
 UMASK = 002
 CONFIG_DIR = [[APPDATA_DIR]]/bazarr
 DATA_DIR = [[DATA_DIR]]
+"""
+
+[[stack]]
+name = "spottarr"
+description = "Spottarr Spotnet Newznab indexer"
+deploy = true
+after = ["gluetun"]
+tags = ["media", "indexers", "usenet"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/spottarr"
+file_paths = ["compose.yaml"]
+extra_args = ["--force-recreate"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://spottarr.atlas.local"]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
+  test "$status" = "healthy" && break
+  if test "$i" = "12"; then
+    docker logs --tail 80 gluetun >&2 || true
+    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
+    exit 1
+  fi
+  sleep 5
+done
+install -d -o [[PUID]] -g [[PGID]] -m 0700 "[[APPDATA_DIR]]/spottarr"
+chown -R [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/spottarr"
+chmod 0700 "[[APPDATA_DIR]]/spottarr"
+"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+CONFIG_DIR = [[APPDATA_DIR]]/spottarr
+USENET_HOSTNAME = [[SPOTTARR_USENET_HOSTNAME]]
+USENET_USERNAME = [[SPOTTARR_USENET_USERNAME]]
+USENET_PASSWORD = [[SPOTTARR_USENET_PASSWORD]]
+USENET_PORT = [[SPOTTARR_USENET_PORT]]
+USENET_USETLS = [[SPOTTARR_USENET_USETLS]]
+USENET_MAXCONNECTIONS = [[SPOTTARR_USENET_MAXCONNECTIONS]]
+SPOTNET_RETRIEVEAFTER = [[SPOTTARR_SPOTNET_RETRIEVEAFTER]]
+SPOTNET_IMPORTBATCHSIZE = [[SPOTTARR_SPOTNET_IMPORTBATCHSIZE]]
+SPOTNET_RETENTIONDAYS = [[SPOTTARR_SPOTNET_RETENTIONDAYS]]
+SPOTNET_IMPORTADULTCONTENT = [[SPOTTARR_SPOTNET_IMPORTADULTCONTENT]]
+NEWZNAB_APIKEY = [[SPOTTARR_NEWZNAB_API_KEY]]
 """
 
 [[stack]]
@@ -848,7 +929,7 @@ TUNNEL_TOKEN = [[CLOUDFLARED_TUNNEL_TOKEN]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
-after = ["sonarr", "radarr", "recyclarr", "prowlarr", "lidarr", "bazarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "sabnzbd", "qui", "rclone", "speedtest-tracker", "homepage"]
+after = ["sonarr", "radarr", "recyclarr", "prowlarr", "spottarr", "lidarr", "bazarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "sabnzbd", "qui", "rclone", "speedtest-tracker", "homepage"]
 tags = ["infra", "proxy"]
 
 [stack.config]
@@ -873,6 +954,7 @@ config_files = [
   { path = "conf/sites/sabnzbd.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/seerr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/sonarr.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/spottarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/speedtest-tracker.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/radarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/prowlarr.caddy", services = ["caddy"], requires = "Restart" },
