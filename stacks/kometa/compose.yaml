@@ -21,6 +21,8 @@ services:
       - KOMETA_TMDBAPIKEY=${KOMETA_TMDBAPIKEY}
     volumes:
       - ${CONFIG_DIR}:/config
+      - ./config/config.yml:/config/config.yml:ro
+      - ./config/collections:/config/collections:ro
     networks:
       - media_network
     mem_limit: 768m
