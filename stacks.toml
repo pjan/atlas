@@ -591,9 +591,20 @@ pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
 docker network inspect media_network >/dev/null 2>&1 || docker network create media_network
-install -d -o [[PUID]] -g [[PGID]] -m 0700 "[[APPDATA_DIR]]/kometa"
+install -d -o [[PUID]] -g [[PGID]] -m 0700 \
+  "[[APPDATA_DIR]]/kometa" \
+  "[[APPDATA_DIR]]/kometa/collections"
+install -o [[PUID]] -g [[PGID]] -m 0600 \
+  "config/config.yml" \
+  "[[APPDATA_DIR]]/kometa/config.yml"
+for collection_file in config/collections/*.yml; do
+  install -o [[PUID]] -g [[PGID]] -m 0600 \
+    "$collection_file" \
+    "[[APPDATA_DIR]]/kometa/collections/$(basename "$collection_file")"
+done
 chown -R [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/kometa"
 chmod 0700 "[[APPDATA_DIR]]/kometa"
+chmod 0700 "[[APPDATA_DIR]]/kometa/collections"
 """
 pre_deploy.shell_mode = true
 environment = """
