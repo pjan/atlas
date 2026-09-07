@@ -90,6 +90,10 @@ value = "7311,67827,13623,5935,31293"
 name = "SPEEDTEST_TRACKER_PRUNE_RESULTS_OLDER_THAN"
 value = "365"
 
+[[variable]]
+name = "KOMETA_TIMES"
+value = "04:30"
+
 ### STACKS ###
 
 [[stack]]
@@ -561,6 +565,46 @@ CONFIG_DIR = [[APPDATA_DIR]]/plex
 MEDIA_DIR = [[DATA_DIR]]/media
 TRANSCODE_DIR = [[TMP_DIR]]/plex/transcode
 PLEX_CLAIM =
+"""
+
+[[stack]]
+name = "kometa"
+description = "Kometa Plex metadata and collection automation"
+deploy = true
+after = ["plex"]
+tags = ["media", "automation"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/kometa"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+config_files = [
+  { path = "config/config.yml", services = ["kometa"], requires = "Restart" },
+  { path = "config/collections/movies.yml", services = ["kometa"], requires = "Restart" },
+  { path = "config/collections/tv.yml", services = ["kometa"], requires = "Restart" },
+]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+docker network inspect media_network >/dev/null 2>&1 || docker network create media_network
+install -d -o [[PUID]] -g [[PGID]] -m 0700 "[[APPDATA_DIR]]/kometa"
+chown -R [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/kometa"
+chmod 0700 "[[APPDATA_DIR]]/kometa"
+"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+UMASK = 002
+CONFIG_DIR = [[APPDATA_DIR]]/kometa
+KOMETA_TIMES = [[KOMETA_TIMES]]
+KOMETA_PLEXTOKEN = [[KOMETA_PLEX_TOKEN]]
+KOMETA_TMDBAPIKEY = [[KOMETA_TMDB_API_KEY]]
 """
 
 [[stack]]

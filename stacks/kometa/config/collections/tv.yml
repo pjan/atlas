@@ -1,0 +1,7 @@
+collections:
+  TMDb Popular Shows:
+    tmdb_popular: 30
+    tmdb_region: SG
+    collection_order: custom
+    sync_mode: sync
+    summary: Popular shows on TMDb.

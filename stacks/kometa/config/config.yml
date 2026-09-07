@@ -1,0 +1,93 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kometa-team/kometa/nightly/json-schema/config-schema.json
+plex:
+  url: http://plex:32400
+  token: <<PLEXTOKEN>>
+  timeout: 60
+  db_cache: 40
+  clean_bundles: false
+  empty_trash: false
+  optimize: false
+  verify_ssl: false
+
+tmdb:
+  apikey: <<TMDBAPIKEY>>
+  cache_expiration: 60
+  language: en
+  region: BE
+
+libraries:
+  Movies:
+    remove_overlays: false
+    collection_files:
+      - default: basic
+      - default: imdb
+      - default: tmdb
+      - file: config/collections/movies.yml
+    overlay_files:
+      - default: ratings
+      - default: ribbon
+  TV Shows:
+    remove_overlays: false
+    collection_files:
+      - default: basic
+      - default: imdb
+      - file: config/collections/tv.yml
+    overlay_files:
+      - default: ratings
+      - default: ribbon
+
+playlist_files:
+  - default: playlist
+    template_variables:
+      libraries: Movies, TV Shows
+
+settings:
+  run_order:
+    - operations
+    - metadata
+    - collections
+    - overlays
+  cache: true
+  cache_expiration: 60
+  asset_directory:
+    - config/assets
+  asset_folders: true
+  asset_depth: 0
+  create_asset_folders: false
+  prioritize_assets: false
+  dimensional_asset_rename: false
+  download_url_assets: false
+  show_missing_season_assets: false
+  show_missing_episode_assets: false
+  show_asset_not_needed: true
+  sync_mode: sync
+  minimum_items: 1
+  default_collection_order: release
+  delete_below_minimum: true
+  delete_not_scheduled: false
+  run_again_delay: 2
+  missing_only_released: false
+  only_filter_missing: false
+  show_unmanaged: true
+  show_unconfigured: true
+  show_filtered: false
+  show_unfiltered: false
+  show_options: true
+  show_missing: true
+  show_missing_assets: true
+  save_report: false
+  tvdb_language: eng
+  item_refresh_delay: 0
+  playlist_report: false
+  verify_ssl: true
+  custom_repo:
+  overlay_artwork_filetype: webp_lossy
+  overlay_artwork_quality: 90
+
+webhooks:
+  changes:
+  delete:
+  error:
+  run_end:
+  run_start:
+  version:

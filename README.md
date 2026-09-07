@@ -180,6 +180,8 @@ HOMEPAGE_RADARR_API_KEY
 HOMEPAGE_SEERR_API_KEY
 HOMEPAGE_SONARR_API_KEY
 HOMEPAGE_SPEEDTEST_TRACKER_API_KEY
+KOMETA_PLEX_TOKEN
+KOMETA_TMDB_API_KEY
 RECYCLARR_SONARR_API_KEY
 RECYCLARR_RADARR_API_KEY
 SPOTTARR_USENET_HOSTNAME
@@ -209,6 +211,19 @@ To claim a fresh Plex install:
 5. Clear `PLEX_CLAIM` and redeploy Plex so the expired token is not retained.
 
 If restoring an existing Plex `/config` with a valid `Preferences.xml`, a claim token is usually not required.
+
+### Kometa Tokens
+
+Kometa reads repo-tracked config files from `stacks/kometa/config/`, but secrets stay in Komodo variables.
+
+Required Komodo variables:
+
+```text
+KOMETA_PLEX_TOKEN
+KOMETA_TMDB_API_KEY
+```
+
+Use a Plex token generated for Kometa, not the Plex server token from `Preferences.xml`.
 
 ### Plex Token For Homepage
 

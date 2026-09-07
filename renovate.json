@@ -104,6 +104,12 @@
       "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-ls(?<revision>\\d+)$"
     },
     {
+      "description": "Use LinuxServer Kometa tag components.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["lscr.io/linuxserver/kometa"],
+      "versioning": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-ls(?<build>\\d+)$"
+    },
+    {
       "description": "Group Komodo control-plane image updates together.",
       "matchDatasources": ["docker"],
       "matchPackageNames": [

@@ -1,0 +1,40 @@
+services:
+  kometa:
+    image: lscr.io/linuxserver/kometa:v2.4.8-ls116
+    container_name: kometa
+    restart: unless-stopped
+    cap_drop:
+      - NET_RAW
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - UMASK=${UMASK}
+      - KOMETA_CONFIG=/config/config.yml
+      - KOMETA_TIMES=${KOMETA_TIMES}
+      - KOMETA_RUN=False
+      - KOMETA_TESTS=False
+      - KOMETA_NO_MISSING=False
+      - KOMETA_PLEXTOKEN=${KOMETA_PLEXTOKEN}
+      - KOMETA_TMDBAPIKEY=${KOMETA_TMDBAPIKEY}
+    volumes:
+      - ${CONFIG_DIR}:/config
+    networks:
+      - media_network
+    mem_limit: 768m
+    pids_limit: 256
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+#################################
+# NETWORK
+#################################
+networks:
+  media_network:
+    name: media_network
+    external: true
