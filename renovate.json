@@ -6,101 +6,36 @@
   "labels": ["dependencies", "docker"],
   "packageRules": [
     {
-      "description": "Use SemVer for LinuxServer application images.",
+      "description": "Use stable SemVer for Docker images with standard version tags.",
       "matchDatasources": ["docker"],
       "matchPackageNames": [
-        "lscr.io/linuxserver/sonarr",
-        "lscr.io/linuxserver/radarr",
-        "lscr.io/linuxserver/prowlarr",
+        "adguard/adguardhome",
+        "caddy",
+        "cloudflare/cloudflared",
+        "flaresolverr/flaresolverr",
+        "ghcr.io/autobrr/qui",
+        "ghcr.io/gethomepage/homepage",
+        "ghcr.io/moghtech/komodo-core",
+        "ghcr.io/moghtech/komodo-periphery",
+        "ghcr.io/roonlabs/roonserver",
+        "ghcr.io/seerr-team/seerr",
         "lscr.io/linuxserver/bazarr",
+        "lscr.io/linuxserver/prowlarr",
         "lscr.io/linuxserver/qbittorrent",
-        "lscr.io/linuxserver/speedtest-tracker"
+        "lscr.io/linuxserver/radarr",
+        "lscr.io/linuxserver/sonarr",
+        "lscr.io/linuxserver/speedtest-tracker",
+        "louislam/uptime-kuma",
+        "mongo",
+        "mrusse08/soularr",
+        "qmcgaw/gluetun",
+        "rclone/rclone",
+        "recyclarr/recyclarr",
+        "slskd/slskd",
+        "spottarr/spottarr"
       ],
-      "versioning": "semver"
-    },
-    {
-      "description": "Use SemVer for Gluetun.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["qmcgaw/gluetun"],
-      "versioning": "semver"
-    },
-    {
-      "description": "Use SemVer for AdGuard Home.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["adguard/adguardhome"],
-      "versioning": "semver"
-    },
-    {
-      "description": "Use SemVer for RoonServer.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["ghcr.io/roonlabs/roonserver"],
-      "versioning": "semver"
-    },
-    {
-      "description": "Use SemVer for Uptime Kuma.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["louislam/uptime-kuma"],
-      "versioning": "semver"
-    },
-    {
-      "description": "Use SemVer for Seerr.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["ghcr.io/seerr-team/seerr"],
-      "versioning": "semver"
-    },
-    {
-      "description": "Use SemVer for qui.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["ghcr.io/autobrr/qui"],
-      "versioning": "semver"
-    },
-    {
-      "description": "Use SemVer for Rclone.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["rclone/rclone"],
-      "versioning": "semver"
-    },
-    {
-      "description": "Use SemVer for Homepage.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["ghcr.io/gethomepage/homepage"],
-      "versioning": "semver"
-    },
-    {
-      "description": "Use SemVer for cloudflared.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["cloudflare/cloudflared"],
-      "versioning": "semver"
-    },
-    {
-      "description": "Use SemVer for Recyclarr.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["recyclarr/recyclarr"],
-      "versioning": "semver"
-    },
-    {
-      "description": "Use SemVer for FlareSolverr.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["flaresolverr/flaresolverr"],
-      "versioning": "semver"
-    },
-    {
-      "description": "Use SemVer for Spottarr.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["spottarr/spottarr"],
-      "versioning": "semver"
-    },
-    {
-      "description": "Use SemVer for Soularr.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["mrusse08/soularr"],
-      "versioning": "semver"
-    },
-    {
-      "description": "Use SemVer for slskd.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["slskd/slskd"],
-      "versioning": "semver"
+      "versioning": "semver",
+      "ignoreUnstable": true
     },
     {
       "description": "Use LinuxServer Lidarr tag components.",
