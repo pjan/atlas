@@ -1,3 +1,3 @@
 http://slskd.atlas.local {
-	reverse_proxy slskd-vpn:5030
+	reverse_proxy downloaders-vpn:5030
 }

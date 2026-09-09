@@ -353,7 +353,7 @@ DATA_DIR = [[DATA_DIR]]
 name = "soularr"
 description = "Soularr and slskd Soulseek acquisition for Lidarr"
 deploy = true
-after = ["lidarr"]
+after = ["gluetun", "lidarr"]
 tags = ["media", "download", "music"]
 
 [stack.config]
@@ -362,6 +362,7 @@ repo = "pjan/atlas"
 branch = "main"
 run_directory = "stacks/soularr"
 file_paths = ["compose.yaml"]
+extra_args = ["--force-recreate", "--remove-orphans"]
 auto_pull = true
 poll_for_updates = true
 links = ["http://slskd.atlas.local"]
@@ -371,13 +372,22 @@ config_files = [
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
+  test "$status" = "healthy" && break
+  if test "$i" = "12"; then
+    docker logs --tail 80 gluetun >&2 || true
+    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
+    exit 1
+  fi
+  sleep 5
+done
 for network in media_network proxy_network; do
   docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"
 done
 install -d -o [[PUID]] -g [[PGID]] -m 0700 \
   "[[APPDATA_DIR]]/soularr" \
-  "[[APPDATA_DIR]]/slskd" \
-  "[[APPDATA_DIR]]/slskd-gluetun"
+  "[[APPDATA_DIR]]/slskd"
 install -d -o [[PUID]] -g [[PGID]] -m 2775 \
   "[[DATA_DIR]]/downloads/slskd/complete" \
   "[[DATA_DIR]]/downloads/slskd/incomplete"
@@ -385,25 +395,19 @@ chown -R [[PUID]]:[[PGID]] \
   "[[APPDATA_DIR]]/soularr" \
   "[[APPDATA_DIR]]/slskd" \
   "[[DATA_DIR]]/downloads/slskd"
-chmod 0700 "[[APPDATA_DIR]]/soularr" "[[APPDATA_DIR]]/slskd" "[[APPDATA_DIR]]/slskd-gluetun"
+chmod 0700 "[[APPDATA_DIR]]/soularr" "[[APPDATA_DIR]]/slskd"
 """
 pre_deploy.shell_mode = true
 environment = """
 PUID = [[PUID]]
 PGID = [[PGID]]
 TZ = [[TZ]]
-DATA_DIR = [[DATA_DIR]]
-GLUETUN_CONFIG_DIR = [[APPDATA_DIR]]/slskd-gluetun
 SLSKD_CONFIG_DIR = [[APPDATA_DIR]]/slskd
 SOULARR_CONFIG_DIR = [[APPDATA_DIR]]/soularr
 SLSKD_COMPLETE_DIR = [[DATA_DIR]]/downloads/slskd/complete
 SLSKD_INCOMPLETE_DIR = [[DATA_DIR]]/downloads/slskd/incomplete
 SCRIPT_INTERVAL = 900
-PROTONVPN_SERVER_COUNTRIES = [[PROTONVPN_SERVER_COUNTRIES]]
-PROTONVPN_PORT_FORWARD_ONLY = [[PROTONVPN_PORT_FORWARD_ONLY]]
-PROTONVPN_VPN_PORT_FORWARDING = [[PROTONVPN_VPN_PORT_FORWARDING]]
-PROTONVPN_SLSKD_WIREGUARD_PRIVATE_KEY = [[PROTONVPN_SLSKD_WIREGUARD_PRIVATE_KEY]]
-SLSKD_GLUETUN_CONTROL_API_KEY = [[SLSKD_GLUETUN_CONTROL_API_KEY]]
+GLUETUN_CONTROL_API_KEY = [[GLUETUN_CONTROL_API_KEY]]
 SLSKD_SLSK_USERNAME = [[SLSKD_SLSK_USERNAME]]
 SLSKD_SLSK_PASSWORD = [[SLSKD_SLSK_PASSWORD]]
 SLSKD_WEB_USERNAME = [[SLSKD_WEB_USERNAME]]

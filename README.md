@@ -166,8 +166,6 @@ Shared stack values managed in Komodo:
 ```text
 PROTONVPN_WIREGUARD_PRIVATE_KEY
 GLUETUN_CONTROL_API_KEY
-PROTONVPN_SLSKD_WIREGUARD_PRIVATE_KEY
-SLSKD_GLUETUN_CONTROL_API_KEY
 SLSKD_SLSK_USERNAME
 SLSKD_SLSK_PASSWORD
 SLSKD_WEB_USERNAME
@@ -465,13 +463,11 @@ Soularr is a background bridge between Lidarr's wanted albums and the `slskd` So
 http://slskd.atlas.local
 ```
 
-Soularr's built-in UI is intentionally disabled in v1 because it has no authentication. It has no route or direct host port; inspect its logs through Komodo or Docker. slskd is also Caddy-only and requires the configured web credentials. Its Soulseek peer listener stays inside a dedicated Gluetun ProtonVPN namespace and is never published on the NAS LAN.
+Soularr's built-in UI is intentionally disabled in v1 because it has no authentication. It has no route or direct host port; inspect its logs through Komodo or Docker. slskd is also Caddy-only and requires the configured web credentials. slskd reuses the existing Gluetun namespace used by qBittorrent and SABnzbd, and its UI is reachable through Gluetun's `downloaders-vpn` alias.
 
-Before deploying, create these Komodo variables. Use a dedicated Proton WireGuard configuration, a dedicated Soulseek account, and separate random values of at least 16 characters for the control API key, slskd API key, and JWT key:
+Before deploying, create these Komodo variables. Use a dedicated Soulseek account and separate random values of at least 16 characters for the slskd API key and JWT key:
 
 ```text
-PROTONVPN_SLSKD_WIREGUARD_PRIVATE_KEY
-SLSKD_GLUETUN_CONTROL_API_KEY
 SLSKD_SLSK_USERNAME
 SLSKD_SLSK_PASSWORD
 SLSKD_WEB_USERNAME
@@ -483,10 +479,14 @@ SOULARR_LIDARR_API_KEY
 
 Deploy order:
 
-1. Create the variables and deploy `soularr`.
-2. Confirm `slskd-gluetun` is healthy before `slskd` starts.
+1. Create the variables and deploy or redeploy `gluetun` so port `5030` is available through its Docker networks.
+2. Confirm `gluetun` is healthy, then deploy `soularr`.
 3. Deploy or redeploy `caddy` after Resource Sync so the local-only slskd route is loaded live.
-4. Sign in to slskd, confirm a connected VPN and non-zero forwarded Soulseek port, then test one wanted Lidarr album.
+4. Sign in to slskd, confirm its VPN integration reports the shared Gluetun connection as healthy, then test one wanted Lidarr album.
+
+The Proton forwarded port remains assigned to qBittorrent. slskd's dynamic port-forwarding integration is disabled because two processes cannot bind the same forwarded port in one network namespace. slskd still uses the VPN for all peer traffic, but without its own forwarded listener it may be unable to connect directly to some passive peers and may return fewer results than a dedicated forwarded setup.
+
+The Soularr deployment uses `--remove-orphans` to remove the former `slskd-gluetun` container. After confirming the migration works, the now-unused `/volume2/appdata/slskd-gluetun` directory may be removed manually.
 
 The completed-download path is deliberately mapped three ways:
 
@@ -502,13 +502,13 @@ Do not add slskd as a Lidarr download client or create a Lidarr remote path mapp
 
 Do not configure an slskd shared directory without an explicit sharing policy: a configured shared directory is indexed and offered to Soulseek peers. In particular, do not mount the managed music library as a share. Keep slskd remote configuration disabled because it could expose stored credentials.
 
-For monitoring, configure Uptime Kuma against slskd's authenticated API only with `X-API-Key`; an unauthenticated UI `401` is not a health signal. Also watch the `slskd` and `slskd-gluetun` logs for VPN or forwarded-port failures.
+For monitoring, configure Uptime Kuma against slskd's authenticated API only with `X-API-Key`; an unauthenticated UI `401` is not a health signal. Also watch the `slskd` and shared `gluetun` logs for VPN failures.
 
 ### Gluetun, qBittorrent, And SABnzbd
 
-qBittorrent and SABnzbd are split from Gluetun so the VPN container can be reused by all VPN-bound media stacks. Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, and Spottarr now share that same Gluetun network namespace.
+The VPN-bound media applications are split from Gluetun so the VPN container can be reused across stacks. qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, Spottarr, and slskd now share that same Gluetun network namespace.
 
-In Docker terms, qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, and Spottarr do not join `media_network` or `proxy_network` directly. They use `network_mode: "container:gluetun"`, and Caddy or other non-VPN containers reach the routed services through Gluetun's `downloaders-vpn` network alias.
+In Docker terms, qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, Spottarr, and slskd do not join `media_network` or `proxy_network` directly. They use `network_mode: "container:gluetun"`, and Caddy or other non-VPN containers reach the routed services through Gluetun's `downloaders-vpn` network alias.
 
 Before deploying Gluetun, create the Proton VPN WireGuard private key as a Komodo secret:
 

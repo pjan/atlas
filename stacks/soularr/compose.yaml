@@ -1,61 +1,11 @@
 services:
-  slskd-gluetun:
-    image: qmcgaw/gluetun:v3.41.3
-    container_name: slskd-gluetun
-    restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    security_opt:
-      - no-new-privileges:true
-    environment:
-      - TZ=${TZ}
-      - VPN_SERVICE_PROVIDER=protonvpn
-      - VPN_TYPE=wireguard
-      - WIREGUARD_PRIVATE_KEY=${PROTONVPN_SLSKD_WIREGUARD_PRIVATE_KEY:?missing dedicated ProtonVPN WireGuard private key}
-      - SERVER_COUNTRIES=${PROTONVPN_SERVER_COUNTRIES:-Netherlands}
-      - PORT_FORWARD_ONLY=${PROTONVPN_PORT_FORWARD_ONLY:-on}
-      - VPN_PORT_FORWARDING=${PROTONVPN_VPN_PORT_FORWARDING:-on}
-      - GLUETUN_HTTP_CONTROL_SERVER_ENABLE=on
-      - HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE={"auth":"apikey","apikey":"${SLSKD_GLUETUN_CONTROL_API_KEY:?missing slskd Gluetun control API key}"}
-      - FIREWALL_INPUT_PORTS=5030
-      - UPDATER_PERIOD=24h
-    volumes:
-      - ${GLUETUN_CONFIG_DIR}:/gluetun
-    expose:
-      - "5030"
-    networks:
-      media_network:
-        aliases:
-          - slskd-vpn
-      proxy_network:
-        aliases:
-          - slskd-vpn
-    mem_limit: 256m
-    pids_limit: 256
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    healthcheck:
-      test: ["CMD-SHELL", "/gluetun-entrypoint healthcheck"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
   slskd:
     image: slskd/slskd:0.26.0
     container_name: slskd
     restart: unless-stopped
     init: true
     user: "${PUID}:${PGID}"
-    network_mode: "service:slskd-gluetun"
-    depends_on:
-      slskd-gluetun:
-        condition: service_healthy
+    network_mode: "container:gluetun"
     cap_drop:
       - ALL
     security_opt:
@@ -73,9 +23,9 @@ services:
       - SLSKD_DOWNLOADS_DIR=/downloads
       - SLSKD_INCOMPLETE_DIR=/incomplete
       - SLSKD_VPN=true
-      - SLSKD_VPN_PORT_FORWARDING=true
+      - SLSKD_VPN_PORT_FORWARDING=false
       - SLSKD_VPN_GLUETUN_URL=http://127.0.0.1:8000
-      - SLSKD_VPN_GLUETUN_API_KEY=${SLSKD_GLUETUN_CONTROL_API_KEY:?missing slskd Gluetun control API key}
+      - SLSKD_VPN_GLUETUN_API_KEY=${GLUETUN_CONTROL_API_KEY:?missing Gluetun control API key}
       - SLSKD_REMOTE_CONFIGURATION=false
     volumes:
       - ${SLSKD_CONFIG_DIR}:/app
@@ -128,7 +78,4 @@ services:
 networks:
   media_network:
     name: media_network
-    external: true
-  proxy_network:
-    name: proxy_network
     external: true
