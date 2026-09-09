@@ -1,0 +1,6 @@
+XDG_DESKTOP_DIR="/data"
+XDG_DOWNLOAD_DIR="/data/downloads"
+XDG_DOCUMENTS_DIR="/data/documents"
+XDG_MUSIC_DIR="/data/media/music"
+XDG_PICTURES_DIR="/data/pictures"
+XDG_VIDEOS_DIR="/data/media/movies"

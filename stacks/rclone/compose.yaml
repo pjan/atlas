@@ -16,6 +16,7 @@ services:
       - ${RCLONE_CONFIG_DIR}:/config/rclone
       - ${RCLONE_CACHE_DIR}:/cache
       - ${RCLONE_DATA_DIR}:/data
+      - ./user-dirs.dirs:/config/user-dirs.dirs:ro
     command:
       - gui
       - --addr=0.0.0.0:5522
