@@ -1,0 +1,134 @@
+services:
+  slskd-gluetun:
+    image: qmcgaw/gluetun:v3.41.3
+    container_name: slskd-gluetun
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TZ}
+      - VPN_SERVICE_PROVIDER=protonvpn
+      - VPN_TYPE=wireguard
+      - WIREGUARD_PRIVATE_KEY=${PROTONVPN_SLSKD_WIREGUARD_PRIVATE_KEY:?missing dedicated ProtonVPN WireGuard private key}
+      - SERVER_COUNTRIES=${PROTONVPN_SERVER_COUNTRIES:-Netherlands}
+      - PORT_FORWARD_ONLY=${PROTONVPN_PORT_FORWARD_ONLY:-on}
+      - VPN_PORT_FORWARDING=${PROTONVPN_VPN_PORT_FORWARDING:-on}
+      - GLUETUN_HTTP_CONTROL_SERVER_ENABLE=on
+      - HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE={"auth":"apikey","apikey":"${SLSKD_GLUETUN_CONTROL_API_KEY:?missing slskd Gluetun control API key}"}
+      - FIREWALL_INPUT_PORTS=5030
+      - UPDATER_PERIOD=24h
+    volumes:
+      - ${GLUETUN_CONFIG_DIR}:/gluetun
+    expose:
+      - "5030"
+    networks:
+      media_network:
+        aliases:
+          - slskd-vpn
+      proxy_network:
+        aliases:
+          - slskd-vpn
+    mem_limit: 256m
+    pids_limit: 256
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "/gluetun-entrypoint healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  slskd:
+    image: slskd/slskd:0.26.0
+    container_name: slskd
+    restart: unless-stopped
+    init: true
+    user: "${PUID}:${PGID}"
+    network_mode: "service:slskd-gluetun"
+    depends_on:
+      slskd-gluetun:
+        condition: service_healthy
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TZ}
+      - SLSKD_SLSK_USERNAME=${SLSKD_SLSK_USERNAME:?missing Soulseek username}
+      - SLSKD_SLSK_PASSWORD=${SLSKD_SLSK_PASSWORD:?missing Soulseek password}
+      - SLSKD_USERNAME=${SLSKD_WEB_USERNAME:?missing slskd web username}
+      - SLSKD_PASSWORD=${SLSKD_WEB_PASSWORD:?missing slskd web password}
+      - SLSKD_JWT_KEY=${SLSKD_JWT_KEY:?missing slskd JWT signing key}
+      - SLSKD_API_KEY=${SLSKD_API_KEY:?missing slskd API key}
+      - SLSKD_UMASK=002
+      - SLSKD_NO_HTTPS=true
+      - SLSKD_DOWNLOADS_DIR=/downloads
+      - SLSKD_INCOMPLETE_DIR=/incomplete
+      - SLSKD_VPN=true
+      - SLSKD_VPN_PORT_FORWARDING=true
+      - SLSKD_VPN_GLUETUN_URL=http://127.0.0.1:8000
+      - SLSKD_VPN_GLUETUN_API_KEY=${SLSKD_GLUETUN_CONTROL_API_KEY:?missing slskd Gluetun control API key}
+      - SLSKD_REMOTE_CONFIGURATION=false
+    volumes:
+      - ${SLSKD_CONFIG_DIR}:/app
+      - ${SLSKD_COMPLETE_DIR}:/downloads
+      - ${SLSKD_INCOMPLETE_DIR}:/incomplete
+    mem_limit: 768m
+    pids_limit: 512
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider --header='X-API-Key: $$SLSKD_API_KEY' http://127.0.0.1:5030/api/v0/application"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  soularr:
+    image: mrusse08/soularr:v1.2.2
+    container_name: soularr
+    restart: unless-stopped
+    init: true
+    user: "${PUID}:${PGID}"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TZ}
+      - SCRIPT_INTERVAL=${SCRIPT_INTERVAL}
+      - LIDARR_API_KEY=${LIDARR_API_KEY:?missing Lidarr API key}
+      - SLSKD_API_KEY=${SLSKD_API_KEY:?missing slskd API key}
+      - WEBUI_ENABLED=false
+    volumes:
+      - ${SOULARR_CONFIG_DIR}:/data
+      - ./config/config.ini:/data/config.ini:ro
+      - ${SLSKD_COMPLETE_DIR}:/downloads
+    networks:
+      - media_network
+    mem_limit: 512m
+    pids_limit: 256
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  media_network:
+    name: media_network
+    external: true
+  proxy_network:
+    name: proxy_network
+    external: true

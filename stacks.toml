@@ -350,6 +350,70 @@ DATA_DIR = [[DATA_DIR]]
 """
 
 [[stack]]
+name = "soularr"
+description = "Soularr and slskd Soulseek acquisition for Lidarr"
+deploy = true
+after = ["lidarr"]
+tags = ["media", "download", "music"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/soularr"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://slskd.atlas.local"]
+config_files = [
+  { path = "config/config.ini", services = ["soularr"], requires = "Restart" },
+]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+for network in media_network proxy_network; do
+  docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"
+done
+install -d -o [[PUID]] -g [[PGID]] -m 0700 \
+  "[[APPDATA_DIR]]/soularr" \
+  "[[APPDATA_DIR]]/slskd" \
+  "[[APPDATA_DIR]]/slskd-gluetun"
+install -d -o [[PUID]] -g [[PGID]] -m 2775 \
+  "[[DATA_DIR]]/downloads/slskd/complete" \
+  "[[DATA_DIR]]/downloads/slskd/incomplete"
+chown -R [[PUID]]:[[PGID]] \
+  "[[APPDATA_DIR]]/soularr" \
+  "[[APPDATA_DIR]]/slskd" \
+  "[[DATA_DIR]]/downloads/slskd"
+chmod 0700 "[[APPDATA_DIR]]/soularr" "[[APPDATA_DIR]]/slskd" "[[APPDATA_DIR]]/slskd-gluetun"
+"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+DATA_DIR = [[DATA_DIR]]
+GLUETUN_CONFIG_DIR = [[APPDATA_DIR]]/slskd-gluetun
+SLSKD_CONFIG_DIR = [[APPDATA_DIR]]/slskd
+SOULARR_CONFIG_DIR = [[APPDATA_DIR]]/soularr
+SLSKD_COMPLETE_DIR = [[DATA_DIR]]/downloads/slskd/complete
+SLSKD_INCOMPLETE_DIR = [[DATA_DIR]]/downloads/slskd/incomplete
+SCRIPT_INTERVAL = 900
+PROTONVPN_SERVER_COUNTRIES = [[PROTONVPN_SERVER_COUNTRIES]]
+PROTONVPN_PORT_FORWARD_ONLY = [[PROTONVPN_PORT_FORWARD_ONLY]]
+PROTONVPN_VPN_PORT_FORWARDING = [[PROTONVPN_VPN_PORT_FORWARDING]]
+PROTONVPN_SLSKD_WIREGUARD_PRIVATE_KEY = [[PROTONVPN_SLSKD_WIREGUARD_PRIVATE_KEY]]
+SLSKD_GLUETUN_CONTROL_API_KEY = [[SLSKD_GLUETUN_CONTROL_API_KEY]]
+SLSKD_SLSK_USERNAME = [[SLSKD_SLSK_USERNAME]]
+SLSKD_SLSK_PASSWORD = [[SLSKD_SLSK_PASSWORD]]
+SLSKD_WEB_USERNAME = [[SLSKD_WEB_USERNAME]]
+SLSKD_WEB_PASSWORD = [[SLSKD_WEB_PASSWORD]]
+SLSKD_JWT_KEY = [[SLSKD_JWT_KEY]]
+SLSKD_API_KEY = [[SLSKD_API_KEY]]
+LIDARR_API_KEY = [[SOULARR_LIDARR_API_KEY]]
+"""
+
+[[stack]]
 name = "bazarr"
 description = "Bazarr subtitle management"
 deploy = true
@@ -984,7 +1048,7 @@ TUNNEL_TOKEN = [[CLOUDFLARED_TUNNEL_TOKEN]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
-after = ["sonarr", "radarr", "recyclarr", "prowlarr", "spottarr", "lidarr", "bazarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "sabnzbd", "qui", "rclone", "speedtest-tracker", "homepage"]
+after = ["sonarr", "radarr", "recyclarr", "prowlarr", "spottarr", "lidarr", "soularr", "bazarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "sabnzbd", "qui", "rclone", "speedtest-tracker", "homepage"]
 tags = ["infra", "proxy"]
 
 [stack.config]
@@ -1008,6 +1072,7 @@ config_files = [
   { path = "conf/sites/rclone.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/sabnzbd.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/seerr.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/slskd.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/sonarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/spottarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/speedtest-tracker.caddy", services = ["caddy"], requires = "Restart" },

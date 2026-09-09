@@ -166,6 +166,15 @@ Shared stack values managed in Komodo:
 ```text
 PROTONVPN_WIREGUARD_PRIVATE_KEY
 GLUETUN_CONTROL_API_KEY
+PROTONVPN_SLSKD_WIREGUARD_PRIVATE_KEY
+SLSKD_GLUETUN_CONTROL_API_KEY
+SLSKD_SLSK_USERNAME
+SLSKD_SLSK_PASSWORD
+SLSKD_WEB_USERNAME
+SLSKD_WEB_PASSWORD
+SLSKD_JWT_KEY
+SLSKD_API_KEY
+SOULARR_LIDARR_API_KEY
 SPEEDTEST_TRACKER_APP_KEY
 CLOUDFLARED_TUNNEL_TOKEN
 HOMEPAGE_ADGUARD_USERNAME
@@ -447,6 +456,53 @@ Operational notes:
 - Before the first real sync, inventory existing Sonarr and Radarr quality profile names. If Recyclarr should adopt an existing profile, temporarily add `name: <existing profile name>` under the matching `trash_id`, run one real sync, then either keep that name or remove it to let the guide name take over. Skipping this can create duplicate profiles.
 - If Recyclarr reports `Access to the path '/config/state' is denied`, redeploy the stack so the pre-deploy ownership repair runs. For immediate recovery on Atlas, run `chown -R 1000:1000 /volume2/appdata/recyclarr /volume2/tmp/recyclarr && chmod -R u+rwX,go-rwx /volume2/appdata/recyclarr /volume2/tmp/recyclarr && chmod 0755 /volume2/appdata/recyclarr/configs`, then recreate the Recyclarr container.
 - There is no useful HTTP health endpoint. Monitor the container/process if useful, but treat preview output, sync logs, and last-success alerting as the real operational signals.
+
+### Soularr And slskd
+
+Soularr is a background bridge between Lidarr's wanted albums and the `slskd` Soulseek client. The only UI is slskd, behind Caddy at:
+
+```text
+http://slskd.atlas.local
+```
+
+Soularr's built-in UI is intentionally disabled in v1 because it has no authentication. It has no route or direct host port; inspect its logs through Komodo or Docker. slskd is also Caddy-only and requires the configured web credentials. Its Soulseek peer listener stays inside a dedicated Gluetun ProtonVPN namespace and is never published on the NAS LAN.
+
+Before deploying, create these Komodo variables. Use a dedicated Proton WireGuard configuration, a dedicated Soulseek account, and separate random values of at least 16 characters for the control API key, slskd API key, and JWT key:
+
+```text
+PROTONVPN_SLSKD_WIREGUARD_PRIVATE_KEY
+SLSKD_GLUETUN_CONTROL_API_KEY
+SLSKD_SLSK_USERNAME
+SLSKD_SLSK_PASSWORD
+SLSKD_WEB_USERNAME
+SLSKD_WEB_PASSWORD
+SLSKD_JWT_KEY
+SLSKD_API_KEY
+SOULARR_LIDARR_API_KEY
+```
+
+Deploy order:
+
+1. Create the variables and deploy `soularr`.
+2. Confirm `slskd-gluetun` is healthy before `slskd` starts.
+3. Deploy or redeploy `caddy` after Resource Sync so the local-only slskd route is loaded live.
+4. Sign in to slskd, confirm a connected VPN and non-zero forwarded Soulseek port, then test one wanted Lidarr album.
+
+The completed-download path is deliberately mapped three ways:
+
+```text
+slskd writes: /downloads
+Soularr sees: /downloads
+Lidarr sees: /data/downloads/slskd/complete
+```
+
+Do not add slskd as a Lidarr download client or create a Lidarr remote path mapping; Soularr passes the Lidarr-visible path directly. Keep Lidarr automatic importing enabled and its music root folder at `/data/media/music`.
+
+`/volume2/appdata/slskd` contains slskd configuration, credentials, transfer state, and database data, so back it up with its permissions preserved. `/volume2/appdata/soularr` contains only worker state, the failed-import denylist, and logs; back it up only if retaining that operational history matters. The completed and incomplete Soulseek download directories are group-writable to support Lidarr imports.
+
+Do not configure an slskd shared directory without an explicit sharing policy: a configured shared directory is indexed and offered to Soulseek peers. In particular, do not mount the managed music library as a share. Keep slskd remote configuration disabled because it could expose stored credentials.
+
+For monitoring, configure Uptime Kuma against slskd's authenticated API only with `X-API-Key`; an unauthenticated UI `401` is not a health signal. Also watch the `slskd` and `slskd-gluetun` logs for VPN or forwarded-port failures.
 
 ### Gluetun, qBittorrent, And SABnzbd
 

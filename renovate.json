@@ -92,6 +92,18 @@
       "versioning": "semver"
     },
     {
+      "description": "Use SemVer for Soularr.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["mrusse08/soularr"],
+      "versioning": "semver"
+    },
+    {
+      "description": "Use SemVer for slskd.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["slskd/slskd"],
+      "versioning": "semver"
+    },
+    {
       "description": "Use LinuxServer Plex tag components for Plex Media Server.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["lscr.io/linuxserver/plex"],
