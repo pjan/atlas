@@ -463,7 +463,7 @@ Soularr is a background bridge between Lidarr's wanted albums and the `slskd` So
 http://slskd.atlas.local
 ```
 
-Soularr's built-in UI is intentionally disabled in v1 because it has no authentication. It has no route or direct host port; inspect its logs through Komodo or Docker. slskd is also Caddy-only and requires the configured web credentials. slskd reuses the existing Gluetun namespace used by qBittorrent and SABnzbd, and its UI is reachable through Gluetun's `downloaders-vpn` alias.
+Soularr and slskd are separate Komodo stacks so the automation worker can be updated without interrupting the Soulseek client or its downloads. Soularr's built-in UI is intentionally disabled in v1 because it has no authentication. It has no route or direct host port; inspect its logs through Komodo or Docker. slskd is Caddy-only and requires the configured web credentials. It reuses the existing Gluetun namespace used by qBittorrent and SABnzbd, and its UI is reachable through Gluetun's `downloaders-vpn` alias.
 
 Before deploying, create these Komodo variables. Use a dedicated Soulseek account and separate random values of at least 16 characters for the slskd API key and JWT key:
 
@@ -480,13 +480,15 @@ SOULARR_LIDARR_API_KEY
 Deploy order:
 
 1. Create the variables and deploy or redeploy `gluetun` so port `5030` is available through its Docker networks.
-2. Confirm `gluetun` is healthy, then deploy `soularr`.
-3. Deploy or redeploy `caddy` after Resource Sync so the local-only slskd route is loaded live.
-4. Sign in to slskd, confirm its VPN integration reports the shared Gluetun connection as healthy, then test one wanted Lidarr album.
+2. When migrating from the former combined stack, stop it and remove only its `slskd` and `soularr` containers; preserve all bind-mounted app data and downloads.
+3. Confirm `gluetun` is healthy, then deploy `slskd` and wait for its authenticated healthcheck to pass.
+4. Deploy `soularr`; its pre-deploy hook waits for Gluetun, Lidarr, and slskd to be healthy.
+5. Deploy or redeploy `caddy` after Resource Sync so the local-only slskd route is loaded live.
+6. Sign in to slskd, confirm its VPN integration reports the shared Gluetun connection as healthy, then test one wanted Lidarr album.
 
 The Proton forwarded port remains assigned to qBittorrent. slskd's dynamic port-forwarding integration is disabled because two processes cannot bind the same forwarded port in one network namespace. slskd still uses the VPN for all peer traffic, but without its own forwarded listener it may be unable to connect directly to some passive peers and may return fewer results than a dedicated forwarded setup.
 
-The Soularr deployment uses `--remove-orphans` to remove the former `slskd-gluetun` container. After confirming the migration works, the now-unused `/volume2/appdata/slskd-gluetun` directory may be removed manually.
+After confirming the migration works, the now-unused `/volume2/appdata/slskd-gluetun` directory may be removed manually.
 
 The completed-download path is deliberately mapped three ways:
 
@@ -502,7 +504,7 @@ Do not add slskd as a Lidarr download client or create a Lidarr remote path mapp
 
 Do not configure an slskd shared directory without an explicit sharing policy: a configured shared directory is indexed and offered to Soulseek peers. In particular, do not mount the managed music library as a share. Keep slskd remote configuration disabled because it could expose stored credentials.
 
-For monitoring, configure Uptime Kuma against slskd's authenticated API only with `X-API-Key`; an unauthenticated UI `401` is not a health signal. Also watch the `slskd` and shared `gluetun` logs for VPN failures.
+For monitoring, configure Uptime Kuma against slskd's authenticated API only with `X-API-Key`; an unauthenticated UI `401` is not a health signal. Also watch the independent `slskd`, `soularr`, and shared `gluetun` logs for VPN or acquisition failures.
 
 ### Gluetun, qBittorrent, And SABnzbd
 
