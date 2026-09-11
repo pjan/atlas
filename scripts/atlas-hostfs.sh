@@ -57,6 +57,7 @@ Usage:
   atlas-hostfs.sh image-ref
   atlas-hostfs.sh ensure-base ABSOLUTE_BASE_PATH
   atlas-hostfs.sh ensure-dir ABSOLUTE_PATH UID GID OCTAL_MODE
+  atlas-hostfs.sh ensure-shared-dir ABSOLUTE_DATA_PATH UID GID OCTAL_MODE
   atlas-hostfs.sh ensure-file ABSOLUTE_PATH UID GID OCTAL_MODE
   atlas-hostfs.sh assert-writable ABSOLUTE_PATH UID GID
   atlas-hostfs.sh install-file SOURCE ABSOLUTE_DESTINATION UID GID OCTAL_MODE
@@ -351,6 +352,77 @@ ensure_dir() (
 
       actual=$(stat -c "%u:%g %a" "$target")
       expected="$uid:$gid ${mode#0}"
+      test "$actual" = "$expected"
+    ' _ "$container_path" "$uid" "$gid" "$mode"
+
+  assert_writable "$path" "$uid" "$gid"
+)
+
+ensure_shared_dir() (
+  path=$1
+  uid=$2
+  gid=$3
+  mode=$4
+
+  case "$path" in
+    /volume1/data/*) ;;
+    *) fail "ensure-shared-dir accepts only a child of /volume1/data: $path" ;;
+  esac
+  validate_unsigned_integer uid "$uid"
+  validate_unsigned_integer gid "$gid"
+  validate_mode "$mode"
+  base=$(base_for_child "$path")
+  container_path=$(container_path_for "$path" "$base")
+  source_path=$(host_source_for "$base")
+
+  if is_dry_run; then
+    log "dry-run ensure-shared-dir path=$path create_uid=$uid gid=$gid mode=$mode"
+    return 0
+  fi
+
+  ensure_base "$base"
+  require_docker
+  log "ensuring shared directory path=$path create_uid=$uid gid=$gid mode=$mode owner=preserve"
+  docker run --rm \
+    --network none \
+    --read-only \
+    --security-opt no-new-privileges:true \
+    --cap-drop ALL \
+    --cap-add CHOWN \
+    --cap-add DAC_OVERRIDE \
+    --cap-add FOWNER \
+    --mount "type=bind,src=$source_path,dst=/host" \
+    "$ATLAS_INIT_IMAGE" \
+    sh -eu -c '
+      target=$1
+      uid=$2
+      gid=$3
+      mode=$4
+      relative=${target#/host/}
+      current=/host
+      previous_ifs=$IFS
+      IFS=/
+      set -- $relative
+      IFS=$previous_ifs
+
+      for component do
+        current="$current/$component"
+        test ! -L "$current"
+        if test ! -e "$current"; then
+          mkdir "$current"
+          chown "$uid:$gid" "$current"
+          chmod "$mode" "$current"
+        fi
+        test -d "$current"
+      done
+
+      test "$(realpath "$target")" = "$target"
+      owner=$(stat -c "%u" "$target")
+      chgrp "$gid" "$target"
+      chmod "$mode" "$target"
+
+      actual=$(stat -c "%u:%g %a" "$target")
+      expected="$owner:$gid ${mode#0}"
       test "$actual" = "$expected"
     ' _ "$container_path" "$uid" "$gid" "$mode"
 
@@ -664,6 +736,10 @@ case "$command" in
   ensure-dir)
     test "$#" -eq 5 || { usage >&2; exit 64; }
     ensure_dir "$2" "$3" "$4" "$5"
+    ;;
+  ensure-shared-dir)
+    test "$#" -eq 5 || { usage >&2; exit 64; }
+    ensure_shared_dir "$2" "$3" "$4" "$5"
     ;;
   ensure-file)
     test "$#" -eq 5 || { usage >&2; exit 64; }

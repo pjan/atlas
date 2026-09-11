@@ -53,11 +53,16 @@ if test "$bind_owner" = 1000:1000; then
   test_uid=1000
   test_gid=1000
   wrong_uid=0
+  shared_mode=2775
+  shared_stat_mode=2775
 else
   test_uid=0
   test_gid=0
   wrong_uid=1000
+  shared_mode=0775
+  shared_stat_mode=775
   printf 'test-atlas-hostfs: bind ownership is virtualized; using 0:0 for bind-path integration\n' >&2
+  printf 'test-atlas-hostfs: bind setgid is virtualized; using mode 0775 for shared-path integration\n' >&2
 fi
 
 docker volume create "$test_volume" >/dev/null
@@ -94,9 +99,14 @@ export ATLAS_HOSTFS_TEST_ROOT=$test_root
 ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" ensure-dir \
   /volume2/appdata/dry-run 1000 1000 0750
 test ! -e "$test_root/volume2/appdata/dry-run"
+ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" ensure-shared-dir \
+  /volume1/data/dry-run 1000 1000 2775
+test ! -e "$test_root/volume1/data/dry-run"
 
 expect_failure env ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" ensure-dir \
   /etc/atlas 1000 1000 0750
+expect_failure env ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" ensure-shared-dir \
+  /volume2/appdata/shared 1000 1000 2775
 expect_failure env ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" ensure-file \
   /etc/atlas.conf 1000 1000 0600
 expect_failure env ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" ensure-dir \
@@ -130,6 +140,37 @@ actual=$(docker run --rm \
   "$image" \
   stat -c '%u:%g %a' /host/test-private)
 test "$actual" = "$test_uid:$test_gid 700" || fail "unexpected directory metadata: $actual"
+
+sh "$hostfs" ensure-shared-dir \
+  /volume1/data/shared-new "$test_uid" "$test_gid" "$shared_mode"
+actual=$(docker run --rm \
+  --network none \
+  --mount "type=bind,src=$test_root/volume1/data,dst=/host,readonly" \
+  "$image" \
+  stat -c '%u:%g %a' /host/shared-new)
+test "$actual" = "$test_uid:$test_gid $shared_stat_mode" || fail "unexpected new shared directory metadata: $actual"
+
+sh "$hostfs" ensure-dir \
+  /volume1/data/shared-existing "$test_uid" "$test_gid" 0700
+if test "$bind_owner" = 1000:1000; then
+  docker run --rm \
+    --network none \
+    --mount "type=bind,src=$test_root/volume1/data,dst=/host" \
+    "$image" \
+    chown "$wrong_uid:$test_gid" /host/shared-existing
+  expected_shared_owner=$wrong_uid
+else
+  expected_shared_owner=$test_uid
+  printf 'test-atlas-hostfs: shared owner-preservation test requires native Linux bind ownership; using current owner\n' >&2
+fi
+sh "$hostfs" ensure-shared-dir \
+  /volume1/data/shared-existing "$test_uid" "$test_gid" "$shared_mode"
+actual=$(docker run --rm \
+  --network none \
+  --mount "type=bind,src=$test_root/volume1/data,dst=/host,readonly" \
+  "$image" \
+  stat -c '%u:%g %a' /host/shared-existing)
+test "$actual" = "$expected_shared_owner:$test_gid $shared_stat_mode" || fail "shared directory owner was not preserved: $actual"
 
 sh "$hostfs" ensure-file \
   /volume2/appdata/test-private/runtime.conf \
@@ -183,8 +224,11 @@ fi
 
 mkdir -p "$test_root/outside"
 ln -s "$test_root/outside" "$test_root/volume2/appdata/escape"
+ln -s "$test_root/outside" "$test_root/volume1/data/escape"
 expect_failure sh "$hostfs" ensure-dir \
   /volume2/appdata/escape/child "$test_uid" "$test_gid" 0750
+expect_failure sh "$hostfs" ensure-shared-dir \
+  /volume1/data/escape/child "$test_uid" "$test_gid" "$shared_mode"
 expect_failure sh "$hostfs" ensure-file \
   /volume2/appdata/escape/config.txt "$test_uid" "$test_gid" 0600
 test ! -e "$test_root/outside/child"

@@ -128,8 +128,9 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
 done
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/sonarr" [[PUID]] [[PGID]] 0750
+sh ../../scripts/atlas-hostfs.sh ensure-shared-dir \
+  "[[DATA_DIR]]/media/tv" [[PUID]] [[PGID]] 2775
 for path in \
-  "[[DATA_DIR]]/media/tv" \
   "[[DATA_DIR]]/downloads/torrents/completed/tv" \
   "[[DATA_DIR]]/downloads/usenet/completed/tv"; do
   sh ../../scripts/atlas-hostfs.sh ensure-dir \
@@ -178,8 +179,9 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
 done
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/radarr" [[PUID]] [[PGID]] 0750
+sh ../../scripts/atlas-hostfs.sh ensure-shared-dir \
+  "[[DATA_DIR]]/media/movies" [[PUID]] [[PGID]] 2775
 for path in \
-  "[[DATA_DIR]]/media/movies" \
   "[[DATA_DIR]]/downloads/torrents/completed/movies" \
   "[[DATA_DIR]]/downloads/usenet/completed/movies"; do
   sh ../../scripts/atlas-hostfs.sh ensure-dir \
@@ -348,8 +350,9 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
 done
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/lidarr" [[PUID]] [[PGID]] 0750
+sh ../../scripts/atlas-hostfs.sh ensure-shared-dir \
+  "[[DATA_DIR]]/media/music" [[PUID]] [[PGID]] 2775
 for path in \
-  "[[DATA_DIR]]/media/music" \
   "[[DATA_DIR]]/downloads/torrents/completed/music" \
   "[[DATA_DIR]]/downloads/usenet/completed/music" \
   "[[DATA_DIR]]/downloads/slskd/complete"; do
@@ -508,6 +511,12 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
 done
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/bazarr" [[PUID]] [[PGID]] 0750
+for path in \
+  "[[DATA_DIR]]/media/tv" \
+  "[[DATA_DIR]]/media/movies"; do
+  sh ../../scripts/atlas-hostfs.sh assert-writable \
+    "$path" [[PUID]] [[PGID]]
+done
 """
 pre_deploy.shell_mode = true
 environment = """

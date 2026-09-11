@@ -176,7 +176,7 @@ Atlas avoids that namespace mismatch with `scripts/atlas-hostfs.sh`. The helper 
 /volume2/tmp
 ```
 
-Normal directory preparation is nonrecursive and includes a real write probe using the requested UID/GID. Managed runtime files can be created when absent and have owner/mode enforced without replacing existing content. Recursive owner repair is limited to one private appdata or scratch tree, requires an explicit confirmation argument, and must not be used against shared media.
+Normal directory preparation is nonrecursive and includes a real write probe using the requested UID/GID. Shared media-directory preparation preserves an existing owner while enforcing the intended group and top-level mode; a missing directory is created with the application identity. Managed runtime files can be created when absent and have owner/mode enforced without replacing existing content. Recursive owner repair is limited to one private appdata or scratch tree, requires an explicit confirmation argument, and must not be used against shared media.
 
 The helper foundation is installed before production stack hooks are migrated. Until a stack's `pre_deploy` command calls this helper, its existing permission behavior is unchanged.
 
@@ -420,7 +420,7 @@ Operational notes:
 
 Sonarr, Radarr, Prowlarr, Lidarr, and Bazarr use LinuxServer's configured UID/GID `999:10`. Their private configuration directories under `/volume2/appdata` are provisioned nonrecursively with mode `0750`; a stopped migration may audit and repair nested ownership, but normal deployments never recursively change an existing tree.
 
-Sonarr, Radarr, Lidarr, and Bazarr mount the existing `/volume1/data` tree at `/data`. Only the exact media and completed-download children required by Sonarr, Radarr, and Lidarr are provisioned with mode `2775`. Prowlarr intentionally mounts no shared data. Never recursively change ownership across `/volume1/data`; inspect shared paths and ACLs individually if a write probe fails.
+Sonarr, Radarr, Lidarr, and Bazarr mount the existing `/volume1/data` tree at `/data`. Only the exact media and completed-download children required by Sonarr, Radarr, and Lidarr are provisioned with mode `2775`. Existing media-directory owners are preserved, while new directories and downloader-owned paths use `999:10`. Prowlarr intentionally mounts no shared data. Never recursively change ownership across `/volume1/data`; inspect shared paths and ACLs individually if a write probe fails.
 
 All writable Arr bind mounts use `create_host_path: false`. The corresponding pre-deploy hook must succeed before Compose starts, preventing Docker from silently replacing a missing NAS source with a `root:root` directory.
 
