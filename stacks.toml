@@ -126,6 +126,15 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
   fi
   sleep 5
 done
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/sonarr" [[PUID]] [[PGID]] 0750
+for path in \
+  "[[DATA_DIR]]/media/tv" \
+  "[[DATA_DIR]]/downloads/torrents/completed/tv" \
+  "[[DATA_DIR]]/downloads/usenet/completed/tv"; do
+  sh ../../scripts/atlas-hostfs.sh ensure-dir \
+    "$path" [[PUID]] [[PGID]] 2775
+done
 """
 pre_deploy.shell_mode = true
 environment = """
@@ -166,6 +175,15 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
     exit 1
   fi
   sleep 5
+done
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/radarr" [[PUID]] [[PGID]] 0750
+for path in \
+  "[[DATA_DIR]]/media/movies" \
+  "[[DATA_DIR]]/downloads/torrents/completed/movies" \
+  "[[DATA_DIR]]/downloads/usenet/completed/movies"; do
+  sh ../../scripts/atlas-hostfs.sh ensure-dir \
+    "$path" [[PUID]] [[PGID]] 2775
 done
 """
 pre_deploy.shell_mode = true
@@ -251,6 +269,8 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
   fi
   sleep 5
 done
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/prowlarr" [[PUID]] [[PGID]] 0750
 """
 pre_deploy.shell_mode = true
 environment = """
@@ -326,10 +346,16 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
   fi
   sleep 5
 done
-install -d -o [[PUID]] -g [[PGID]] -m 2775 \
-  "[[APPDATA_DIR]]/lidarr" \
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/lidarr" [[PUID]] [[PGID]] 0750
+for path in \
   "[[DATA_DIR]]/media/music" \
-  "[[DATA_DIR]]/downloads/torrents/completed/music"
+  "[[DATA_DIR]]/downloads/torrents/completed/music" \
+  "[[DATA_DIR]]/downloads/usenet/completed/music" \
+  "[[DATA_DIR]]/downloads/slskd/complete"; do
+  sh ../../scripts/atlas-hostfs.sh ensure-dir \
+    "$path" [[PUID]] [[PGID]] 2775
+done
 """
 pre_deploy.shell_mode = true
 environment = """
@@ -432,10 +458,11 @@ for container in gluetun lidarr slskd; do
     sleep 5
   done
 done
-docker network inspect media_network >/dev/null 2>&1 || docker network create media_network
-install -d -o [[PUID]] -g [[PGID]] -m 0700 "[[APPDATA_DIR]]/soularr"
-chown -R [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/soularr"
-chmod 0700 "[[APPDATA_DIR]]/soularr"
+sh ../../scripts/ensure-docker-network.sh media_network
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/soularr" [[PUID]] [[PGID]] 0750
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[DATA_DIR]]/downloads/slskd/complete" [[PUID]] [[PGID]] 2775
 """
 pre_deploy.shell_mode = true
 environment = """
@@ -453,7 +480,7 @@ LIDARR_API_KEY = [[SOULARR_LIDARR_API_KEY]]
 name = "bazarr"
 description = "Bazarr subtitle management"
 deploy = true
-after = ["gluetun"]
+after = ["gluetun", "sonarr", "radarr"]
 tags = ["media", "subtitles"]
 
 [stack.config]
@@ -479,9 +506,8 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
   fi
   sleep 5
 done
-install -d -o [[PUID]] -g [[PGID]] -m 0700 "[[APPDATA_DIR]]/bazarr"
-chown -R [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/bazarr"
-chmod 0700 "[[APPDATA_DIR]]/bazarr"
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/bazarr" [[PUID]] [[PGID]] 0750
 """
 pre_deploy.shell_mode = true
 environment = """

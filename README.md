@@ -412,9 +412,17 @@ Operational notes:
 
 - This stack does not expose a direct host port. Access is Caddy-only through `http://seerr.atlas.local`.
 - Seerr relies on its own auth plus Plex auth. There is no Caddy Basic Auth gate in the baseline LAN/Tailscale deployment.
-- The container runs as UID/GID `1000:1000`. The pre-deploy step creates `[[APPDATA_DIR]]/seerr/logs` and recursively repairs ownership so `/app/config` stays writable after first deploys or migrations.
+- The container runs as UID/GID `1000:1000`. The pre-deploy step nonrecursively provisions `[[APPDATA_DIR]]/seerr` and its `logs` child; existing nested ownership is audited and repaired only during a stopped migration.
 - `[[APPDATA_DIR]]/seerr` should be backed up with its ownership and permissions preserved.
 - If Seerr is ever exposed beyond LAN/Tailscale, revisit TLS, SSO, and proxy-layer auth before doing so.
+
+### Arr Storage Policy
+
+Sonarr, Radarr, Prowlarr, Lidarr, and Bazarr use LinuxServer's configured UID/GID `999:10`. Their private configuration directories under `/volume2/appdata` are provisioned nonrecursively with mode `0750`; a stopped migration may audit and repair nested ownership, but normal deployments never recursively change an existing tree.
+
+Sonarr, Radarr, Lidarr, and Bazarr mount the existing `/volume1/data` tree at `/data`. Only the exact media and completed-download children required by Sonarr, Radarr, and Lidarr are provisioned with mode `2775`. Prowlarr intentionally mounts no shared data. Never recursively change ownership across `/volume1/data`; inspect shared paths and ACLs individually if a write probe fails.
+
+All writable Arr bind mounts use `create_host_path: false`. The corresponding pre-deploy hook must succeed before Compose starts, preventing Docker from silently replacing a missing NAS source with a `root:root` directory.
 
 ### Bazarr
 
@@ -446,7 +454,7 @@ Operational notes:
 - Bazarr mounts the same `[[DATA_DIR]]` tree at `/data` as Sonarr, Radarr, and Lidarr so subtitle writes happen beside the media files without path translation.
 - Store subtitles `Alongside Media File` unless there is a deliberate media-library reason to do otherwise.
 - Subtitle providers may require separate credentials. Some providers may need anti-captcha services, but FlareSolverr is not a general captcha solver for Bazarr.
-- Keep `/volume2/appdata/bazarr` private because it contains provider credentials and app tokens.
+- Keep `/volume2/appdata/bazarr` private with mode `0750` because it contains provider credentials and app tokens.
 
 ### FlareSolverr
 
@@ -619,7 +627,7 @@ Lidarr sees: /data/downloads/slskd/complete
 
 Do not add slskd as a Lidarr download client or create a Lidarr remote path mapping; Soularr passes the Lidarr-visible path directly. Keep Lidarr automatic importing enabled and its music root folder at `/data/media/music`.
 
-`/volume2/appdata/slskd` contains slskd configuration, credentials, transfer state, and database data, so back it up with its `0700` permissions preserved. `/volume2/appdata/soularr` contains only worker state, the failed-import denylist, and logs; back it up only if retaining that operational history matters. The Soulseek download root and its completed/incomplete children use mode `2775` for Lidarr imports; never recursively change ownership across that shared tree.
+`/volume2/appdata/slskd` contains slskd configuration, credentials, transfer state, and database data, so back it up with its `0700` permissions preserved. `/volume2/appdata/soularr` uses mode `0750` and contains only worker state, the failed-import denylist, and logs; back it up only if retaining that operational history matters. The Soulseek download root and its completed/incomplete children use mode `2775` for Lidarr imports; never recursively change ownership across that shared tree.
 
 Do not configure an slskd shared directory without an explicit sharing policy: a configured shared directory is indexed and offered to Soulseek peers. In particular, do not mount the managed music library as a share. Keep slskd remote configuration disabled because it could expose stored credentials.
 

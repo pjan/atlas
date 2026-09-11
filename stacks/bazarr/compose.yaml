@@ -12,8 +12,16 @@ services:
       - TZ=${TZ}
       - UMASK=${UMASK}
     volumes:
-      - ${CONFIG_DIR}:/config
-      - ${DATA_DIR}:/data
+      - type: bind
+        source: ${CONFIG_DIR:?CONFIG_DIR is required}
+        target: /config
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${DATA_DIR:?DATA_DIR is required}
+        target: /data
+        bind:
+          create_host_path: false
     mem_limit: 512m
     pids_limit: 256
     logging:

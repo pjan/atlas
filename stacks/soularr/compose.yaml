@@ -15,9 +15,22 @@ services:
       - SLSKD_API_KEY=${SLSKD_API_KEY:?missing slskd API key}
       - WEBUI_ENABLED=false
     volumes:
-      - ${SOULARR_CONFIG_DIR}:/data
-      - ./config/config.ini:/data/config.ini:ro
-      - ${SLSKD_COMPLETE_DIR}:/downloads
+      - type: bind
+        source: ${SOULARR_CONFIG_DIR:?SOULARR_CONFIG_DIR is required}
+        target: /data
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./config/config.ini
+        target: /data/config.ini
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${SLSKD_COMPLETE_DIR:?SLSKD_COMPLETE_DIR is required}
+        target: /downloads
+        bind:
+          create_host_path: false
     networks:
       - media_network
     mem_limit: 512m
