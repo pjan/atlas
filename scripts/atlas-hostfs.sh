@@ -321,6 +321,7 @@ ensure_dir() (
     --cap-add CHOWN \
     --cap-add DAC_OVERRIDE \
     --cap-add FOWNER \
+    --cap-add FSETID \
     --mount "type=bind,src=$source_path,dst=/host" \
     "$ATLAS_INIT_IMAGE" \
     sh -eu -c '
@@ -391,6 +392,7 @@ ensure_shared_dir() (
     --cap-add CHOWN \
     --cap-add DAC_OVERRIDE \
     --cap-add FOWNER \
+    --cap-add FSETID \
     --mount "type=bind,src=$source_path,dst=/host" \
     "$ATLAS_INIT_IMAGE" \
     sh -eu -c '
