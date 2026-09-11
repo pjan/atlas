@@ -23,6 +23,7 @@ expect_failure() {
 cleanup() {
   docker volume rm "$test_volume" >/dev/null 2>&1 || true
   if test -d "$test_root"; then
+    chmod 0755 "$test_root/volume2/appdata" >/dev/null 2>&1 || true
     docker run --rm \
       --network none \
       --mount "type=bind,src=$test_root,dst=/cleanup" \
@@ -110,10 +111,16 @@ expect_failure env ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" repair-tree-owner \
   /volume1/data/library 999 10 --confirm-private-tree
 
 sh "$hostfs" ensure-dir /volume2/appdata/test-private "$test_uid" "$test_gid" 0700
-chmod 000 "$test_root/volume2/appdata"
-sh "$hostfs" assert-writable /volume2/appdata/test-private "$test_uid" "$test_gid"
-sh "$hostfs" audit-tree /volume2/appdata/test-private "$test_uid" "$test_gid"
-chmod 0755 "$test_root/volume2/appdata"
+if test "$bind_owner" = 1000:1000; then
+  chmod 000 "$test_root/volume2/appdata"
+  sh "$hostfs" assert-writable /volume2/appdata/test-private "$test_uid" "$test_gid"
+  sh "$hostfs" audit-tree /volume2/appdata/test-private "$test_uid" "$test_gid"
+  chmod 0755 "$test_root/volume2/appdata"
+else
+  sh "$hostfs" assert-writable /volume2/appdata/test-private "$test_uid" "$test_gid"
+  sh "$hostfs" audit-tree /volume2/appdata/test-private "$test_uid" "$test_gid"
+  printf 'test-atlas-hostfs: inaccessible-parent bind test requires native Linux; skipped\n' >&2
+fi
 
 actual=$(docker run --rm \
   --network none \
