@@ -1,6 +1,6 @@
 services:
   kometa:
-    image: lscr.io/linuxserver/kometa:v2.4.8-ls116
+    image: lscr.io/linuxserver/kometa:v2.4.8-ls117
     container_name: kometa
     restart: unless-stopped
     cap_drop:
