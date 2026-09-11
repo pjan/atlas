@@ -665,6 +665,8 @@ For monitoring, configure Uptime Kuma against slskd's authenticated API only wit
 
 The VPN-bound media applications are split from Gluetun so the VPN container can be reused across stacks. qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, Spottarr, and slskd now share that same Gluetun network namespace.
 
+The pinned Gluetun image runs as `root`. Its server cache and runtime state live under `/volume2/appdata/gluetun`; the pre-deploy hook provisions only that top-level directory as `0:0` with mode `0750`, without recursively changing existing content. The bind uses `create_host_path: false`, so a missing or failed preflight path cannot silently become a Docker-created directory.
+
 In Docker terms, qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, Spottarr, and slskd do not join `media_network` or `proxy_network` directly. They use `network_mode: "container:gluetun"`, and Caddy or other non-VPN containers reach the routed services through Gluetun's `downloaders-vpn` network alias.
 
 Before deploying Gluetun, create the Proton VPN WireGuard private key as a Komodo secret:
@@ -708,7 +710,7 @@ Deploy order matters:
 12. Deploy or redeploy `recyclarr`.
 13. Deploy or redeploy `caddy`.
 
-If Gluetun is recreated, every container sharing its network namespace must be recreated, not merely restarted, so it reattaches to the current namespace. That includes qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, and Spottarr. The repo encodes this with `after = ["gluetun"]`-style dependencies and `extra_args = ["--force-recreate"]` on each VPN-bound stack.
+If Gluetun is recreated, every container sharing its network namespace must be recreated, not merely restarted, so it reattaches to the current namespace. That includes qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, Spottarr, and slskd. The repo encodes this with `after = ["gluetun"]`-style dependencies and `extra_args = ["--force-recreate"]` on each VPN-bound stack.
 
 Komodo `after = ["gluetun"]` affects dependency ordering during Resource Sync deploys. If Gluetun is deployed manually outside a dependency-aware sync/procedure, explicitly redeploy all VPN-bound stacks afterwards; their `--force-recreate` deploy args handle the required namespace reattachment.
 
