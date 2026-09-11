@@ -346,6 +346,20 @@ The disposable transcode directory is `/volume2/tmp/plex/transcode`, provisioned
 
 All Plex bind sources use `create_host_path: false`, so missing appdata, media, or transcode paths fail instead of becoming Docker-created `root:root` directories. Plex keeps the direct `192.168.2.200:32400` listener for native clients and discovery, while the browser UI remains available through `http://plex.atlas.local`.
 
+### Roon Server Storage
+
+The pinned Roon Server image runs its server processes as `root`. Its private state lives under `/volume2/appdata/roonserver`; the pre-deploy hook provisions only that top-level directory as `0:0` with mode `0750`. It does not recursively change the existing Roon database tree.
+
+Roon mounts `/volume1/data/media/music` read-only. The hook preserves the existing owner of that shared path, enforces group `10` and mode `2775` on its top-level directory, and verifies that the shared media identity can write there for the surrounding download workflow. It never recursively changes the music library.
+
+Roon backups live under `/volume1/backups/roonserver`. The hook provisions only that child as `0:10` with mode `2770`; existing backup contents keep their current ownership and modes. All three bind sources use `create_host_path: false`, and Roon receives a two-minute stop grace period for clean database shutdown.
+
+### AdGuard Storage
+
+The pinned AdGuard Home image runs as `root`. Its work and configuration directories live under `/volume2/appdata/adguard`, and the pre-deploy hook provisions the app root plus `work` and `conf` as `0:0` with mode `0750`. Existing files, including `AdGuardHome.yaml`, are not recursively modified.
+
+Both bind sources use `create_host_path: false`, so a missing preflight path fails closed rather than being silently created by Docker. DNS remains bound only to `[[NAS_LAN_IP]]:53` over TCP and UDP. Deploy AdGuard separately from other stacks because its restart temporarily interrupts Atlas DNS.
+
 ### Kometa Tokens
 
 Kometa reads repo-tracked config files from `stacks/kometa/config/`, but secrets stay in Komodo variables.

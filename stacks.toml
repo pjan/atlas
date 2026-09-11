@@ -596,7 +596,16 @@ auto_pull = true
 poll_for_updates = true
 links = ["http://adguard.atlas.local"]
 pre_deploy.path = "."
-pre_deploy.command = """docker network inspect proxy_network >/dev/null 2>&1 || docker network create proxy_network"""
+pre_deploy.command = """
+set -eu
+sh ../../scripts/ensure-docker-network.sh proxy_network
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/adguard" 0 0 0750
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/adguard/work" 0 0 0750
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/adguard/conf" 0 0 0750
+"""
 pre_deploy.shell_mode = true
 environment = """
 DNS_BIND_IP = [[NAS_LAN_IP]]
@@ -649,7 +658,13 @@ poll_for_updates = true
 pre_deploy.path = "."
 pre_deploy.shell_mode = true
 pre_deploy.command = """
-mkdir -p "[[APPDATA_DIR]]/roonserver" "[[DATA_DIR]]/media/music" "/volume1/backups/roonserver"
+set -eu
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/roonserver" 0 0 0750
+sh ../../scripts/atlas-hostfs.sh ensure-shared-dir \
+  "[[DATA_DIR]]/media/music" [[PUID]] [[PGID]] 2775
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "/volume1/backups/roonserver" 0 [[PGID]] 2770
 """
 environment = """
 TZ = [[TZ]]

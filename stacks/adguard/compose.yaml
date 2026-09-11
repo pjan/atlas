@@ -6,15 +6,24 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      - "${DNS_BIND_IP}:53:53/tcp"
-      - "${DNS_BIND_IP}:53:53/udp"
+      - "${DNS_BIND_IP:?DNS_BIND_IP is required}:53:53/tcp"
+      - "${DNS_BIND_IP:?DNS_BIND_IP is required}:53:53/udp"
     volumes:
-      - ${WORK_DIR}:/opt/adguardhome/work
-      - ${CONF_DIR}:/opt/adguardhome/conf
+      - type: bind
+        source: ${WORK_DIR:?WORK_DIR is required}
+        target: /opt/adguardhome/work
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${CONF_DIR:?CONF_DIR is required}
+        target: /opt/adguardhome/conf
+        bind:
+          create_host_path: false
     networks:
       - proxy_network
     mem_limit: 256m
     pids_limit: 256
+    stop_grace_period: 30s
     logging:
       driver: json-file
       options:

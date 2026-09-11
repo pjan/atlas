@@ -8,13 +8,27 @@ services:
       - no-new-privileges:true
     environment:
       - TZ=${TZ}
-      - ROON_INSTALL_BRANCH=${ROON_INSTALL_BRANCH}
+      - ROON_INSTALL_BRANCH=${ROON_INSTALL_BRANCH:-production}
     volumes:
-      - ${CONFIG_DIR}:/Roon
-      - ${MUSIC_DIR}:/Music
-      - ${BACKUP_DIR}:/RoonBackups
+      - type: bind
+        source: ${CONFIG_DIR:?CONFIG_DIR is required}
+        target: /Roon
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${MUSIC_DIR:?MUSIC_DIR is required}
+        target: /Music
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BACKUP_DIR:?BACKUP_DIR is required}
+        target: /RoonBackups
+        bind:
+          create_host_path: false
     mem_limit: 4g
     pids_limit: 512
+    stop_grace_period: 2m
     logging:
       driver: json-file
       options:
