@@ -26,7 +26,6 @@
         "ghcr.io/seerr-team/seerr",
         "lscr.io/linuxserver/bazarr",
         "lscr.io/linuxserver/prowlarr",
-        "lscr.io/linuxserver/qbittorrent",
         "lscr.io/linuxserver/radarr",
         "lscr.io/linuxserver/sonarr",
         "lscr.io/linuxserver/speedtest-tracker",
@@ -41,6 +40,12 @@
       ],
       "versioning": "semver",
       "ignoreUnstable": true
+    },
+    {
+      "description": "Use upstream qBittorrent versions and exclude legacy LinuxServer tags.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["lscr.io/linuxserver/qbittorrent"],
+      "versioning": "regex:^(?<major>[0-9])\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
     },
     {
       "description": "Use LinuxServer Lidarr tag components.",
