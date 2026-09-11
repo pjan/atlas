@@ -14,7 +14,11 @@ services:
       - LOG_LEVEL=info
       - PORT=5055
     volumes:
-      - ${CONFIG_DIR}:/app/config
+      - type: bind
+        source: ${CONFIG_DIR:?CONFIG_DIR is required}
+        target: /app/config
+        bind:
+          create_host_path: false
     expose:
       - "5055"
     networks:
