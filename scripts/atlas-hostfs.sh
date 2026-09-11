@@ -57,6 +57,7 @@ Usage:
   atlas-hostfs.sh image-ref
   atlas-hostfs.sh ensure-base ABSOLUTE_BASE_PATH
   atlas-hostfs.sh ensure-dir ABSOLUTE_PATH UID GID OCTAL_MODE
+  atlas-hostfs.sh ensure-file ABSOLUTE_PATH UID GID OCTAL_MODE
   atlas-hostfs.sh assert-writable ABSOLUTE_PATH UID GID
   atlas-hostfs.sh install-file SOURCE ABSOLUTE_DESTINATION UID GID OCTAL_MODE
   atlas-hostfs.sh audit-tree ABSOLUTE_PRIVATE_TREE UID GID
@@ -356,6 +357,84 @@ ensure_dir() (
   assert_writable "$path" "$uid" "$gid"
 )
 
+ensure_file() (
+  path=$1
+  uid=$2
+  gid=$3
+  mode=$4
+
+  validate_unsigned_integer uid "$uid"
+  validate_unsigned_integer gid "$gid"
+  validate_mode "$mode"
+  base=$(base_for_child "$path")
+  container_path=$(container_path_for "$path" "$base")
+  base_source_path=$(host_source_for "$base")
+  target_source_path=$(host_source_for "$path")
+
+  if is_dry_run; then
+    log "dry-run ensure-file path=$path uid=$uid gid=$gid mode=$mode"
+    return 0
+  fi
+
+  require_docker
+  log "ensuring file path=$path uid=$uid gid=$gid mode=$mode"
+  docker run --rm \
+    --network none \
+    --read-only \
+    --security-opt no-new-privileges:true \
+    --cap-drop ALL \
+    --cap-add CHOWN \
+    --cap-add DAC_OVERRIDE \
+    --cap-add FOWNER \
+    --mount "type=bind,src=$base_source_path,dst=/host" \
+    "$ATLAS_INIT_IMAGE" \
+    sh -eu -c '
+      target=$1
+      uid=$2
+      gid=$3
+      mode=$4
+      parent=${target%/*}
+      relative=${parent#/host/}
+      current=/host
+      previous_ifs=$IFS
+      IFS=/
+      set -- $relative
+      IFS=$previous_ifs
+
+      for component do
+        current="$current/$component"
+        test ! -L "$current"
+        test -d "$current"
+      done
+
+      test "$(realpath "$parent")" = "$parent"
+      test ! -L "$target"
+      if test ! -e "$target"; then
+        umask 077
+        : > "$target"
+      fi
+      test -f "$target"
+      chown "$uid:$gid" "$target"
+      chmod "$mode" "$target"
+
+      actual=$(stat -c "%u:%g %a" "$target")
+      expected="$uid:$gid ${mode#0}"
+      test "$actual" = "$expected"
+    ' _ "$container_path" "$uid" "$gid" "$mode"
+
+  docker run --rm \
+    --network none \
+    --read-only \
+    --security-opt no-new-privileges:true \
+    --cap-drop ALL \
+    --user "$uid:$gid" \
+    --mount "type=bind,src=$target_source_path,dst=/target" \
+    "$ATLAS_INIT_IMAGE" \
+    sh -eu -c 'test -f /target; test -r /target; test -w /target'
+
+  log "file access probe passed path=$path uid=$uid gid=$gid"
+)
+
 checksum_stdin() (
   docker run --rm -i \
     --network none \
@@ -585,6 +664,10 @@ case "$command" in
   ensure-dir)
     test "$#" -eq 5 || { usage >&2; exit 64; }
     ensure_dir "$2" "$3" "$4" "$5"
+    ;;
+  ensure-file)
+    test "$#" -eq 5 || { usage >&2; exit 64; }
+    ensure_file "$2" "$3" "$4" "$5"
     ;;
   assert-writable)
     test "$#" -eq 4 || { usage >&2; exit 64; }

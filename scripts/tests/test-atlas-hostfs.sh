@@ -97,6 +97,8 @@ test ! -e "$test_root/volume2/appdata/dry-run"
 
 expect_failure env ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" ensure-dir \
   /etc/atlas 1000 1000 0750
+expect_failure env ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" ensure-file \
+  /etc/atlas.conf 1000 1000 0600
 expect_failure env ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" ensure-dir \
   /volume2/appdata 1000 1000 0750
 expect_failure env ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" ensure-dir \
@@ -129,18 +131,33 @@ actual=$(docker run --rm \
   stat -c '%u:%g %a' /host/test-private)
 test "$actual" = "$test_uid:$test_gid 700" || fail "unexpected directory metadata: $actual"
 
-printf 'managed configuration\n' > "$test_root/source.txt"
-sh "$hostfs" install-file \
-  "$test_root/source.txt" \
-  /volume2/appdata/test-private/config.txt \
+sh "$hostfs" ensure-file \
+  /volume2/appdata/test-private/runtime.conf \
   "$test_uid" "$test_gid" 0600
 
 actual=$(docker run --rm \
   --network none \
   --mount "type=bind,src=$test_root/volume2/appdata,dst=/host,readonly" \
   "$image" \
+  stat -c '%u:%g %a %s' /host/test-private/runtime.conf)
+test "$actual" = "$test_uid:$test_gid 600 0" || fail "unexpected ensured file metadata: $actual"
+
+printf 'managed configuration\n' > "$test_root/source.txt"
+sh "$hostfs" install-file \
+  "$test_root/source.txt" \
+  /volume2/appdata/test-private/config.txt \
+  "$test_uid" "$test_gid" 0600
+
+sh "$hostfs" ensure-file \
+  /volume2/appdata/test-private/config.txt \
+  "$test_uid" "$test_gid" 0640
+
+actual=$(docker run --rm \
+  --network none \
+  --mount "type=bind,src=$test_root/volume2/appdata,dst=/host,readonly" \
+  "$image" \
   sh -eu -c 'stat -c "%u:%g %a" /host/test-private/config.txt; cat /host/test-private/config.txt')
-expected=$(printf '%s:%s 600\nmanaged configuration' "$test_uid" "$test_gid")
+expected=$(printf '%s:%s 640\nmanaged configuration' "$test_uid" "$test_gid")
 test "$actual" = "$expected" || fail "managed file content or metadata is incorrect"
 
 sh "$hostfs" audit-tree /volume2/appdata/test-private "$test_uid" "$test_gid"
@@ -168,7 +185,10 @@ mkdir -p "$test_root/outside"
 ln -s "$test_root/outside" "$test_root/volume2/appdata/escape"
 expect_failure sh "$hostfs" ensure-dir \
   /volume2/appdata/escape/child "$test_uid" "$test_gid" 0750
+expect_failure sh "$hostfs" ensure-file \
+  /volume2/appdata/escape/config.txt "$test_uid" "$test_gid" 0600
 test ! -e "$test_root/outside/child"
+test ! -e "$test_root/outside/config.txt"
 
 sh "$hostfs" ensure-dir \
   /volume2/appdata/.atlas-permission-test "$test_uid" "$test_gid" 0750

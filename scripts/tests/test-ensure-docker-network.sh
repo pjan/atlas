@@ -26,6 +26,7 @@ trap cleanup EXIT HUP INT TERM
 
 expect_failure sh "$helper" unsupported-network
 expect_failure sh "$helper" "$network"
+ATLAS_NETWORK_DRY_RUN=1 sh "$helper" rclone_network
 
 ATLAS_NETWORK_TESTING=1 ATLAS_NETWORK_DRY_RUN=1 \
   sh "$helper" "$network"

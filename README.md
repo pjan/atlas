@@ -176,7 +176,7 @@ Atlas avoids that namespace mismatch with `scripts/atlas-hostfs.sh`. The helper 
 /volume2/tmp
 ```
 
-Normal directory preparation is nonrecursive and includes a real write probe using the requested UID/GID. Recursive owner repair is limited to one private appdata or scratch tree, requires an explicit confirmation argument, and must not be used against shared media.
+Normal directory preparation is nonrecursive and includes a real write probe using the requested UID/GID. Managed runtime files can be created when absent and have owner/mode enforced without replacing existing content. Recursive owner repair is limited to one private appdata or scratch tree, requires an explicit confirmation argument, and must not be used against shared media.
 
 The helper foundation is installed before production stack hooks are migrated. Until a stack's `pre_deploy` command calls this helper, its existing permission behavior is unchanged.
 
@@ -807,10 +807,11 @@ http://rclone.atlas.local/
 
 Operational notes:
 
-- `rclone.atlas.local` is a privileged management surface. Anyone who reaches it can manage configured remotes and read or write the mounted local data path.
-- The rclone RC API runs with `--no-auth` on a dedicated `rclone_network` that only Caddy and rclone should join.
+- `rclone.atlas.local` is a privileged management surface available only through the local/Tailscale hostname. Anyone who reaches it can manage configured remotes and read or write the mounted local data path.
+- The rclone RC API runs with `--no-auth` on a dedicated `rclone_network` that only Caddy and rclone join. Caddy intentionally has no `rclone.atlas.vandaele.io` route; keep Cloudflare Tunnel ingress for rclone disabled.
 - This stack mounts all of `[[DATA_DIR]]` at `/data`. That was chosen for flexibility, not least privilege.
 - `rclone.conf` contains remote credentials and tokens. It is provisioned with `0600` permissions and should be backed up from `[[APPDATA_DIR]]/rclone`.
+- `user-dirs.dirs` is repository-managed and triggers a redeploy so its read-only bind always references the current file.
 - Do not use the UI self-update flow. Upgrade `rclone` by bumping the image tag in this repository.
 - The upstream UI still shows `Mounts` and `Serves`. This stack does not provision FUSE mount support, and it does not publish or route `rclone serve` listeners beyond the main UI hostname.
 

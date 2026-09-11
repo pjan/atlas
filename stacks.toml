@@ -932,29 +932,19 @@ file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
 links = ["http://rclone.atlas.local/"]
+config_files = [
+  { path = "user-dirs.dirs", services = ["rclone"], requires = "Redeploy" },
+]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-docker network inspect rclone_network >/dev/null 2>&1 || docker network create rclone_network
-install -d -o [[PUID]] -g [[PGID]] -m 0700 \
-  "[[APPDATA_DIR]]/rclone" \
-  "[[TMP_DIR]]/rclone/cache"
-chown [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/rclone" "[[TMP_DIR]]/rclone/cache"
-chmod 0700 "[[APPDATA_DIR]]/rclone" "[[TMP_DIR]]/rclone/cache"
-if [ ! -f "[[APPDATA_DIR]]/rclone/rclone.conf" ]; then
-  install -o [[PUID]] -g [[PGID]] -m 0600 /dev/null "[[APPDATA_DIR]]/rclone/rclone.conf"
-fi
-chown [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/rclone/rclone.conf"
-chmod 0600 "[[APPDATA_DIR]]/rclone/rclone.conf"
-RCLONE_VALIDATION_IMAGE="$(docker compose -f compose.yaml config --images | head -n 1)"
-test -n "$RCLONE_VALIDATION_IMAGE"
-docker run --rm \
-  --entrypoint /bin/sh \
-  --user [[PUID]]:[[PGID]] \
-  -v "[[APPDATA_DIR]]/rclone:/config/rclone" \
-  -v "[[TMP_DIR]]/rclone/cache:/cache" \
-  "$RCLONE_VALIDATION_IMAGE" \
-  -ec 'tmp="/config/rclone/.write-test.$$"; trap "rm -f \"$tmp\" \"$tmp.old\" /cache/.write-test" EXIT; test -r /config/rclone/rclone.conf; test -w /config/rclone/rclone.conf; touch "$tmp"; mv "$tmp" "$tmp.old"; touch /cache/.write-test'
+sh ../../scripts/ensure-docker-network.sh rclone_network
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/rclone" [[PUID]] [[PGID]] 0700
+sh ../../scripts/atlas-hostfs.sh ensure-file \
+  "[[APPDATA_DIR]]/rclone/rclone.conf" [[PUID]] [[PGID]] 0600
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[TMP_DIR]]/rclone/cache" [[PUID]] [[PGID]] 0700
 """
 pre_deploy.shell_mode = true
 environment = """

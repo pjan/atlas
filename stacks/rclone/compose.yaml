@@ -13,10 +13,27 @@ services:
       - TZ=${TZ}
       - RCLONE_CACHE_DIR=/cache
     volumes:
-      - ${RCLONE_CONFIG_DIR}:/config/rclone
-      - ${RCLONE_CACHE_DIR}:/cache
-      - ${RCLONE_DATA_DIR}:/data
-      - ./user-dirs.dirs:/config/user-dirs.dirs:ro
+      - type: bind
+        source: ${RCLONE_CONFIG_DIR:?RCLONE_CONFIG_DIR is required}
+        target: /config/rclone
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${RCLONE_CACHE_DIR:?RCLONE_CACHE_DIR is required}
+        target: /cache
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${RCLONE_DATA_DIR:?RCLONE_DATA_DIR is required}
+        target: /data
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./user-dirs.dirs
+        target: /config/user-dirs.dirs
+        read_only: true
+        bind:
+          create_host_path: false
     command:
       - gui
       - --addr=0.0.0.0:5522

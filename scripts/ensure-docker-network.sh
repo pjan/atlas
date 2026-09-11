@@ -10,7 +10,7 @@ if test "$#" -ne 1 || test -z "$network"; then
 fi
 
 case "$network" in
-  proxy_network|media_network) ;;
+  proxy_network|media_network|rclone_network) ;;
   atlas-network-test-*)
     test "${ATLAS_NETWORK_TESTING:-0}" = 1 || {
       echo "test network names require ATLAS_NETWORK_TESTING=1" >&2

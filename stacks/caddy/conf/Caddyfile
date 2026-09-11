@@ -5,7 +5,7 @@
 }
 
 (atlas_rclone) {
-	http://{args[0]}.atlas.local, http://{args[0]}.atlas.vandaele.io {
+	http://{args[0]}.atlas.local {
 		@rclone_bootstrap `path('/') || (path('/login') && !query({'url': '*'}) )`
 
 		handle @rclone_bootstrap {
