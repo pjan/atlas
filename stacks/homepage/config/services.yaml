@@ -35,6 +35,11 @@
         icon: bazarr.png
         href: http://bazarr.atlas.vandaele.io
         description: Subtitle management
+        widget:
+          type: bazarr
+          url: http://downloaders-vpn:6767
+          key: "{{HOMEPAGE_VAR_BAZARR_API_KEY}}"
+          fields: ["missingEpisodes", "missingMovies"]
     - Spottarr:
         icon: mdi-access-point-network
         href: http://spottarr.atlas.local
@@ -55,6 +60,24 @@
           type: qbittorrent
           url: http://downloaders-vpn:8080
           key: "{{HOMEPAGE_VAR_QBITTORRENT_API_KEY}}"
+    - SABnzbd:
+        icon: sabnzbd.png
+        href: http://sabnzbd.atlas.vandaele.io
+        description: Usenet downloads
+        widget:
+          type: sabnzbd
+          url: http://downloaders-vpn:8085
+          key: "{{HOMEPAGE_VAR_SABNZBD_API_KEY}}"
+          fields: ["rate", "queue", "timeleft"]
+    - slskd:
+        icon: slskd.png
+        href: http://slskd.atlas.vandaele.io
+        description: Soulseek downloads
+        widget:
+          type: slskd
+          url: http://downloaders-vpn:5030
+          key: "{{HOMEPAGE_VAR_SLSKD_API_KEY}}"
+          fields: ["slskStatus", "downloads", "uploads", "sharedFiles"]
     - Plex:
         icon: plex.png
         href: http://plex.atlas.vandaele.io
@@ -80,6 +103,11 @@
         href: http://uptime.atlas.vandaele.io
         description: Availability monitoring
         siteMonitor: http://uptime-kuma:3001/
+        widget:
+          type: uptimekuma
+          url: http://uptime-kuma:3001
+          slug: "{{HOMEPAGE_VAR_UPTIME_KUMA_SLUG}}"
+          fields: ["up", "down", "uptime", "incident"]
     - Speedtest Tracker:
         icon: speedtest-tracker.png
         href: http://speedtest.atlas.vandaele.io
@@ -111,6 +139,24 @@
           url: http://adguard:3000
           username: "{{HOMEPAGE_VAR_ADGUARD_USERNAME}}"
           password: "{{HOMEPAGE_VAR_ADGUARD_PASSWORD}}"
+    - Cloudflare Tunnel:
+        icon: cloudflare-zero-trust.png
+        description: Remote access tunnel
+        widget:
+          type: cloudflared
+          accountid: "{{HOMEPAGE_VAR_CLOUDFLARE_ACCOUNT_ID}}"
+          tunnelid: "{{HOMEPAGE_VAR_CLOUDFLARE_TUNNEL_ID}}"
+          key: "{{HOMEPAGE_VAR_CLOUDFLARE_API_TOKEN}}"
+          fields: ["status", "origin_ip"]
+    - UniFi:
+        icon: unifi.png
+        href: "{{HOMEPAGE_VAR_UNIFI_URL}}"
+        description: Network controller
+        widget:
+          type: unifi
+          url: "{{HOMEPAGE_VAR_UNIFI_URL}}"
+          key: "{{HOMEPAGE_VAR_UNIFI_API_KEY}}"
+          fields: ["uptime", "wan", "lan_devices", "wlan_devices"]
 
 - Storage & NAS:
     - Rclone:
