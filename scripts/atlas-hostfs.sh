@@ -3,7 +3,7 @@
 set -eu
 
 # renovate: datasource=docker depName=busybox
-ATLAS_INIT_IMAGE='busybox:1.37.0@sha256:9db7b59979c38555a39def84a31fb98b5296952f9e3afd4f6f11f05b07adfab0'
+ATLAS_INIT_IMAGE='busybox:1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616'
 
 readonly ATLAS_INIT_IMAGE
 
