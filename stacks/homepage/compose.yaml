@@ -32,7 +32,12 @@ services:
       - HOMEPAGE_VAR_SONARR_API_KEY=${HOMEPAGE_VAR_SONARR_API_KEY}
       - HOMEPAGE_VAR_SPEEDTEST_TRACKER_API_KEY=${HOMEPAGE_VAR_SPEEDTEST_TRACKER_API_KEY}
     volumes:
-      - ./config:/app/config:ro
+      - type: bind
+        source: ./config
+        target: /app/config
+        read_only: true
+        bind:
+          create_host_path: false
     expose:
       - "3000"
     extra_hosts:
@@ -41,6 +46,7 @@ services:
       - proxy_network
     mem_limit: 512m
     pids_limit: 256
+    stop_grace_period: 30s
     logging:
       driver: json-file
       options:

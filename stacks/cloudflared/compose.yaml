@@ -19,6 +19,7 @@ services:
       - proxy_network
     mem_limit: 128m
     pids_limit: 128
+    stop_grace_period: 30s
     logging:
       driver: json-file
       options:

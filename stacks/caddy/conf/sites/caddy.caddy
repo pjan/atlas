@@ -1,0 +1,3 @@
+http://caddy.atlas.local, http://caddy.atlas.vandaele.io {
+	respond "ok" 200
+}

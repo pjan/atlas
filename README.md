@@ -13,6 +13,8 @@ This repository manages Docker Compose stacks for the `Atlas` NAS.
 - Komodo Core URL: `http://192.168.2.200:9120`
 - Caddy HTTP entrypoint: `http://192.168.2.200:80`
 - Local DNS zone: `*.atlas.local`
+- Public application zone: `*.atlas.vandaele.io` through Cloudflare Tunnel and Caddy
+- Remote access: Tailscale for private access, with selected Caddy applications also available through Cloudflare Access-protected public hostnames
 
 ## One-Time NAS Preparation
 
@@ -439,10 +441,10 @@ Use the API keys from Sonarr and Radarr, then choose the correct root folders an
 Operational notes:
 
 - This stack does not expose a direct host port. Access is Caddy-only through `http://seerr.atlas.local`.
-- Seerr relies on its own auth plus Plex auth. There is no Caddy Basic Auth gate in the baseline LAN/Tailscale deployment.
+- Seerr relies on its own auth plus Plex auth. There is no Caddy Basic Auth gate.
 - The container runs as UID/GID `1000:1000`. The pre-deploy step nonrecursively provisions `[[APPDATA_DIR]]/seerr` and its `logs` child; existing nested ownership is audited and repaired only during a stopped migration.
 - `[[APPDATA_DIR]]/seerr` should be backed up with its ownership and permissions preserved.
-- If Seerr is ever exposed beyond LAN/Tailscale, revisit TLS, SSO, and proxy-layer auth before doing so.
+- Protect the public Seerr hostname with Cloudflare Access and retain application authentication.
 
 ### Arr Storage Policy
 
@@ -823,7 +825,7 @@ Operational notes:
 - Keep qui authentication enabled. Do not set `QUI__AUTH_DISABLED=true`.
 - The stack mounts `[[DATA_DIR]]/downloads/torrents` at the container path `/data/downloads/torrents` (via `TORRENTS_DIR`) to enable qui's filesystem-dependent features. This path deliberately matches qBittorrent's own `/data/downloads/torrents` mapping so the save paths qui reads from the qBittorrent API resolve correctly on qui's filesystem. This mount grants qui read/write/delete capability over torrent downloads; switch it to `:ro` in `stacks/qui/compose.yaml` if only read-only browsing is wanted.
 - `[[APPDATA_DIR]]/qui` contains the qui database, admin/session state, and qBittorrent credentials. It is provisioned as private appdata with mode `0700` and should be backed up; never recursively change ownership across the shared torrent tree during recovery.
-- If `*.atlas.vandaele.io` is exposed through Cloudflare Tunnel, require Cloudflare Access before reaching qui.
+- Require Cloudflare Access before reaching qui through `qui.atlas.vandaele.io`.
 
 ### Rclone
 
@@ -867,7 +869,7 @@ Deploy order:
 1. Deploy `uptime-kuma`.
 2. Deploy or redeploy `caddy`.
 
-On first login, create the Uptime Kuma admin user and enable two-factor authentication. There is no Caddy Basic Auth gate on `http://uptime.atlas.local`; traffic remains plaintext on the LAN or tailnet path.
+On first login, create the Uptime Kuma admin user and enable two-factor authentication. There is no Caddy Basic Auth gate; protect `uptime.atlas.vandaele.io` with Cloudflare Access. LAN and tailnet traffic to the local hostname remains HTTP, while Cloudflare terminates public TLS at the edge.
 
 This stack intentionally does not mount `/var/run/docker.sock`. Docker socket access is effectively host-level Docker control if Uptime Kuma is compromised. Monitor Atlas through HTTP routes, DNS checks, TCP checks, and push monitors instead.
 
@@ -945,10 +947,10 @@ For each public hostname in the Cloudflare Tunnel dashboard, point the service a
 Service: http://caddy:80
 ```
 
-Caddy routes by HTTP host. The preferred pattern is to add each public hostname as an additional site address in the relevant Caddy route, for example:
+Caddy routes by HTTP host. The shared `atlas_reverse_proxy` snippet creates paired `*.atlas.local` and `*.atlas.vandaele.io` routes. Explicit local-only routes such as rclone and slskd remain exceptions. For a custom paired route, use:
 
 ```caddyfile
-http://speedtest.atlas.local, http://speedtest.example.com {
+http://speedtest.atlas.local, http://speedtest.atlas.vandaele.io {
 	reverse_proxy speedtest-tracker:80
 }
 ```
@@ -981,7 +983,7 @@ Operational notes:
 
 - Homepage is exposed through Caddy only. There is no direct Homepage host port.
 - Homepage does not mount `/var/run/docker.sock` and does not use Docker label discovery in the baseline setup.
-- `HOMEPAGE_ALLOWED_HOSTS` is set to the exact canonical v1 host, `homepage.atlas.local`. If Atlas is later accessed through additional hostnames or direct IPs, append those exact values as a comma-separated list before redeploying `homepage`.
+- `HOMEPAGE_ALLOWED_HOSTS` contains both canonical hosts: `homepage.atlas.local` and `homepage.atlas.vandaele.io`.
 - Homepage widget credentials stay in Komodo variables. The stack maps them into Homepage's `HOMEPAGE_VAR_*` templating environment variables.
 - `LOG_TARGETS=stdout` keeps Homepage from trying to create `/app/config/logs` inside the read-only config mount.
 - Resource Sync updates `stacks/homepage/config/*` through `config_files` with `requires = "None"`, so normal YAML, CSS, and JS edits do not force a container restart.
@@ -1003,6 +1005,8 @@ The root `Caddyfile` imports all site files:
 import sites/*.caddy
 ```
 
+`http://caddy.atlas.local` and `http://caddy.atlas.vandaele.io` return a static `200 ok` health response. They do not proxy or expose Caddy's admin API.
+
 To add a new app route:
 
 1. Add a new file under `stacks/caddy/conf/sites/`.
@@ -1010,7 +1014,7 @@ To add a new app route:
 3. Ensure the app container joins `proxy_network`, or proxy to `host.docker.internal` for host services.
 4. Push to `main`, execute Resource Sync, then explicitly deploy or redeploy `caddy` so the `post_deploy` reload hook applies the live config.
 
-Most media app UIs are exposed through Caddy-only local hostnames rather than direct host ports. Plex is the current exception and still publishes `192.168.2.200:32400/tcp` for native client discovery and direct access.
+Most application UIs are exposed only through Caddy, using paired `*.atlas.local` and `*.atlas.vandaele.io` hostnames. Public hostnames must be protected by appropriate Cloudflare Access policies. Plex is the direct-port exception and still publishes `192.168.2.200:32400/tcp` for native client discovery and direct access.
 
 Validation note:
 

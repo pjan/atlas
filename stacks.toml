@@ -1076,7 +1076,10 @@ config_files = [
   { path = "config/custom.js", services = ["homepage"], requires = "None" },
 ]
 pre_deploy.path = "."
-pre_deploy.command = """docker network inspect proxy_network >/dev/null 2>&1 || docker network create proxy_network"""
+pre_deploy.command = """
+set -eu
+sh ../../scripts/ensure-docker-network.sh proxy_network
+"""
 pre_deploy.shell_mode = true
 environment = """
 PUID = [[PUID]]
@@ -1117,7 +1120,7 @@ poll_for_updates = true
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-docker network inspect proxy_network >/dev/null 2>&1 || docker network create proxy_network
+sh ../../scripts/ensure-docker-network.sh proxy_network
 """
 pre_deploy.shell_mode = true
 environment = """
@@ -1128,7 +1131,6 @@ TUNNEL_TOKEN = [[CLOUDFLARED_TUNNEL_TOKEN]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
-after = ["sonarr", "radarr", "recyclarr", "prowlarr", "spottarr", "lidarr", "slskd", "bazarr", "adguard", "uptime-kuma", "plex", "seerr", "gluetun", "qbittorrent", "sabnzbd", "qui", "rclone", "speedtest-tracker", "homepage"]
 tags = ["infra", "proxy"]
 
 [stack.config]
@@ -1144,6 +1146,7 @@ config_files = [
   { path = "conf/Caddyfile", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/adguard.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/bazarr.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/caddy.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/homepage.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/komodo.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/plex.caddy", services = ["caddy"], requires = "Restart" },
@@ -1165,18 +1168,57 @@ config_files = [
 pre_deploy.path = "."
 pre_deploy.shell_mode = true
 pre_deploy.command = """
-for network in media_network proxy_network rclone_network; do docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"; done
+set -eu
+sh ../../scripts/ensure-docker-network.sh media_network
+sh ../../scripts/ensure-docker-network.sh proxy_network
+sh ../../scripts/ensure-docker-network.sh rclone_network
 HTTP_BIND_IP=[[NAS_LAN_IP]] HTTP_PORT=[[HTTP_PORT]] docker compose -f compose.yaml pull caddy
 HTTP_BIND_IP=[[NAS_LAN_IP]] HTTP_PORT=[[HTTP_PORT]] docker compose -f compose.yaml run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 """
 post_deploy.path = "."
 post_deploy.shell_mode = true
 post_deploy.command = """
-for i in 1 2 3 4 5; do
-  docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile && break
+set -eu
+
+reloaded=false
+for attempt in 1 2 3 4 5; do
+  if docker compose exec -T caddy \
+    caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile; then
+    reloaded=true
+    break
+  fi
+
+  echo "Caddy reload attempt $attempt failed" >&2
   sleep 2
 done
-docker compose exec -T caddy wget -qO- http://127.0.0.1:2019/config/apps/http/servers/srv0/routes
+
+test "$reloaded" = true
+
+expected_config=$(mktemp)
+live_config=$(mktemp)
+expected_hosts=$(mktemp)
+trap 'rm -f "$expected_config" "$live_config" "$expected_hosts"' EXIT HUP INT TERM
+
+docker compose exec -T caddy \
+  caddy adapt --pretty --config /etc/caddy/Caddyfile --adapter caddyfile \
+  > "$expected_config"
+docker compose exec -T caddy \
+  wget -qO- http://127.0.0.1:2019/config/ \
+  > "$live_config"
+
+grep -oE '[[:alnum:]-]+\\.atlas\\.(local|vandaele\\.io)' "$expected_config" \
+  | sort -u > "$expected_hosts"
+test -s "$expected_hosts"
+
+while IFS= read -r hostname; do
+  grep -Fq "$hostname" "$live_config" || {
+    echo "Caddy live config is missing expected hostname: $hostname" >&2
+    exit 1
+  }
+done < "$expected_hosts"
+
+echo "Caddy live-route verification passed for:"
+cat "$expected_hosts"
 """
 environment = """
 HTTP_BIND_IP = [[NAS_LAN_IP]]
