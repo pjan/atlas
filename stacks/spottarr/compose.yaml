@@ -21,7 +21,11 @@ services:
       - SPOTNET__IMPORTADULTCONTENT=${SPOTNET_IMPORTADULTCONTENT}
       - NEWZNAB__APIKEY=${NEWZNAB_APIKEY:?missing Spottarr Newznab API key}
     volumes:
-      - ${CONFIG_DIR}:/data
+      - type: bind
+        source: ${CONFIG_DIR:?CONFIG_DIR is required}
+        target: /data
+        bind:
+          create_host_path: false
     mem_limit: 512m
     pids_limit: 256
     logging:
