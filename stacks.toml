@@ -199,23 +199,15 @@ config_files = [
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-docker network inspect media_network >/dev/null 2>&1 || docker network create media_network
-install -d -o 1000 -g 1000 -m 0700 \
-  "[[APPDATA_DIR]]/recyclarr" \
-  "[[TMP_DIR]]/recyclarr"
-install -d -o 1000 -g 1000 -m 0755 "[[APPDATA_DIR]]/recyclarr/configs"
-chown -R 1000:1000 "[[APPDATA_DIR]]/recyclarr" "[[TMP_DIR]]/recyclarr"
-chmod -R u+rwX,go-rwx "[[APPDATA_DIR]]/recyclarr" "[[TMP_DIR]]/recyclarr"
-chmod 0755 "[[APPDATA_DIR]]/recyclarr/configs"
-RECYCLARR_VALIDATION_IMAGE="$(docker compose -f compose.yaml config --images | head -n 1)"
-test -n "$RECYCLARR_VALIDATION_IMAGE"
-docker run --rm \
-  --entrypoint /bin/sh \
-  --user 1000:1000 \
-  -v "[[APPDATA_DIR]]/recyclarr:/config" \
-  -v "[[TMP_DIR]]/recyclarr:/data" \
-  "$RECYCLARR_VALIDATION_IMAGE" \
-  -ec 'mkdir -p /config/state; tmp="/config/state/.write-test.$$"; trap "rm -f \"$tmp\"" EXIT; touch "$tmp"; touch /data/.write-test; rm -f /data/.write-test'
+sh ../../scripts/ensure-docker-network.sh media_network
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/recyclarr" 1000 1000 0700
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/recyclarr/state" 1000 1000 0700
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/recyclarr/configs" 1000 1000 0755
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[TMP_DIR]]/recyclarr" 1000 1000 0700
 """
 pre_deploy.shell_mode = true
 environment = """

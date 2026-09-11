@@ -60,7 +60,8 @@ Komodo manages the app stacks, but Komodo itself is bootstrapped manually. Do no
 SSH into the NAS:
 
 ```sh
-ssh root@192.168.2.200
+ssh <nas-user>@192.168.2.200
+sudo -i
 cd /volume2/docker/komodo
 ```
 
@@ -194,7 +195,8 @@ The test suite covers allowlist rejection, dry-run behavior, atomic managed-file
 Run the canary after these changes are on `main` and the Atlas Resource Sync has cloned the updated repository. Start on the NAS:
 
 ```sh
-ssh root@192.168.2.200
+ssh <nas-user>@192.168.2.200
+sudo -i
 
 ATLAS_HOSTFS=$(docker exec komodo-periphery sh -eu -c '
   find "${PERIPHERY_ROOT_DIRECTORY:?}" \
@@ -569,7 +571,7 @@ Operational notes:
 - The scheduled sync runs daily at `04:15` according to `TZ`.
 - Recyclarr v1 intentionally manages Sonarr and Radarr only. Lidarr is not supported by Recyclarr and is out of scope.
 - Before the first real sync, inventory existing Sonarr and Radarr quality profile names. If Recyclarr should adopt an existing profile, temporarily add `name: <existing profile name>` under the matching `trash_id`, run one real sync, then either keep that name or remove it to let the guide name take over. Skipping this can create duplicate profiles.
-- If Recyclarr reports `Access to the path '/config/state' is denied`, redeploy the stack so the pre-deploy ownership repair runs. For immediate recovery on Atlas, run `chown -R 1000:1000 /volume2/appdata/recyclarr /volume2/tmp/recyclarr && chmod -R u+rwX,go-rwx /volume2/appdata/recyclarr /volume2/tmp/recyclarr && chmod 0755 /volume2/appdata/recyclarr/configs`, then recreate the Recyclarr container.
+- If Recyclarr reports `Access to the path '/config/state' is denied`, stop the container and audit `/volume2/appdata/recyclarr` and `/volume2/tmp/recyclarr` with `atlas-hostfs.sh audit-tree`. Run `repair-tree-owner` only for a tree that reports ownership mismatches, then redeploy; do not replace this process with an unrestricted recursive `chown`.
 - There is no useful HTTP health endpoint. Monitor the container/process if useful, but treat preview output, sync logs, and last-success alerting as the real operational signals.
 
 ### Soularr And slskd
