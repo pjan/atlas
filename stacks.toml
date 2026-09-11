@@ -900,15 +900,12 @@ links = ["http://qui.atlas.local"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-for network in media_network proxy_network; do
-  docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"
-done
-install -d -o [[PUID]] -g [[PGID]] -m 2775 "[[APPDATA_DIR]]/qui"
-chown -R [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/qui"
-chmod 0700 "[[APPDATA_DIR]]/qui"
-install -d -o [[PUID]] -g [[PGID]] -m 2775 "[[DATA_DIR]]/downloads/torrents"
-chown [[PUID]]:[[PGID]] "[[DATA_DIR]]/downloads/torrents"
-chmod 2775 "[[DATA_DIR]]/downloads/torrents"
+sh ../../scripts/ensure-docker-network.sh media_network
+sh ../../scripts/ensure-docker-network.sh proxy_network
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/qui" [[PUID]] [[PGID]] 0700
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[DATA_DIR]]/downloads/torrents" [[PUID]] [[PGID]] 2775
 """
 pre_deploy.shell_mode = true
 environment = """

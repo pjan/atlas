@@ -21,8 +21,16 @@ services:
       - QUI__CHECK_FOR_UPDATES=false
       - QUI__DATABASE_ENGINE=sqlite
     volumes:
-      - ${CONFIG_DIR}:/config
-      - ${TORRENTS_DIR}:/data/downloads/torrents
+      - type: bind
+        source: ${CONFIG_DIR:?CONFIG_DIR is required}
+        target: /config
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${TORRENTS_DIR:?TORRENTS_DIR is required}
+        target: /data/downloads/torrents
+        bind:
+          create_host_path: false
     networks:
       - media_network
       - proxy_network
