@@ -338,6 +338,14 @@ To claim a fresh Plex install:
 
 If restoring an existing Plex `/config` with a valid `Preferences.xml`, a claim token is usually not required.
 
+### Plex Storage
+
+Plex stores its database, metadata, preferences, claim state, and authentication tokens under `/volume2/appdata/plex`. The pre-deploy hook provisions only the top-level private directory as `999:10` with mode `0750`; existing nested ownership is repaired only after a stopped private-tree audit. Back up this directory before migration and preserve its ownership and permissions.
+
+The disposable transcode directory is `/volume2/tmp/plex/transcode`, provisioned as `999:10` with mode `0770`. It does not need to be backed up. Plex mounts `/volume1/data/media` read-only, and deployment must never recursively change ownership or permissions in that shared library tree.
+
+All Plex bind sources use `create_host_path: false`, so missing appdata, media, or transcode paths fail instead of becoming Docker-created `root:root` directories. Plex keeps the direct `192.168.2.200:32400` listener for native clients and discovery, while the browser UI remains available through `http://plex.atlas.local`.
+
 ### Kometa Tokens
 
 Kometa reads repo-tracked config files from `stacks/kometa/config/`, but secrets stay in Komodo variables.

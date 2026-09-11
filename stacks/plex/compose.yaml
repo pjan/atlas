@@ -12,20 +12,34 @@ services:
       - UMASK=${UMASK}
       - VERSION=docker
       - PLEX_CLAIM=${PLEX_CLAIM:-}
-      - ADVERTISE_IP=http://${NAS_LAN_IP}:32400/,http://plex.atlas.local/
+      - ADVERTISE_IP=http://${NAS_LAN_IP:?NAS_LAN_IP is required}:32400/,http://plex.atlas.local/
     volumes:
-      - ${CONFIG_DIR}:/config
-      - ${MEDIA_DIR}:/data/media:ro
-      - ${TRANSCODE_DIR}:/transcode
+      - type: bind
+        source: ${CONFIG_DIR:?CONFIG_DIR is required}
+        target: /config
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${MEDIA_DIR:?MEDIA_DIR is required}
+        target: /data/media
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${TRANSCODE_DIR:?TRANSCODE_DIR is required}
+        target: /transcode
+        bind:
+          create_host_path: false
     devices:
       - /dev/dri/renderD128:/dev/dri/renderD128
     ports:
-      - "${NAS_LAN_IP}:32400:32400/tcp"
+      - "${NAS_LAN_IP:?NAS_LAN_IP is required}:32400:32400/tcp"
     networks:
       - media_network
       - proxy_network
     mem_limit: 2g
     pids_limit: 512
+    stop_grace_period: 2m
     logging:
       driver: json-file
       options:

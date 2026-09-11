@@ -676,8 +676,13 @@ poll_for_updates = true
 links = ["http://plex.atlas.local"]
 pre_deploy.path = "."
 pre_deploy.command = """
-for network in media_network proxy_network; do docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"; done
-mkdir -p "[[APPDATA_DIR]]/plex" "[[TMP_DIR]]/plex/transcode"
+set -eu
+sh ../../scripts/ensure-docker-network.sh media_network
+sh ../../scripts/ensure-docker-network.sh proxy_network
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/plex" [[PUID]] [[PGID]] 0750
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[TMP_DIR]]/plex/transcode" [[PUID]] [[PGID]] 0770
 """
 pre_deploy.shell_mode = true
 environment = """
