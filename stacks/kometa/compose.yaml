@@ -17,10 +17,14 @@ services:
       - KOMETA_RUN=False
       - KOMETA_TESTS=False
       - KOMETA_NO_MISSING=False
-      - KOMETA_PLEXTOKEN=${KOMETA_PLEXTOKEN}
-      - KOMETA_TMDBAPIKEY=${KOMETA_TMDBAPIKEY}
+      - KOMETA_PLEXTOKEN=${KOMETA_PLEXTOKEN:?KOMETA_PLEXTOKEN is required}
+      - KOMETA_TMDBAPIKEY=${KOMETA_TMDBAPIKEY:?KOMETA_TMDBAPIKEY is required}
     volumes:
-      - ${CONFIG_DIR}:/config
+      - type: bind
+        source: ${CONFIG_DIR:?CONFIG_DIR is required}
+        target: /config
+        bind:
+          create_host_path: false
     networks:
       - media_network
     mem_limit: 768m

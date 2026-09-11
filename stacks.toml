@@ -708,28 +708,28 @@ file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
 config_files = [
-  { path = "config/config.yml", services = ["kometa"], requires = "Restart" },
-  { path = "config/collections/movies.yml", services = ["kometa"], requires = "Restart" },
-  { path = "config/collections/tv.yml", services = ["kometa"], requires = "Restart" },
+  { path = "config/config.yml", services = ["kometa"], requires = "Redeploy" },
+  { path = "config/collections/movies.yml", services = ["kometa"], requires = "Redeploy" },
+  { path = "config/collections/tv.yml", services = ["kometa"], requires = "Redeploy" },
 ]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-docker network inspect media_network >/dev/null 2>&1 || docker network create media_network
-install -d -o [[PUID]] -g [[PGID]] -m 0700 \
-  "[[APPDATA_DIR]]/kometa" \
-  "[[APPDATA_DIR]]/kometa/collections"
-install -o [[PUID]] -g [[PGID]] -m 0600 \
+sh ../../scripts/ensure-docker-network.sh media_network
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/kometa" [[PUID]] [[PGID]] 0750
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/kometa/collections" [[PUID]] [[PGID]] 0750
+sh ../../scripts/atlas-hostfs.sh install-file \
   "config/config.yml" \
-  "[[APPDATA_DIR]]/kometa/config.yml"
+  "[[APPDATA_DIR]]/kometa/config.yml" \
+  [[PUID]] [[PGID]] 0600
 for collection_file in config/collections/*.yml; do
-  install -o [[PUID]] -g [[PGID]] -m 0600 \
+  sh ../../scripts/atlas-hostfs.sh install-file \
     "$collection_file" \
-    "[[APPDATA_DIR]]/kometa/collections/$(basename "$collection_file")"
+    "[[APPDATA_DIR]]/kometa/collections/$(basename "$collection_file")" \
+    [[PUID]] [[PGID]] 0640
 done
-chown -R [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/kometa"
-chmod 0700 "[[APPDATA_DIR]]/kometa"
-chmod 0700 "[[APPDATA_DIR]]/kometa/collections"
 """
 pre_deploy.shell_mode = true
 environment = """
