@@ -848,8 +848,8 @@ http://rclone.atlas.local/
 
 Operational notes:
 
-- `rclone.atlas.local` is a privileged management surface available only through the local/Tailscale hostname. Anyone who reaches it can manage configured remotes and read or write the mounted local data path.
-- The rclone RC API runs with `--no-auth` on a dedicated `rclone_network` that only Caddy and rclone join. Caddy intentionally has no `rclone.atlas.vandaele.io` route; keep Cloudflare Tunnel ingress for rclone disabled.
+- `rclone.atlas.local` and `rclone.atlas.vandaele.io` are privileged management surfaces. Anyone who reaches either hostname can manage configured remotes and read or write the mounted local data path.
+- The rclone RC API runs with `--no-auth` on a dedicated `rclone_network` that only Caddy and rclone join. Require Cloudflare Access on `rclone.atlas.vandaele.io`; application-level authentication does not protect this endpoint.
 - This stack mounts all of `[[DATA_DIR]]` at `/data`. That was chosen for flexibility, not least privilege.
 - `rclone.conf` contains remote credentials and tokens. It is provisioned with `0600` permissions and should be backed up from `[[APPDATA_DIR]]/rclone`.
 - `user-dirs.dirs` is repository-managed and triggers a redeploy so its read-only bind always references the current file.
@@ -947,7 +947,9 @@ For each public hostname in the Cloudflare Tunnel dashboard, point the service a
 Service: http://caddy:80
 ```
 
-Caddy routes by HTTP host. The shared `atlas_reverse_proxy` snippet creates paired `*.atlas.local` and `*.atlas.vandaele.io` routes. Explicit local-only routes such as rclone and slskd remain exceptions. For a custom paired route, use:
+Define each public hostname exactly once. Do not use `http://<app>.atlas.local` as the tunnel service: that adds an unnecessary dependency on Atlas DNS and rewrites the origin host to the local hostname. Sending every public hostname to `http://caddy:80` keeps routing declarative in Caddy and preserves the incoming `*.atlas.vandaele.io` host for matching.
+
+Caddy routes by HTTP host. The shared `atlas_reverse_proxy` snippet creates paired `*.atlas.local` and `*.atlas.vandaele.io` routes. The specialized rclone snippet also defines both hostnames, while slskd remains local-only. For a custom paired route, use:
 
 ```caddyfile
 http://speedtest.atlas.local, http://speedtest.atlas.vandaele.io {
