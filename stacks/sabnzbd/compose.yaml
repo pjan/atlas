@@ -13,9 +13,22 @@ services:
       - UMASK=${UMASK}
       - SABNZBD_PORT=${SABNZBD_PORT}
     volumes:
-      - ${CONFIG_DIR}:/config
-      - ${USENET_DIR}:/data/downloads/usenet
-      - ./custom-cont-init.d:/custom-cont-init.d:ro
+      - type: bind
+        source: ${CONFIG_DIR:?CONFIG_DIR is required}
+        target: /config
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${USENET_DIR:?USENET_DIR is required}
+        target: /data/downloads/usenet
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./custom-cont-init.d
+        target: /custom-cont-init.d
+        read_only: true
+        bind:
+          create_host_path: false
     stop_grace_period: 1m
     mem_limit: 768m
     pids_limit: 512

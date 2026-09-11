@@ -857,15 +857,18 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
   fi
   sleep 5
 done
-install -d -o [[PUID]] -g [[PGID]] -m 2775 \
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/sabnzbd" [[PUID]] [[PGID]] 0700
+for path in \
+  "[[DATA_DIR]]/downloads/usenet" \
   "[[DATA_DIR]]/downloads/usenet/incomplete" \
   "[[DATA_DIR]]/downloads/usenet/completed" \
   "[[DATA_DIR]]/downloads/usenet/completed/tv" \
   "[[DATA_DIR]]/downloads/usenet/completed/movies" \
-  "[[DATA_DIR]]/downloads/usenet/completed/music"
-install -d -o [[PUID]] -g [[PGID]] -m 0700 "[[APPDATA_DIR]]/sabnzbd"
-chown -R [[PUID]]:[[PGID]] "[[APPDATA_DIR]]/sabnzbd"
-chmod 0700 "[[APPDATA_DIR]]/sabnzbd"
+  "[[DATA_DIR]]/downloads/usenet/completed/music"; do
+  sh ../../scripts/atlas-hostfs.sh ensure-dir \
+    "$path" [[PUID]] [[PGID]] 2775
+done
 """
 pre_deploy.shell_mode = true
 environment = """

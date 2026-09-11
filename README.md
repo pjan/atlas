@@ -723,7 +723,7 @@ Host: 127.0.0.1
 Port: 8085
 ```
 
-Keep `/volume2/appdata/sabnzbd` private because it contains SABnzbd API keys and Usenet provider credentials. The stack provisions it as `0700`; download directories remain group-writable for media imports.
+Keep `/volume2/appdata/sabnzbd` private because it contains SABnzbd API keys and Usenet provider credentials. The stack provisions it as `0700`; download directories remain group-writable with mode `2775` for media imports. Never recursively change ownership across `/volume1/data` during SABnzbd recovery.
 
 For Lidarr, use category `music`, completed downloads `/data/downloads/torrents/completed/music`, and root folder `/data/media/music`.
 
