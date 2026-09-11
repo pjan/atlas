@@ -371,17 +371,15 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
   fi
   sleep 5
 done
-install -d -o [[PUID]] -g [[PGID]] -m 0700 "[[APPDATA_DIR]]/slskd"
-install -d -o [[PUID]] -g [[PGID]] -m 2775 \
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/slskd" [[PUID]] [[PGID]] 0700
+for path in \
+  "[[DATA_DIR]]/downloads/slskd" \
   "[[DATA_DIR]]/downloads/slskd/complete" \
-  "[[DATA_DIR]]/downloads/slskd/incomplete"
-chown -R [[PUID]]:[[PGID]] \
-  "[[APPDATA_DIR]]/slskd" \
-  "[[DATA_DIR]]/downloads/slskd"
-chmod 0700 "[[APPDATA_DIR]]/slskd"
-chmod 2775 \
-  "[[DATA_DIR]]/downloads/slskd/complete" \
-  "[[DATA_DIR]]/downloads/slskd/incomplete"
+  "[[DATA_DIR]]/downloads/slskd/incomplete"; do
+  sh ../../scripts/atlas-hostfs.sh ensure-dir \
+    "$path" [[PUID]] [[PGID]] 2775
+done
 """
 pre_deploy.shell_mode = true
 environment = """

@@ -619,7 +619,7 @@ Lidarr sees: /data/downloads/slskd/complete
 
 Do not add slskd as a Lidarr download client or create a Lidarr remote path mapping; Soularr passes the Lidarr-visible path directly. Keep Lidarr automatic importing enabled and its music root folder at `/data/media/music`.
 
-`/volume2/appdata/slskd` contains slskd configuration, credentials, transfer state, and database data, so back it up with its permissions preserved. `/volume2/appdata/soularr` contains only worker state, the failed-import denylist, and logs; back it up only if retaining that operational history matters. The completed and incomplete Soulseek download directories are group-writable to support Lidarr imports.
+`/volume2/appdata/slskd` contains slskd configuration, credentials, transfer state, and database data, so back it up with its `0700` permissions preserved. `/volume2/appdata/soularr` contains only worker state, the failed-import denylist, and logs; back it up only if retaining that operational history matters. The Soulseek download root and its completed/incomplete children use mode `2775` for Lidarr imports; never recursively change ownership across that shared tree.
 
 Do not configure an slskd shared directory without an explicit sharing policy: a configured shared directory is indexed and offered to Soulseek peers. In particular, do not mount the managed music library as a share. Keep slskd remote configuration disabled because it could expose stored credentials.
 

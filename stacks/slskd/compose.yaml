@@ -27,9 +27,21 @@ services:
       - SLSKD_VPN_GLUETUN_API_KEY=${GLUETUN_CONTROL_API_KEY:?missing Gluetun control API key}
       - SLSKD_REMOTE_CONFIGURATION=false
     volumes:
-      - ${SLSKD_CONFIG_DIR}:/app
-      - ${SLSKD_COMPLETE_DIR}:/downloads
-      - ${SLSKD_INCOMPLETE_DIR}:/incomplete
+      - type: bind
+        source: ${SLSKD_CONFIG_DIR:?SLSKD_CONFIG_DIR is required}
+        target: /app
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${SLSKD_COMPLETE_DIR:?SLSKD_COMPLETE_DIR is required}
+        target: /downloads
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${SLSKD_INCOMPLETE_DIR:?SLSKD_INCOMPLETE_DIR is required}
+        target: /incomplete
+        bind:
+          create_host_path: false
     mem_limit: 768m
     pids_limit: 512
     logging:
