@@ -1206,7 +1206,7 @@ docker compose exec -T caddy \
   wget -qO- http://127.0.0.1:2019/config/ \
   > "$live_config"
 
-grep -oE '[[:alnum:]-]+\\.atlas\\.(local|vandaele\\.io)' "$expected_config" \
+grep -oE '[a-zA-Z0-9-]+\\.atlas\\.(local|vandaele\\.io)' "$expected_config" \
   | sort -u > "$expected_hosts"
 test -s "$expected_hosts"
 
