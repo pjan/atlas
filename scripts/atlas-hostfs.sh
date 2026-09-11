@@ -528,6 +528,7 @@ checksum_file() (
     --read-only \
     --security-opt no-new-privileges:true \
     --cap-drop ALL \
+    --cap-add DAC_READ_SEARCH \
     --mount "type=bind,src=$source_path,dst=/host,readonly" \
     "$ATLAS_INIT_IMAGE" \
     sh -eu -c 'test -f "$1"; sha256sum "$1" | cut -d " " -f 1' _ "$container_path"

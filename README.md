@@ -351,7 +351,7 @@ KOMETA_TMDB_API_KEY
 
 Use a Plex token generated for Kometa, not the Plex server token from `Preferences.xml`.
 
-Kometa has no Atlas web route. It runs on the configured `KOMETA_TIMES` schedule and reaches Plex through `http://plex:32400` on `media_network`. Runtime configuration, cache, reports, and assets live under `/volume2/appdata/kometa`; preserve that private tree with owner `999:10` and mode `0750` when backing it up.
+Kometa has no Atlas web route. It runs on the configured `KOMETA_TIMES` schedule and reaches Plex through `http://plex:32400` on `media_network`. Runtime configuration, cache, reports, and assets live under `/volume2/appdata/kometa`; the pre-deploy hook explicitly provisions the configured `assets` directory. Preserve that private tree with owner `999:10` and mode `0750` when backing it up.
 
 The repository-managed `config.yml`, `collections/movies.yml`, and `collections/tv.yml` files trigger a full Kometa redeploy. Before Compose starts, the pre-deploy hook atomically installs them into appdata and verifies their SHA-256 checksums. `config.yml` uses mode `0600`; collection definitions use `0640`. The tracked configuration contains token placeholders, while the actual Plex and TMDb credentials remain required Komodo variables.
 

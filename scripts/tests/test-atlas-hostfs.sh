@@ -83,6 +83,38 @@ actual=$(docker run --rm \
     stat -c "%u:%g %a" /data/private
   ')
 test "$actual" = '1000:1000 750' || fail "native volume ownership failed: $actual"
+expected_checksum=$(printf 'private checksum probe\n' | docker run --rm -i \
+  --network none \
+  --read-only \
+  --security-opt no-new-privileges:true \
+  --cap-drop ALL \
+  "$image" \
+  sh -eu -c 'sha256sum | cut -d " " -f 1')
+docker run --rm \
+  --network none \
+  --read-only \
+  --security-opt no-new-privileges:true \
+  --cap-drop ALL \
+  --cap-add CHOWN \
+  --cap-add DAC_OVERRIDE \
+  --cap-add FOWNER \
+  --mount "type=volume,src=$test_volume,dst=/data" \
+  "$image" \
+  sh -eu -c '
+    printf "private checksum probe\n" > /data/private/checksum.txt
+    chown 1000:1000 /data/private/checksum.txt
+    chmod 0600 /data/private/checksum.txt
+  '
+actual_checksum=$(docker run --rm \
+  --network none \
+  --read-only \
+  --security-opt no-new-privileges:true \
+  --cap-drop ALL \
+  --cap-add DAC_READ_SEARCH \
+  --mount "type=volume,src=$test_volume,dst=/data,readonly" \
+  "$image" \
+  sh -eu -c 'sha256sum /data/private/checksum.txt | cut -d " " -f 1')
+test "$actual_checksum" = "$expected_checksum" || fail "private checksum probe failed"
 docker run --rm \
   --network none \
   --read-only \

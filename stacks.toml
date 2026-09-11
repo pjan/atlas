@@ -720,6 +720,8 @@ sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/kometa" [[PUID]] [[PGID]] 0750
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/kometa/collections" [[PUID]] [[PGID]] 0750
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/kometa/assets" [[PUID]] [[PGID]] 0750
 sh ../../scripts/atlas-hostfs.sh install-file \
   "config/config.yml" \
   "[[APPDATA_DIR]]/kometa/config.yml" \
