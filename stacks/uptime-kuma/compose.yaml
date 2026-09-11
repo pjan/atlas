@@ -17,7 +17,11 @@ services:
       - UPTIME_KUMA_PORT=3001
       - DATA_DIR=/app/data
     volumes:
-      - ${CONFIG_DIR}:/app/data
+      - type: bind
+        source: ${CONFIG_DIR:?CONFIG_DIR is required}
+        target: /app/data
+        bind:
+          create_host_path: false
     networks:
       - proxy_network
     mem_limit: 1g

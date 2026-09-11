@@ -598,18 +598,9 @@ links = ["http://uptime.atlas.local"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-docker network inspect proxy_network >/dev/null 2>&1 || docker network create proxy_network
-install -d -o 1000 -g 1000 -m 0700 "[[APPDATA_DIR]]/uptime-kuma"
-chown 1000:1000 "[[APPDATA_DIR]]/uptime-kuma"
-chmod 0700 "[[APPDATA_DIR]]/uptime-kuma"
-UPTIME_KUMA_VALIDATION_IMAGE="$(docker compose -f compose.yaml config --images | head -n 1)"
-test -n "$UPTIME_KUMA_VALIDATION_IMAGE"
-docker run --rm \
-  --entrypoint /bin/sh \
-  --user 1000:1000 \
-  -v "[[APPDATA_DIR]]/uptime-kuma:/app/data" \
-  "$UPTIME_KUMA_VALIDATION_IMAGE" \
-  -ec 'tmp="/app/data/.write-test.$$"; trap "rm -f \"$tmp\" \"$tmp.old\"" EXIT; touch "$tmp"; mv "$tmp" "$tmp.old"'
+sh ../../scripts/ensure-docker-network.sh proxy_network
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/uptime-kuma" 1000 1000 0700
 """
 pre_deploy.shell_mode = true
 environment = """
