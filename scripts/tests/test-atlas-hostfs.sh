@@ -20,10 +20,25 @@ expect_failure() {
   fi
 }
 
+set_bind_mode() {
+  path=$1
+  mode=$2
+
+  docker run --rm \
+    --network none \
+    --read-only \
+    --security-opt no-new-privileges:true \
+    --cap-drop ALL \
+    --cap-add FOWNER \
+    --mount "type=bind,src=$path,dst=/target" \
+    "$image" \
+    chmod "$mode" /target
+}
+
 cleanup() {
   docker volume rm "$test_volume" >/dev/null 2>&1 || true
   if test -d "$test_root"; then
-    chmod 0755 "$test_root/volume2/appdata" >/dev/null 2>&1 || true
+    set_bind_mode "$test_root/volume2/appdata" 0755 >/dev/null 2>&1 || true
     docker run --rm \
       --network none \
       --mount "type=bind,src=$test_root,dst=/cleanup" \
@@ -156,10 +171,10 @@ expect_failure env ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" repair-tree-owner \
 
 sh "$hostfs" ensure-dir /volume2/appdata/test-private "$test_uid" "$test_gid" 0700
 if test "$bind_owner" = 1000:1000; then
-  chmod 000 "$test_root/volume2/appdata"
+  set_bind_mode "$test_root/volume2/appdata" 000
   sh "$hostfs" assert-writable /volume2/appdata/test-private "$test_uid" "$test_gid"
   sh "$hostfs" audit-tree /volume2/appdata/test-private "$test_uid" "$test_gid"
-  chmod 0755 "$test_root/volume2/appdata"
+  set_bind_mode "$test_root/volume2/appdata" 0755
 else
   sh "$hostfs" assert-writable /volume2/appdata/test-private "$test_uid" "$test_gid"
   sh "$hostfs" audit-tree /volume2/appdata/test-private "$test_uid" "$test_gid"
@@ -255,8 +270,17 @@ else
 fi
 
 mkdir -p "$test_root/outside"
-ln -s "$test_root/outside" "$test_root/volume2/appdata/escape"
-ln -s "$test_root/outside" "$test_root/volume1/data/escape"
+docker run --rm \
+  --network none \
+  --read-only \
+  --security-opt no-new-privileges:true \
+  --cap-drop ALL \
+  --mount "type=bind,src=$test_root,dst=/fixture" \
+  "$image" \
+  sh -eu -c '
+    ln -s "$1" /fixture/volume2/appdata/escape
+    ln -s "$1" /fixture/volume1/data/escape
+  ' _ "$test_root/outside"
 expect_failure sh "$hostfs" ensure-dir \
   /volume2/appdata/escape/child "$test_uid" "$test_gid" 0750
 expect_failure sh "$hostfs" ensure-shared-dir \

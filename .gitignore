@@ -8,4 +8,6 @@
 
 *.local
 *.secret
+*.py[cod]
+__pycache__/
 validation-output/

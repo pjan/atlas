@@ -1048,7 +1048,7 @@ To enable it:
 2. Grant access to this repository.
 3. Merge the Renovate onboarding PR if one is opened.
 
-Renovate will open PRs for Docker image updates. Validation commands that run `docker run` during `pre_deploy` derive their image from the stack's own `compose.yaml`, so there is no separate pinned validation image to keep in sync. Komodo polling will detect merged changes to `main`; execute Resource Sync and deploy the affected stack.
+Renovate will open PRs for Docker image and CI dependency updates. Renovate-managed PR automerge is enabled with platform automerge disabled: Renovate waits until the PR branch is up to date and all status checks, including `Validate Atlas`, pass before merging. Failed or pending updates remain open. Validation commands that run `docker run` during `pre_deploy` derive their image from the stack's own `compose.yaml`, so there is no separate pinned validation image to keep in sync. Komodo polling will detect merged changes to `main`; execute Resource Sync and deploy the affected stack.
 
 ## Repository Validation
 

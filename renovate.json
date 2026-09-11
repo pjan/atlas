@@ -4,6 +4,10 @@
   "timezone": "Etc/UTC",
   "dependencyDashboard": true,
   "labels": ["dependencies", "docker"],
+  "automerge": true,
+  "automergeType": "pr",
+  "platformAutomerge": false,
+  "ignoreTests": false,
   "packageRules": [
     {
       "description": "Use stable SemVer for Docker images with standard version tags.",
