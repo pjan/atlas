@@ -1049,3 +1049,15 @@ To enable it:
 3. Merge the Renovate onboarding PR if one is opened.
 
 Renovate will open PRs for Docker image updates. Validation commands that run `docker run` during `pre_deploy` derive their image from the stack's own `compose.yaml`, so there is no separate pinned validation image to keep in sync. Komodo polling will detect merged changes to `main`; execute Resource Sync and deploy the affected stack.
+
+## Repository Validation
+
+Run the complete local validation suite from the repository root:
+
+```sh
+./scripts/validate.sh
+```
+
+The suite renders every managed stack and the manual Komodo bootstrap with deterministic validation values, validates Caddy with the pinned image, exercises the host-filesystem and network helpers, and checks repository policy. Policy checks cover stack/run-directory consistency, declared files, Caddy site registration, relative bind configuration, fail-closed bind mounts, pinned image tags, security/resource/logging controls, shell syntax, Komodo interpolation tags, and tracked runtime secrets or OS metadata.
+
+GitHub Actions runs the same command for pull requests and pushes to `main`. Workflow actions are pinned by commit SHA, and CI receives read-only repository permissions.
