@@ -979,8 +979,9 @@ links = ["http://speedtest.atlas.local"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-docker network inspect proxy_network >/dev/null 2>&1 || docker network create proxy_network
-install -d -o [[PUID]] -g [[PGID]] -m 2775 "[[APPDATA_DIR]]/speedtest-tracker"
+sh ../../scripts/ensure-docker-network.sh proxy_network
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/speedtest-tracker" [[PUID]] [[PGID]] 0750
 """
 pre_deploy.shell_mode = true
 environment = """

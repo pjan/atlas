@@ -18,7 +18,11 @@ services:
       - DISPLAY_TIMEZONE=${TZ}
       - PRUNE_RESULTS_OLDER_THAN=${PRUNE_RESULTS_OLDER_THAN}
     volumes:
-      - ${CONFIG_DIR}:/config
+      - type: bind
+        source: ${CONFIG_DIR:?CONFIG_DIR is required}
+        target: /config
+        bind:
+          create_host_path: false
     expose:
       - "80"
     networks:
