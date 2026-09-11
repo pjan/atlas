@@ -700,15 +700,16 @@ Deploy order matters:
 2. Deploy or redeploy `qbittorrent`.
 3. Deploy or redeploy `sabnzbd`.
 4. Deploy or redeploy `flaresolverr`.
-5. Deploy or redeploy `sonarr`.
-6. Deploy or redeploy `radarr`.
-7. Deploy or redeploy `lidarr`.
-8. Deploy or redeploy `prowlarr`.
-9. Deploy or redeploy `bazarr`.
-10. Deploy or redeploy `spottarr`.
-11. Deploy or redeploy `homepage`.
-12. Deploy or redeploy `recyclarr`.
-13. Deploy or redeploy `caddy`.
+5. Deploy or redeploy `slskd`.
+6. Deploy or redeploy `sonarr`.
+7. Deploy or redeploy `radarr`.
+8. Deploy or redeploy `lidarr`.
+9. Deploy or redeploy `prowlarr`.
+10. Deploy or redeploy `bazarr`.
+11. Deploy or redeploy `spottarr`.
+12. Deploy or redeploy `homepage`.
+13. Deploy or redeploy `recyclarr`.
+14. Deploy or redeploy `caddy`.
 
 If Gluetun is recreated, every container sharing its network namespace must be recreated, not merely restarted, so it reattaches to the current namespace. That includes qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, Spottarr, and slskd. The repo encodes this with `after = ["gluetun"]`-style dependencies and `extra_args = ["--force-recreate"]` on each VPN-bound stack.
 
