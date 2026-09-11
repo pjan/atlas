@@ -16,6 +16,7 @@ COMPOSE_VARIABLE_PATTERN = re.compile(
     r"(?<!\$)\$\{([A-Za-z_][A-Za-z0-9_]*)"
 )
 KOMODO_VARIABLE_PATTERN = re.compile(r"\[\[[A-Z][A-Z0-9_]*\]\]")
+SAFE_AUTOMERGE_UPDATE_TYPES = {"digest", "patch", "pin"}
 
 VALIDATION_VALUES = {
     "APP_KEY": "base64:dmFsaWRhdGlvbi1vbmx5",
@@ -228,6 +229,52 @@ def validate_image(image: str | None, context: str, validation: Validation) -> N
         validation.require(tag != "latest", f"{context} uses latest: {image}")
 
 
+def validate_renovate_config(renovate_data: dict, validation: Validation) -> None:
+    validation.require(
+        renovate_data.get("automerge") is False,
+        "Renovate must disable global automerge",
+    )
+
+    package_rules = renovate_data.get("packageRules", [])
+    if not isinstance(package_rules, list):
+        validation.errors.append("Renovate packageRules must be a list")
+        return
+
+    safe_automerge_rule_found = False
+    for index, rule in enumerate(package_rules, start=1):
+        if not isinstance(rule, dict):
+            validation.errors.append(f"Renovate package rule {index} must be an object")
+            continue
+        if rule.get("automerge") is not True:
+            continue
+
+        update_types = rule.get("matchUpdateTypes")
+        if (
+            not isinstance(update_types, list)
+            or not update_types
+            or not all(isinstance(update_type, str) for update_type in update_types)
+        ):
+            validation.errors.append(
+                f"Renovate package rule {index} enables automerge without matchUpdateTypes"
+            )
+            continue
+
+        update_type_set = set(update_types)
+        unsafe_update_types = update_type_set - SAFE_AUTOMERGE_UPDATE_TYPES
+        validation.require(
+            not unsafe_update_types,
+            f"Renovate package rule {index} automerges unsafe update types: "
+            f"{sorted(unsafe_update_types)}",
+        )
+        if update_type_set == SAFE_AUTOMERGE_UPDATE_TYPES:
+            safe_automerge_rule_found = True
+
+    validation.require(
+        safe_automerge_rule_found,
+        "Renovate must automerge patch, pin, and digest updates after validation",
+    )
+
+
 def validate_service_policy(
     compose_file: Path,
     service_name: str,
@@ -386,6 +433,42 @@ def validate_caddy(stacks_by_name: dict[str, dict], validation: Validation) -> N
         site_paths == registered_sites,
         f"Caddy site registration mismatch: {sorted(site_paths ^ registered_sites)}",
     )
+
+    caddy_hostnames = set()
+    for site_path in (STACKS_ROOT / "caddy" / "conf" / "sites").glob("*.caddy"):
+        site_text = site_path.read_text(encoding="utf-8")
+        caddy_hostnames.update(
+            re.findall(
+                r"https?://([a-z0-9.-]+\.atlas\.(?:local|vandaele\.io))",
+                site_text,
+            )
+        )
+        for match in re.finditer(
+            r"(?m)^\s*import\s+(?:atlas_reverse_proxy|atlas_rclone)\s+([a-z0-9-]+)\b",
+            site_text,
+        ):
+            route_name = match.group(1)
+            caddy_hostnames.add(f"{route_name}.atlas.local")
+            caddy_hostnames.add(f"{route_name}.atlas.vandaele.io")
+
+    homepage_services = (
+        STACKS_ROOT / "homepage" / "config" / "services.yaml"
+    ).read_text(encoding="utf-8")
+    homepage_hostnames = {
+        hostname
+        for hostname in re.findall(
+            r"(?m)^\s*href:\s+https?://([^/\s]+)", homepage_services
+        )
+        if hostname.endswith(".atlas.local")
+        or hostname.endswith(".atlas.vandaele.io")
+    }
+    missing_homepage_routes = homepage_hostnames - caddy_hostnames
+    validation.require(
+        not missing_homepage_routes,
+        "Homepage Atlas URLs lack Caddy routes: "
+        f"{sorted(missing_homepage_routes)}",
+    )
+
     for item in config.get("config_files", []):
         if item.get("path", "").startswith("conf/"):
             validation.require(
@@ -490,11 +573,80 @@ def validate_komodo_compose(validation: Validation) -> None:
             validation,
         )
 
+    mongo = rendered.get("services", {}).get("mongo", {})
+    validation.require(
+        mongo.get("pids_limit") == 512,
+        "Komodo Mongo must set pids_limit to 512",
+    )
+    validation.require(
+        "no-new-privileges:true" in mongo.get("security_opt", []),
+        "Komodo Mongo must enable no-new-privileges",
+    )
+
+    expected_writable_binds = {
+        ("core", "/backups"): "/volume1/backups/komodo",
+        ("periphery", "/volume2/komodo"): "/volume2/komodo",
+    }
+    for (service_name, target), expected_source in expected_writable_binds.items():
+        mounts = [
+            mount
+            for mount in rendered.get("services", {})
+            .get(service_name, {})
+            .get("volumes", [])
+            if mount.get("target") == target
+        ]
+        validation.require(
+            len(mounts) == 1,
+            f"Komodo service {service_name} must mount {target} exactly once",
+        )
+        if len(mounts) != 1:
+            continue
+        mount = mounts[0]
+        validation.require(
+            mount.get("type") == "bind" and mount.get("source") == expected_source,
+            f"Komodo service {service_name} has an unexpected {target} bind source",
+        )
+        validation.require(
+            mount.get("bind", {}).get("create_host_path") is False,
+            f"Komodo service {service_name} bind {target} must set create_host_path: false",
+        )
+
+
+def validate_recyclarr_required_secrets(validation: Validation) -> None:
+    compose_file = STACKS_ROOT / "recyclarr" / "compose.yaml"
+    command = [
+        "docker",
+        "compose",
+        "--project-directory",
+        str(compose_file.parent),
+        "-f",
+        str(compose_file),
+        "config",
+        "--quiet",
+    ]
+
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8") as environment_file:
+        command[2:2] = ["--env-file", environment_file.name]
+        for variable in ("SONARR_API_KEY", "RADARR_API_KEY"):
+            environment = compose_environment(compose_file)
+            environment.pop(variable, None)
+            result = subprocess.run(
+                command,
+                cwd=REPO_ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+            )
+            validation.require(
+                result.returncode != 0 and f"{variable} is required" in result.stderr,
+                f"{relative(compose_file)} must reject a missing {variable}",
+            )
+
 
 def main() -> None:
     os.chdir(REPO_ROOT)
     validation = Validation()
-    stacks_data, _ = load_repository(validation)
+    stacks_data, renovate_data = load_repository(validation)
     compose_files = sorted(STACKS_ROOT.glob("*/compose.yaml"))
     stacks_by_name = validate_stack_inventory(stacks_data, compose_files, validation)
     tracked = tracked_files()
@@ -515,8 +667,10 @@ def main() -> None:
 
     validate_caddy(stacks_by_name, validation)
     validate_hooks(stacks_by_name, validation)
+    validate_renovate_config(renovate_data, validation)
     validate_tracked_files(tracked, validation)
     validate_komodo_compose(validation)
+    validate_recyclarr_required_secrets(validation)
     validation.finish()
     print(
         f"validate-repository: validated {rendered_projects} stack Compose projects"

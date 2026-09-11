@@ -92,6 +92,25 @@ PERIPHERY_ROOT_DIRECTORY=/volume2/komodo
 
 `PERIPHERY_ROOT_DIRECTORY` is Periphery's workspace for repositories, stacks, builds, and related state. It does not need to equal the bootstrap directory. For containerized Periphery, it must be bind-mounted at the identical path inside and outside the container; `komodo/compose.yaml` does this automatically from the variable.
 
+Before the first start, create the two writable bind sources on the NAS. Run this from the root shell opened above; it creates only missing directories and rejects symbolic-link destinations:
+
+```sh
+umask 027
+for path in /volume1/backups/komodo /volume2/komodo; do
+  if test -L "$path"; then
+    echo "refusing symbolic-link directory: $path" >&2
+    exit 1
+  fi
+  mkdir -p "$path"
+  test -d "$path" && test -w "$path" || {
+    echo "Komodo directory is not writable: $path" >&2
+    exit 1
+  }
+done
+```
+
+Compose uses `create_host_path: false` for both mounts. A missing or mistyped path therefore stops deployment instead of silently creating an empty `root:root` directory. Existing installations need no migration when both paths already exist.
+
 Before starting Komodo, confirm no example placeholder remains:
 
 ```sh
@@ -115,7 +134,7 @@ Important operational notes:
 - Changing `KOMODO_DATABASE_PASSWORD` after Mongo has initialized does not rotate the existing Mongo user password. Rotate the Mongo user inside Mongo before changing this value on a live install.
 - Changing `KOMODO_JWT_SECRET` invalidates existing login sessions.
 - If GitHub or another system sends Komodo webhooks, `KOMODO_WEBHOOK_SECRET` must match that sender.
-- `COMPOSE_KOMODO_BACKUPS_PATH` should point at a persistent NAS path that already exists or can be created by Docker.
+- `COMPOSE_KOMODO_BACKUPS_PATH` must point at the persistent NAS directory prepared before startup. Docker is not allowed to create it implicitly.
 
 For repository validation without a runtime `.env`, point Compose's service-level environment file at the example explicitly:
 
@@ -362,6 +381,16 @@ The pinned AdGuard Home image runs as `root`. Its work and configuration directo
 
 Both bind sources use `create_host_path: false`, so a missing preflight path fails closed rather than being silently created by Docker. DNS remains bound only to `[[NAS_LAN_IP]]:53` over TCP and UDP. Deploy AdGuard separately from other stacks because its restart temporarily interrupts Atlas DNS.
 
+Atlas deliberately keeps the AdGuard Home web interface on container port `3000` after the initial setup. The Caddy route and container healthcheck both depend on `http.address` remaining `0.0.0.0:3000`. During a fresh installation or a restore without the existing `AdGuardHome.yaml`, select port `3000` in the setup wizard instead of the normal port `80`.
+
+Verify the persisted listener without printing the adjacent user configuration:
+
+```sh
+docker exec adguard awk '/^http:/ { in_http=1; next } in_http && /^[^[:space:]]/ { exit } in_http && /^[[:space:]]+address:/ { print; exit }' /opt/adguardhome/conf/AdGuardHome.yaml
+```
+
+The expected result is `address: 0.0.0.0:3000`. If DNS works but `http://adguard.atlas.local` does not, check this value before changing Caddy or exposing a temporary host UI port.
+
 ### Kometa Tokens
 
 Kometa reads repo-tracked config files from `stacks/kometa/config/`, but secrets stay in Komodo variables.
@@ -376,6 +405,8 @@ KOMETA_TMDB_API_KEY
 Use a Plex token generated for Kometa, not the Plex server token from `Preferences.xml`.
 
 Kometa has no Atlas web route. It runs on the configured `KOMETA_TIMES` schedule and reaches Plex through `http://plex:32400` on `media_network`. Runtime configuration, cache, reports, and assets live under `/volume2/appdata/kometa`; the pre-deploy hook explicitly provisions the configured `assets` directory. Preserve that private tree with owner `999:10` and mode `0750` when backing it up.
+
+Kometa intentionally has no Docker healthcheck. Its scheduled process can remain alive while an individual metadata run fails, so a process-only check would not prove successful work. Monitor completion and errors in the Kometa run logs and alert when the expected daily run does not complete.
 
 The repository-managed `config.yml`, `collections/movies.yml`, and `collections/tv.yml` files trigger a full Kometa redeploy. Before Compose starts, the pre-deploy hook atomically installs them into appdata and verifies their SHA-256 checksums. `config.yml` uses mode `0600`; collection definitions use `0640`. The tracked configuration contains token placeholders, while the actual Plex and TMDb credentials remain required Komodo variables.
 
@@ -610,7 +641,7 @@ Operational notes:
 - Recyclarr v1 intentionally manages Sonarr and Radarr only. Lidarr is not supported by Recyclarr and is out of scope.
 - Before the first real sync, inventory existing Sonarr and Radarr quality profile names. If Recyclarr should adopt an existing profile, temporarily add `name: <existing profile name>` under the matching `trash_id`, run one real sync, then either keep that name or remove it to let the guide name take over. Skipping this can create duplicate profiles.
 - If Recyclarr reports `Access to the path '/config/state' is denied`, stop the container and audit `/volume2/appdata/recyclarr` and `/volume2/tmp/recyclarr` with `atlas-hostfs.sh audit-tree`. Run `repair-tree-owner` only for a tree that reports ownership mismatches, then redeploy; do not replace this process with an unrestricted recursive `chown`.
-- There is no useful HTTP health endpoint. Monitor the container/process if useful, but treat preview output, sync logs, and last-success alerting as the real operational signals.
+- Recyclarr intentionally has no Docker healthcheck. Its `supercronic` scheduler remains alive after an individual sync failure, so process liveness is not a success signal. Treat preview output, sync logs, and last-success alerting as the operational health indicators.
 
 ### Soularr And slskd
 
@@ -618,9 +649,10 @@ Soularr is a background bridge between Lidarr's wanted albums and the `slskd` So
 
 ```text
 http://slskd.atlas.local
+http://slskd.atlas.vandaele.io
 ```
 
-Soularr and slskd are separate Komodo stacks so the automation worker can be updated without interrupting the Soulseek client or its downloads. Soularr's built-in UI is intentionally disabled in v1 because it has no authentication. It has no route or direct host port; inspect its logs through Komodo or Docker. slskd is Caddy-only and requires the configured web credentials. It reuses the existing Gluetun namespace used by qBittorrent and SABnzbd, and its UI is reachable through Gluetun's `downloaders-vpn` alias.
+Soularr and slskd are separate Komodo stacks so the automation worker can be updated without interrupting the Soulseek client or its downloads. Soularr's built-in UI is intentionally disabled in v1 because it has no authentication. It has no route or direct host port; inspect its logs through Komodo or Docker. slskd is Caddy-only and requires the configured web credentials. Protect `slskd.atlas.vandaele.io` with Cloudflare Access and route that tunnel hostname to `http://caddy:80`. slskd reuses the existing Gluetun namespace used by qBittorrent and SABnzbd, and its UI is reachable through Gluetun's `downloaders-vpn` alias.
 
 Before deploying, create these Komodo variables. Use a dedicated Soulseek account and separate random values of at least 16 characters for the slskd API key and JWT key:
 
@@ -640,7 +672,7 @@ Deploy order:
 2. When migrating from the former combined stack, stop it and remove only its `slskd` and `soularr` containers; preserve all bind-mounted app data and downloads.
 3. Confirm `gluetun` is healthy, then deploy `slskd` and wait for its authenticated healthcheck to pass.
 4. Deploy `soularr`; its pre-deploy hook waits for Gluetun, Lidarr, and slskd to be healthy.
-5. Deploy or redeploy `caddy` after Resource Sync so the local-only slskd route is loaded live.
+5. Deploy or redeploy `caddy` after Resource Sync so both slskd hostnames are loaded live.
 6. Sign in to slskd, confirm its VPN integration reports the shared Gluetun connection as healthy, then test one wanted Lidarr album.
 
 The Proton forwarded port remains assigned to qBittorrent. slskd's dynamic port-forwarding integration is disabled because two processes cannot bind the same forwarded port in one network namespace. slskd still uses the VPN for all peer traffic, but without its own forwarded listener it may be unable to connect directly to some passive peers and may return fewer results than a dedicated forwarded setup.
@@ -661,7 +693,7 @@ Do not add slskd as a Lidarr download client or create a Lidarr remote path mapp
 
 Do not configure an slskd shared directory without an explicit sharing policy: a configured shared directory is indexed and offered to Soulseek peers. In particular, do not mount the managed music library as a share. Keep slskd remote configuration disabled because it could expose stored credentials.
 
-For monitoring, configure Uptime Kuma against slskd's authenticated API only with `X-API-Key`; an unauthenticated UI `401` is not a health signal. Also watch the independent `slskd`, `soularr`, and shared `gluetun` logs for VPN or acquisition failures.
+For monitoring, configure Uptime Kuma against slskd's authenticated API only with `X-API-Key`; an unauthenticated UI `401` is not a health signal. Soularr intentionally has no Docker healthcheck because its scheduler loop continues after an individual acquisition failure. Monitor the freshness and results of `/volume2/appdata/soularr/soularr.log`, and also watch the independent `slskd` and shared `gluetun` logs for VPN or acquisition failures.
 
 ### Gluetun, qBittorrent, And SABnzbd
 
@@ -949,7 +981,7 @@ Service: http://caddy:80
 
 Define each public hostname exactly once. Do not use `http://<app>.atlas.local` as the tunnel service: that adds an unnecessary dependency on Atlas DNS and rewrites the origin host to the local hostname. Sending every public hostname to `http://caddy:80` keeps routing declarative in Caddy and preserves the incoming `*.atlas.vandaele.io` host for matching.
 
-Caddy routes by HTTP host. The shared `atlas_reverse_proxy` snippet creates paired `*.atlas.local` and `*.atlas.vandaele.io` routes. The specialized rclone snippet also defines both hostnames, while slskd remains local-only. For a custom paired route, use:
+Caddy routes by HTTP host. The shared `atlas_reverse_proxy` snippet creates paired `*.atlas.local` and `*.atlas.vandaele.io` routes. The specialized rclone snippet also defines both hostnames. For a custom paired route, use:
 
 ```caddyfile
 http://speedtest.atlas.local, http://speedtest.atlas.vandaele.io {
@@ -1048,7 +1080,7 @@ To enable it:
 2. Grant access to this repository.
 3. Merge the Renovate onboarding PR if one is opened.
 
-Renovate will open PRs for Docker image and CI dependency updates. Renovate-managed PR automerge is enabled with platform automerge disabled: Renovate waits until the PR branch is up to date and all status checks, including `Validate Atlas`, pass before merging. Failed or pending updates remain open. Validation commands that run `docker run` during `pre_deploy` derive their image from the stack's own `compose.yaml`, so there is no separate pinned validation image to keep in sync. Komodo polling will detect merged changes to `main`; execute Resource Sync and deploy the affected stack.
+Renovate will open PRs for Docker image and CI dependency updates. Renovate-managed PR automerge is limited to patch, pin, and digest updates, with platform automerge disabled: Renovate waits until the PR branch is up to date and all status checks, including `Validate Atlas`, pass before merging. Minor, major, and replacement updates require manual review. Failed or pending updates remain open. Validation commands that run `docker run` during `pre_deploy` derive their image from the stack's own `compose.yaml`, so there is no separate pinned validation image to keep in sync. Komodo polling will detect merged changes to `main`; execute Resource Sync and deploy the affected stack.
 
 ## Repository Validation
 

@@ -7,6 +7,8 @@ services:
     image: mongo:8.3.9
     container_name: komodo-mongo
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     command: --quiet --wiredTigerCacheSizeGB 0.25
     # ports:
     #   - 27017:27017
@@ -17,6 +19,7 @@ services:
       - mongo-data:/data/db
       - mongo-config:/data/configdb
     mem_limit: 384m
+    pids_limit: 512
     logging: &default-logging
       driver: json-file
       options:
@@ -47,7 +50,11 @@ services:
       ## Attach the Core / Periphery communication keys
       - keys:/config/keys
       ## Store dated backups of the database - https://komo.do/docs/setup/backup
-      - ${COMPOSE_KOMODO_BACKUPS_PATH:?COMPOSE_KOMODO_BACKUPS_PATH is required}:/backups
+      - type: bind
+        source: ${COMPOSE_KOMODO_BACKUPS_PATH:?COMPOSE_KOMODO_BACKUPS_PATH is required}
+        target: /backups
+        bind:
+          create_host_path: false
       ## Store sync files on server
       # - /path/to/syncs:/syncs
       ## Optionally mount a custom core.config.toml
@@ -82,7 +89,11 @@ services:
       ## Must be the same inside and outside the container,
       ## or docker will get confused. See https://github.com/moghtech/komodo/discussions/180.
       ## Default: /etc/komodo.
-      - ${PERIPHERY_ROOT_DIRECTORY:?PERIPHERY_ROOT_DIRECTORY is required}:${PERIPHERY_ROOT_DIRECTORY:?PERIPHERY_ROOT_DIRECTORY is required}
+      - type: bind
+        source: ${PERIPHERY_ROOT_DIRECTORY:?PERIPHERY_ROOT_DIRECTORY is required}
+        target: ${PERIPHERY_ROOT_DIRECTORY:?PERIPHERY_ROOT_DIRECTORY is required}
+        bind:
+          create_host_path: false
       ## Optionally mount a custom periphery.config.toml
       # - /path/to/periphery.config.toml:/config/config.toml
       ## Optionally mount custom root CA certificate to trust

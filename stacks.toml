@@ -116,16 +116,7 @@ links = ["http://sonarr.atlas.local"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
-  test "$status" = "healthy" && break
-  if test "$i" = "12"; then
-    docker logs --tail 80 gluetun >&2 || true
-    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
-    exit 1
-  fi
-  sleep 5
-done
+sh ../../scripts/wait-for-container-health.sh gluetun 180
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/sonarr" [[PUID]] [[PGID]] 0750
 sh ../../scripts/atlas-hostfs.sh ensure-shared-dir \
@@ -167,16 +158,7 @@ links = ["http://radarr.atlas.local"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
-  test "$status" = "healthy" && break
-  if test "$i" = "12"; then
-    docker logs --tail 80 gluetun >&2 || true
-    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
-    exit 1
-  fi
-  sleep 5
-done
+sh ../../scripts/wait-for-container-health.sh gluetun 180
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/radarr" [[PUID]] [[PGID]] 0750
 sh ../../scripts/atlas-hostfs.sh ensure-shared-dir \
@@ -261,16 +243,7 @@ links = ["http://prowlarr.atlas.local"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
-  test "$status" = "healthy" && break
-  if test "$i" = "12"; then
-    docker logs --tail 80 gluetun >&2 || true
-    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
-    exit 1
-  fi
-  sleep 5
-done
+sh ../../scripts/wait-for-container-health.sh gluetun 180
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/prowlarr" [[PUID]] [[PGID]] 0750
 """
@@ -302,16 +275,7 @@ poll_for_updates = true
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
-  test "$status" = "healthy" && break
-  if test "$i" = "12"; then
-    docker logs --tail 80 gluetun >&2 || true
-    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
-    exit 1
-  fi
-  sleep 5
-done
+sh ../../scripts/wait-for-container-health.sh gluetun 180
 """
 pre_deploy.shell_mode = true
 environment = """
@@ -338,16 +302,7 @@ links = ["http://lidarr.atlas.local"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
-  test "$status" = "healthy" && break
-  if test "$i" = "12"; then
-    docker logs --tail 80 gluetun >&2 || true
-    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
-    exit 1
-  fi
-  sleep 5
-done
+sh ../../scripts/wait-for-container-health.sh gluetun 180
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/lidarr" [[PUID]] [[PGID]] 0750
 sh ../../scripts/atlas-hostfs.sh ensure-shared-dir \
@@ -390,16 +345,7 @@ links = ["http://slskd.atlas.local"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
-  test "$status" = "healthy" && break
-  if test "$i" = "12"; then
-    docker logs --tail 80 gluetun >&2 || true
-    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
-    exit 1
-  fi
-  sleep 5
-done
+sh ../../scripts/wait-for-container-health.sh gluetun 180
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/slskd" [[PUID]] [[PGID]] 0700
 for path in \
@@ -450,16 +396,7 @@ pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
 for container in gluetun lidarr slskd; do
-  for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-    status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container" 2>/dev/null || true)"
-    test "$status" = "healthy" && break
-    if test "$i" = "12"; then
-      docker logs --tail 80 "$container" >&2 || true
-      echo "$container is not healthy; current status: ${status:-missing}" >&2
-      exit 1
-    fi
-    sleep 5
-  done
+  sh ../../scripts/wait-for-container-health.sh "$container" 180
 done
 sh ../../scripts/ensure-docker-network.sh media_network
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
@@ -499,16 +436,7 @@ links = ["http://bazarr.atlas.local"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
-  test "$status" = "healthy" && break
-  if test "$i" = "12"; then
-    docker logs --tail 80 gluetun >&2 || true
-    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
-    exit 1
-  fi
-  sleep 5
-done
+sh ../../scripts/wait-for-container-health.sh gluetun 180
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/bazarr" [[PUID]] [[PGID]] 0750
 for path in \
@@ -548,16 +476,7 @@ links = ["http://spottarr.atlas.local"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
-  test "$status" = "healthy" && break
-  if test "$i" = "12"; then
-    docker logs --tail 80 gluetun >&2 || true
-    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
-    exit 1
-  fi
-  sleep 5
-done
+sh ../../scripts/wait-for-container-health.sh gluetun 180
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/spottarr" [[PUID]] [[PGID]] 0700
 """
@@ -849,16 +768,7 @@ links = ["http://qbittorrent.atlas.local"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
-  test "$status" = "healthy" && break
-  if test "$i" = "12"; then
-    docker logs --tail 80 gluetun >&2 || true
-    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
-    exit 1
-  fi
-  sleep 5
-done
+sh ../../scripts/wait-for-container-health.sh gluetun 180
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/qbittorrent" [[PUID]] [[PGID]] 0750
 for path in \
@@ -905,16 +815,7 @@ config_files = [
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' gluetun 2>/dev/null || true)"
-  test "$status" = "healthy" && break
-  if test "$i" = "12"; then
-    docker logs --tail 80 gluetun >&2 || true
-    echo "gluetun is not healthy; current status: ${status:-missing}" >&2
-    exit 1
-  fi
-  sleep 5
-done
+sh ../../scripts/wait-for-container-health.sh gluetun 180
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/sabnzbd" [[PUID]] [[PGID]] 0700
 for path in \
