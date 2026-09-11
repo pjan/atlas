@@ -254,12 +254,65 @@ def validate_service_policy(
         f"{context} must enable no-new-privileges",
     )
 
-    for mount in service.get("volumes", []):
-        if mount.get("type") != "bind":
+
+def validate_bind_mount_policy(
+    compose_file: Path,
+    rendered: dict,
+    validation: Validation,
+) -> None:
+    lines = compose_file.read_text(encoding="utf-8").splitlines()
+    declarations: list[tuple[int, list[str]]] = []
+
+    for index, line in enumerate(lines):
+        if line.strip() != "- type: bind":
             continue
+        item_indent = len(line) - len(line.lstrip(" "))
+        block = [line]
+        for following_line in lines[index + 1 :]:
+            stripped = following_line.strip()
+            if stripped and not stripped.startswith("#"):
+                indent = len(following_line) - len(following_line.lstrip(" "))
+                if indent <= item_indent:
+                    break
+            block.append(following_line)
+        declarations.append((index + 1, block))
+
+    rendered_bind_count = sum(
+        1
+        for service in rendered.get("services", {}).values()
+        for mount in service.get("volumes", [])
+        if mount.get("type") == "bind"
+    )
+    validation.require(
+        len(declarations) == rendered_bind_count,
+        f"{relative(compose_file)} must declare every bind using long syntax; "
+        f"found {len(declarations)} declarations for {rendered_bind_count} binds",
+    )
+
+    for line_number, block in declarations:
+        target = "unknown"
+        bind_indent = None
+        create_host_path_disabled = False
+        for block_index, block_line in enumerate(block):
+            stripped = block_line.strip()
+            if stripped.startswith("target:"):
+                target = stripped.partition(":")[2].strip()
+            if stripped == "bind:":
+                bind_indent = len(block_line) - len(block_line.lstrip(" "))
+                for bind_line in block[block_index + 1 :]:
+                    if not bind_line.strip() or bind_line.lstrip().startswith("#"):
+                        continue
+                    indent = len(bind_line) - len(bind_line.lstrip(" "))
+                    if indent <= bind_indent:
+                        break
+                    if bind_line.strip() == "create_host_path: false":
+                        create_host_path_disabled = True
+                        break
+                break
         validation.require(
-            mount.get("bind", {}).get("create_host_path") is False,
-            f"{context} bind {mount.get('target')} must set create_host_path=false",
+            create_host_path_disabled,
+            f"{relative(compose_file)}:{line_number} bind {target} must set "
+            "create_host_path: false",
         )
 
 
@@ -454,6 +507,7 @@ def main() -> None:
         stack = stacks_by_name.get(compose_file.parent.name, {})
         for service_name, service in rendered.get("services", {}).items():
             validate_service_policy(compose_file, service_name, service, validation)
+        validate_bind_mount_policy(compose_file, rendered, validation)
         if stack:
             validate_relative_binds(
                 compose_file, rendered, stack, validation
