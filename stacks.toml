@@ -801,13 +801,18 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
   fi
   sleep 5
 done
-install -d -o [[PUID]] -g [[PGID]] -m 2775 \
-  "[[APPDATA_DIR]]/qbittorrent" \
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/qbittorrent" [[PUID]] [[PGID]] 0750
+for path in \
+  "[[DATA_DIR]]/downloads/torrents" \
   "[[DATA_DIR]]/downloads/torrents/incomplete" \
   "[[DATA_DIR]]/downloads/torrents/completed" \
   "[[DATA_DIR]]/downloads/torrents/completed/tv" \
   "[[DATA_DIR]]/downloads/torrents/completed/movies" \
-  "[[DATA_DIR]]/downloads/torrents/completed/music"
+  "[[DATA_DIR]]/downloads/torrents/completed/music"; do
+  sh ../../scripts/atlas-hostfs.sh ensure-dir \
+    "$path" [[PUID]] [[PGID]] 2775
+done
 """
 pre_deploy.shell_mode = true
 environment = """

@@ -695,6 +695,8 @@ Movies category: /data/downloads/torrents/completed/movies
 Music category: /data/downloads/torrents/completed/music
 ```
 
+Keep `/volume2/appdata/qbittorrent` private because it contains credentials and session state. The stack provisions it as `0750`; torrent directories remain group-writable with mode `2775` for media imports. Never recursively change ownership across `/volume1/data` during qBittorrent recovery.
+
 Configure Sonarr, Radarr, and Lidarr download clients to use:
 
 ```text

@@ -13,8 +13,16 @@ services:
       - UMASK=${UMASK}
       - WEBUI_PORT=8080
     volumes:
-      - ${CONFIG_DIR}:/config
-      - ${TORRENTS_DIR}:/data/downloads/torrents
+      - type: bind
+        source: ${CONFIG_DIR:?CONFIG_DIR is required}
+        target: /config
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${TORRENTS_DIR:?TORRENTS_DIR is required}
+        target: /data/downloads/torrents
+        bind:
+          create_host_path: false
     stop_grace_period: 1m
     mem_limit: 768m
     pids_limit: 512
