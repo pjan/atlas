@@ -434,6 +434,7 @@ audit_tree() (
     --tmpfs /tmp:rw,noexec,nosuid,size=64m \
     --security-opt no-new-privileges:true \
     --cap-drop ALL \
+    --cap-add DAC_READ_SEARCH \
     --mount "type=bind,src=$source_path,dst=/host,readonly" \
     "$ATLAS_INIT_IMAGE" \
     sh -eu -c '
