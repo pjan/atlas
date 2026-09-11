@@ -115,6 +115,7 @@ validate_absolute_path() {
     */) fail "path must not end with a slash: $path" ;;
     *//*|*/./*|*/../*|*/.|*/..) fail "path contains a non-canonical segment: $path" ;;
     *'*'*|*'?'*|*'['*) fail "path contains a shell glob character: $path" ;;
+    *','*) fail "path contains an unsupported character: $path" ;;
   esac
 
   if LC_ALL=C printf '%s' "$path" | grep -q '[[:cntrl:]]'; then
@@ -228,7 +229,8 @@ assert_writable() (
   validate_unsigned_integer gid "$gid"
   base=$(base_for_child "$path")
   container_path=$(container_path_for "$path" "$base")
-  source_path=$(host_source_for "$base")
+  base_source_path=$(host_source_for "$base")
+  target_source_path=$(host_source_for "$path")
 
   if is_dry_run; then
     log "dry-run assert-writable path=$path uid=$uid gid=$gid"
@@ -241,19 +243,49 @@ assert_writable() (
     --read-only \
     --security-opt no-new-privileges:true \
     --cap-drop ALL \
+    --cap-add DAC_READ_SEARCH \
+    --mount "type=bind,src=$base_source_path,dst=/host,readonly" \
+    "$ATLAS_INIT_IMAGE" \
+    sh -eu -c '
+      target=$1
+      relative=${target#/host/}
+      current=/host
+      previous_ifs=$IFS
+      IFS=/
+      set -- $relative
+      IFS=$previous_ifs
+
+      for component do
+        current="$current/$component"
+        test ! -L "$current"
+        test -d "$current"
+      done
+
+      test "$(realpath "$target")" = "$target"
+    ' _ "$container_path"
+
+  docker run --rm \
+    --network none \
+    --read-only \
+    --security-opt no-new-privileges:true \
+    --cap-drop ALL \
     --user "$uid:$gid" \
-    --mount "type=bind,src=$source_path,dst=/host" \
+    --mount "type=bind,src=$target_source_path,dst=/target" \
     "$ATLAS_INIT_IMAGE" \
     sh -eu -c '
       target=$1
       test -d "$target"
       test "$(realpath "$target")" = "$target"
       umask 077
-      probe=$(mktemp "$target/.atlas-write-test.XXXXXX")
+      probe=$(mktemp "$target/.atlas-write-test.XXXXXX") || {
+        printf "atlas-hostfs: write probe failed path=%s uid=%s gid=%s\n" \
+          "$target" "$2" "$3" >&2
+        exit 1
+      }
       trap '\''rm -f "$probe"'\'' EXIT HUP INT TERM
       rm -f "$probe"
       trap - EXIT HUP INT TERM
-    ' _ "$container_path"
+    ' _ /target "$uid" "$gid"
 
   log "write probe passed path=$path uid=$uid gid=$gid"
 )

@@ -101,6 +101,8 @@ expect_failure env ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" ensure-dir \
 expect_failure env ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" ensure-dir \
   /volume2/appdata/../escape 1000 1000 0750
 expect_failure env ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" ensure-dir \
+  /volume2/appdata/unsupported,path 1000 1000 0750
+expect_failure env ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" ensure-dir \
   /volume2/appdata/test invalid 1000 0750
 expect_failure env ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" ensure-dir \
   /volume2/appdata/test 1000 1000 775
@@ -108,7 +110,10 @@ expect_failure env ATLAS_HOSTFS_DRY_RUN=1 sh "$hostfs" repair-tree-owner \
   /volume1/data/library 999 10 --confirm-private-tree
 
 sh "$hostfs" ensure-dir /volume2/appdata/test-private "$test_uid" "$test_gid" 0700
+chmod 000 "$test_root/volume2/appdata"
 sh "$hostfs" assert-writable /volume2/appdata/test-private "$test_uid" "$test_gid"
+sh "$hostfs" audit-tree /volume2/appdata/test-private "$test_uid" "$test_gid"
+chmod 0755 "$test_root/volume2/appdata"
 
 actual=$(docker run --rm \
   --network none \
@@ -116,8 +121,6 @@ actual=$(docker run --rm \
   "$image" \
   stat -c '%u:%g %a' /host/test-private)
 test "$actual" = "$test_uid:$test_gid 700" || fail "unexpected directory metadata: $actual"
-
-sh "$hostfs" audit-tree /volume2/appdata/test-private "$test_uid" "$test_gid"
 
 printf 'managed configuration\n' > "$test_root/source.txt"
 sh "$hostfs" install-file \
