@@ -11,8 +11,8 @@ services:
     # ports:
     #   - 27017:27017
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${KOMODO_DATABASE_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${KOMODO_DATABASE_PASSWORD}
+      MONGO_INITDB_ROOT_USERNAME: ${KOMODO_DATABASE_USERNAME:?KOMODO_DATABASE_USERNAME is required}
+      MONGO_INITDB_ROOT_PASSWORD: ${KOMODO_DATABASE_PASSWORD:?KOMODO_DATABASE_PASSWORD is required}
     volumes:
       - mongo-data:/data/db
       - mongo-config:/data/configdb
@@ -40,14 +40,14 @@ services:
         condition: service_healthy
     ports:
       - 9120:9120
-    env_file: ./.env
+    env_file: ${KOMODO_ENV_FILE:-./.env}
     environment:
       KOMODO_DATABASE_ADDRESS: mongo:27017
     volumes:
       ## Attach the Core / Periphery communication keys
       - keys:/config/keys
       ## Store dated backups of the database - https://komo.do/docs/setup/backup
-      - ${COMPOSE_KOMODO_BACKUPS_PATH}:/backups
+      - ${COMPOSE_KOMODO_BACKUPS_PATH:?COMPOSE_KOMODO_BACKUPS_PATH is required}:/backups
       ## Store sync files on server
       # - /path/to/syncs:/syncs
       ## Optionally mount a custom core.config.toml
@@ -69,7 +69,7 @@ services:
     restart: unless-stopped
     depends_on:
       - core
-    env_file: ./.env
+    env_file: ${KOMODO_ENV_FILE:-./.env}
     volumes:
       ## Attach the Core / Periphery communication keys
       - keys:/config/keys
@@ -82,7 +82,7 @@ services:
       ## Must be the same inside and outside the container,
       ## or docker will get confused. See https://github.com/moghtech/komodo/discussions/180.
       ## Default: /etc/komodo.
-      - ${PERIPHERY_ROOT_DIRECTORY:-/etc/komodo}:${PERIPHERY_ROOT_DIRECTORY:-/etc/komodo}
+      - ${PERIPHERY_ROOT_DIRECTORY:?PERIPHERY_ROOT_DIRECTORY is required}:${PERIPHERY_ROOT_DIRECTORY:?PERIPHERY_ROOT_DIRECTORY is required}
       ## Optionally mount a custom periphery.config.toml
       # - /path/to/periphery.config.toml:/config/config.toml
       ## Optionally mount custom root CA certificate to trust

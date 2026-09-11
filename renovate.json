@@ -10,6 +10,7 @@
       "matchDatasources": ["docker"],
       "matchPackageNames": [
         "adguard/adguardhome",
+        "busybox",
         "caddy",
         "cloudflare/cloudflared",
         "flaresolverr/flaresolverr",
@@ -69,6 +70,17 @@
         "ghcr.io/moghtech/komodo-periphery"
       ],
       "groupName": "komodo"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update the pinned Atlas host filesystem utility image.",
+      "managerFilePatterns": ["/^scripts\\/atlas-hostfs\\.sh$/"],
+      "matchStrings": [
+        "ATLAS_INIT_IMAGE='(?<depName>[^:']+):(?<currentValue>[^@']+)@(?<currentDigest>sha256:[a-f0-9]+)'"
+      ],
+      "datasourceTemplate": "docker"
     }
   ]
 }

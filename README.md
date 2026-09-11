@@ -9,6 +9,7 @@ This repository manages Docker Compose stacks for the `Atlas` NAS.
 - NAS: UGREEN DXP4800 Pro
 - NAS LAN IP: `192.168.2.200`
 - NAS checkout/bootstrap directory: `/volume2/docker/komodo`
+- Periphery workspace directory: `/volume2/komodo`
 - Komodo Core URL: `http://192.168.2.200:9120`
 - Caddy HTTP entrypoint: `http://192.168.2.200:80`
 - Local DNS zone: `*.atlas.local`
@@ -63,7 +64,7 @@ ssh root@192.168.2.200
 cd /volume2/docker/komodo
 ```
 
-Copy the contents of this repository’s `komodo/` directory into `/volume2/docker/komodo`, then copy `.env.example` to `.env` and edit `/volume2/docker/komodo/.env`.
+Copy the contents of this repository’s `komodo/` directory into `/volume2/docker/komodo`, then copy `.env.example` to the untracked `.env` file and edit `/volume2/docker/komodo/.env`. Never commit the runtime `.env` file.
 
 Generate separate values:
 
@@ -83,12 +84,21 @@ KOMODO_INIT_ADMIN_PASSWORD=<32-byte random value>
 KOMODO_WEBHOOK_SECRET=<32-byte random value>
 KOMODO_JWT_SECRET=<64-byte random value>
 COMPOSE_KOMODO_BACKUPS_PATH=/volume1/backups/komodo
-PERIPHERY_ROOT_DIRECTORY=/volume2/docker/komodo
+PERIPHERY_ROOT_DIRECTORY=/volume2/komodo
 ```
 
-`PERIPHERY_ROOT_DIRECTORY` must match the real checkout path on the NAS so Periphery can see the repo and stack files under the same path inside and outside the container.
+`PERIPHERY_ROOT_DIRECTORY` is Periphery's workspace for repositories, stacks, builds, and related state. It does not need to equal the bootstrap directory. For containerized Periphery, it must be bind-mounted at the identical path inside and outside the container; `komodo/compose.yaml` does this automatically from the variable.
 
-Now start Komodo: 
+Before starting Komodo, confirm no example placeholder remains:
+
+```sh
+if grep -n '<replace-' .env; then
+  echo "replace every placeholder before starting Komodo" >&2
+  exit 1
+fi
+```
+
+Now start Komodo:
 
 ```sh
 docker compose --env-file .env -f compose.yaml up -d
@@ -103,6 +113,13 @@ Important operational notes:
 - Changing `KOMODO_JWT_SECRET` invalidates existing login sessions.
 - If GitHub or another system sends Komodo webhooks, `KOMODO_WEBHOOK_SECRET` must match that sender.
 - `COMPOSE_KOMODO_BACKUPS_PATH` should point at a persistent NAS path that already exists or can be created by Docker.
+
+For repository validation without a runtime `.env`, point Compose's service-level environment file at the example explicitly:
+
+```sh
+KOMODO_ENV_FILE=.env.example \
+docker compose --env-file komodo/.env.example -f komodo/compose.yaml config --quiet
+```
 
 ## Komodo Resource Sync
 
@@ -144,6 +161,106 @@ After pushing changes to `main`:
 2. Wait for the `atlas` Resource Sync to show pending changes.
 3. Review the diff.
 4. Execute the sync.
+
+## Host Filesystem Provisioning
+
+Komodo Periphery runs in a container. A plain `mkdir`, `chown`, or `cp` in a stack hook operates inside that container unless the destination is mounted there. Docker bind mounts, however, are resolved by the NAS Docker daemon. If a short bind source is absent, Docker can create it on the NAS as `root:root` even when a preceding Periphery command appeared to prepare it.
+
+Atlas avoids that namespace mismatch with `scripts/atlas-hostfs.sh`. The helper asks the NAS Docker daemon to run a pinned, short-lived BusyBox container against one of these allowlisted roots:
+
+```text
+/volume1/data
+/volume1/backups
+/volume2/appdata
+/volume2/tmp
+```
+
+Normal directory preparation is nonrecursive and includes a real write probe using the requested UID/GID. Recursive owner repair is limited to one private appdata or scratch tree, requires an explicit confirmation argument, and must not be used against shared media.
+
+The helper foundation is installed before production stack hooks are migrated. Until a stack's `pre_deploy` command calls this helper, its existing permission behavior is unchanged.
+
+### Local Helper Tests
+
+Run from the repository root with Docker available:
+
+```sh
+./scripts/test-phase-1.sh
+```
+
+The test suite covers allowlist rejection, dry-run behavior, atomic managed-file installation, symlink rejection, write probes, private-tree audit/repair on native Linux bind filesystems, constrained canary cleanup, and concurrent Docker network creation. Docker Desktop virtualizes bind ownership, so its test uses a native Docker volume to prove `1000:1000` ownership and write behavior.
+
+### NAS Canary From Periphery
+
+Run the canary after these changes are on `main` and the Atlas Resource Sync has cloned the updated repository. Start on the NAS:
+
+```sh
+ssh root@192.168.2.200
+
+ATLAS_HOSTFS=$(docker exec komodo-periphery sh -eu -c '
+  find "${PERIPHERY_ROOT_DIRECTORY:?}" \
+    -type f \
+    -path "*/scripts/atlas-hostfs.sh" \
+    -print \
+    | head -n 1
+')
+
+test -n "$ATLAS_HOSTFS"
+printf 'Using helper: %s\n' "$ATLAS_HOSTFS"
+```
+
+If more than one checkout exists, do not use `head -n 1`; select the path belonging to the active Atlas Resource Sync checkout.
+
+First run the non-production integration suite inside Periphery:
+
+```sh
+ATLAS_TESTS=$(dirname "$ATLAS_HOSTFS")/test-phase-1.sh
+docker exec komodo-periphery sh "$ATLAS_TESTS"
+```
+
+Then create one private-appdata canary as `1000:1000` and one shared-data canary as `999:10`:
+
+```sh
+docker exec komodo-periphery sh "$ATLAS_HOSTFS" ensure-dir \
+  /volume2/appdata/.atlas-permission-test 1000 1000 0750
+
+docker exec komodo-periphery sh "$ATLAS_HOSTFS" ensure-dir \
+  /volume1/data/.atlas-permission-test 999 10 2775
+```
+
+Verify from the NAS host:
+
+```sh
+stat -c '%u:%g %a %n' \
+  /volume2/appdata/.atlas-permission-test \
+  /volume1/data/.atlas-permission-test
+```
+
+Expected output contains:
+
+```text
+1000:1000 750 /volume2/appdata/.atlas-permission-test
+999:10 2775 /volume1/data/.atlas-permission-test
+```
+
+Clean up only through the constrained canary command:
+
+```sh
+docker exec komodo-periphery sh "$ATLAS_HOSTFS" remove-canary \
+  /volume2/appdata/.atlas-permission-test
+
+docker exec komodo-periphery sh "$ATLAS_HOSTFS" remove-canary \
+  /volume1/data/.atlas-permission-test
+```
+
+Do not run `repair-tree-owner` against production appdata during the canary phase. Audit and migrate one stopped application at a time in the next deployment phase.
+
+### Helper Troubleshooting
+
+- `docker is not available`: confirm `/var/run/docker.sock` is mounted in Periphery and the `docker` CLI is present.
+- `bind source path does not exist`: confirm `/volume1` and `/volume2` exist on the NAS and the test checkout path is identity-mounted through `PERIPHERY_ROOT_DIRECTORY`.
+- Owner/mode assertion failure: check `docker info` for user namespace remapping and inspect NAS ACLs with `getfacl`.
+- Write-probe failure after correct `stat`: inspect inherited UGOS ACLs before changing Unix modes.
+- Never fix a shared-media failure with `chown -R /volume1/data`.
 
 ## Required Non-Default Variables
 
