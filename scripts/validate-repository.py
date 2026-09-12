@@ -488,6 +488,8 @@ def validate_bind_mount_policy(
     compose_file: Path,
     rendered: dict,
     validation: Validation,
+    *,
+    require_all_binds_long_syntax: bool = True,
 ) -> None:
     lines = compose_file.read_text(encoding="utf-8").splitlines()
     declarations: list[tuple[int, list[str]]] = []
@@ -512,11 +514,12 @@ def validate_bind_mount_policy(
         for mount in service.get("volumes", [])
         if mount.get("type") == "bind"
     )
-    validation.require(
-        len(declarations) == rendered_bind_count,
-        f"{relative(compose_file)} must declare every bind using long syntax; "
-        f"found {len(declarations)} declarations for {rendered_bind_count} binds",
-    )
+    if require_all_binds_long_syntax:
+        validation.require(
+            len(declarations) == rendered_bind_count,
+            f"{relative(compose_file)} must declare every bind using long syntax; "
+            f"found {len(declarations)} declarations for {rendered_bind_count} binds",
+        )
 
     for line_number, block in declarations:
         target = "unknown"
@@ -765,6 +768,13 @@ def validate_komodo_compose(validation: Validation) -> None:
         "Komodo Mongo must enable no-new-privileges",
     )
 
+    validate_bind_mount_policy(
+        compose_file,
+        rendered,
+        validation,
+        require_all_binds_long_syntax=False,
+    )
+
     expected_writable_binds = {
         ("core", "/backups"): "/volume1/backups/komodo",
         ("periphery", "/volume2/komodo"): "/volume2/komodo",
@@ -787,10 +797,6 @@ def validate_komodo_compose(validation: Validation) -> None:
         validation.require(
             mount.get("type") == "bind" and mount.get("source") == expected_source,
             f"Komodo service {service_name} has an unexpected {target} bind source",
-        )
-        validation.require(
-            mount.get("bind", {}).get("create_host_path") is False,
-            f"Komodo service {service_name} bind {target} must set create_host_path: false",
         )
 
 
