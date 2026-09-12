@@ -638,6 +638,22 @@ def validate_caddy(stacks_by_name: dict[str, dict], validation: Validation) -> N
             caddy_hostnames.add(f"{route_name}.atlas.local")
             caddy_hostnames.add(f"{route_name}.atlas.vandaele.io")
 
+    local_route_names = {
+        hostname.removesuffix(".atlas.local")
+        for hostname in caddy_hostnames
+        if hostname.endswith(".atlas.local")
+    }
+    public_route_names = {
+        hostname.removesuffix(".atlas.vandaele.io")
+        for hostname in caddy_hostnames
+        if hostname.endswith(".atlas.vandaele.io")
+    }
+    validation.require(
+        local_route_names == public_route_names,
+        "Caddy routes must define matching local and public hostnames: "
+        f"{sorted(local_route_names ^ public_route_names)}",
+    )
+
     homepage_services = (
         STACKS_ROOT / "homepage" / "config" / "services.yaml"
     ).read_text(encoding="utf-8")

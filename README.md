@@ -665,6 +665,7 @@ The `houndarr` stack runs controlled, rate-limited missing and cutoff searches f
 
 ```text
 http://houndarr.atlas.local
+http://houndarr.atlas.vandaele.io
 ```
 
 Deploy order:
@@ -687,11 +688,11 @@ Start with small batches, conservative per-instance hourly API caps, download-qu
 
 Operational notes:
 
-- Houndarr has no direct host port and no public `atlas.vandaele.io` route. Keep it local or reach the local hostname through Tailscale.
+- Houndarr has no direct host port. Require Cloudflare Access before reaching `houndarr.atlas.vandaele.io`.
 - The container runs explicitly as `999:10` with all capabilities dropped, a read-only root filesystem, and writable state only at `/volume2/appdata/houndarr`.
 - `/volume2/appdata/houndarr` contains the SQLite database, encrypted Arr credentials, and encryption master key. It is provisioned as `0700`; back it up with ownership and permissions preserved.
 - The healthcheck uses the unauthenticated `/api/health` endpoint. Its ten-minute start period accommodates database migrations without marking an upgrade unhealthy prematurely.
-- If public exposure is added later, add an explicit public Caddy route, require Cloudflare Access, and review `HOUNDARR_SECURE_COOKIES`; enabling secure cookies is incompatible with the current plain-HTTP local URL.
+- Keep `HOUNDARR_SECURE_COOKIES` disabled while the plain-HTTP local URL remains in use; secure cookies would not be sent to `houndarr.atlas.local`.
 
 ### Unpackerr
 
@@ -932,6 +933,7 @@ The `autobrr` stack monitors tracker IRC announcements and feeds, then sends mat
 
 ```text
 http://autobrr.atlas.local
+http://autobrr.atlas.vandaele.io
 ```
 
 Deploy order:
@@ -955,7 +957,7 @@ Lidarr: http://127.0.0.1:8686
 
 Operational notes:
 
-- Autobrr has no direct host port and no public `atlas.vandaele.io` route. Keep it local or reach the local hostname through Tailscale.
+- Autobrr has no direct host port. Require Cloudflare Access before reaching `autobrr.atlas.vandaele.io`.
 - `/volume2/appdata/autobrr` contains its SQLite database, login state, tracker credentials, and downloader credentials. It is provisioned as `0700`; back it up with ownership and permissions preserved.
 - The image's own update check is disabled because Renovate manages the pinned Docker tag.
 - The readiness healthcheck verifies both the HTTP server and SQLite database.

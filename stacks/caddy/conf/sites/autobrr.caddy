@@ -1,3 +1,1 @@
-http://autobrr.atlas.local {
-	reverse_proxy downloaders-vpn:7474
-}
+import atlas_reverse_proxy autobrr downloaders-vpn:7474

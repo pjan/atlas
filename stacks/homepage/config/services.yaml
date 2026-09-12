@@ -54,11 +54,11 @@
           key: "{{HOMEPAGE_VAR_PROWLARR_API_KEY}}"
     - Autobrr:
         icon: autobrr.png
-        href: http://autobrr.atlas.local
+        href: http://autobrr.atlas.vandaele.io
         description: Download automation
     - Houndarr:
         icon: mdi-dog-side
-        href: http://houndarr.atlas.local
+        href: http://houndarr.atlas.vandaele.io
         description: Controlled missing-media searches
     - qBittorrent:
         icon: qbittorrent.png
