@@ -331,6 +331,9 @@ KOMETA_PLEX_TOKEN
 KOMETA_TMDB_API_KEY
 RECYCLARR_SONARR_API_KEY
 RECYCLARR_RADARR_API_KEY
+UNPACKERR_SONARR_API_KEY
+UNPACKERR_RADARR_API_KEY
+UNPACKERR_LIDARR_API_KEY
 SPOTTARR_USENET_HOSTNAME
 SPOTTARR_USENET_USERNAME
 SPOTTARR_USENET_PASSWORD
@@ -643,6 +646,75 @@ Operational notes:
 - If Recyclarr reports `Access to the path '/config/state' is denied`, stop the container and audit `/volume2/appdata/recyclarr` and `/volume2/tmp/recyclarr` with `atlas-hostfs.sh audit-tree`. Run `repair-tree-owner` only for a tree that reports ownership mismatches, then redeploy; do not replace this process with an unrestricted recursive `chown`.
 - Recyclarr intentionally has no Docker healthcheck. Its `supercronic` scheduler remains alive after an individual sync failure, so process liveness is not a success signal. Treat preview output, sync logs, and last-success alerting as the operational health indicators.
 
+### Houndarr
+
+The `houndarr` stack runs controlled, rate-limited missing and cutoff searches for Sonarr, Radarr, and Lidarr. Its built-in UI is available locally through Caddy at:
+
+```text
+http://houndarr.atlas.local
+```
+
+Deploy order:
+
+1. Confirm `gluetun`, `sonarr`, `radarr`, and `lidarr` are deployed and healthy.
+2. Deploy `houndarr`.
+3. Deploy or redeploy `homepage` if the dashboard entry is not hot-reloaded.
+4. Deploy or redeploy `caddy`.
+5. Create the Houndarr administrator account immediately and add the Arr instances.
+
+Use the existing Arr API keys with these internal URLs:
+
+```text
+Sonarr URL: http://downloaders-vpn:8989
+Radarr URL: http://downloaders-vpn:7878
+Lidarr URL: http://downloaders-vpn:8686
+```
+
+Start with small batches, conservative per-instance hourly API caps, download-queue backpressure, and long per-item cooldowns. Houndarr actively triggers searches, so aggressive settings can exhaust indexer limits or generate an unexpectedly large download queue.
+
+Operational notes:
+
+- Houndarr has no direct host port and no public `atlas.vandaele.io` route. Keep it local or reach the local hostname through Tailscale.
+- The container runs explicitly as `999:10` with all capabilities dropped, a read-only root filesystem, and writable state only at `/volume2/appdata/houndarr`.
+- `/volume2/appdata/houndarr` contains the SQLite database, encrypted Arr credentials, and encryption master key. It is provisioned as `0700`; back it up with ownership and permissions preserved.
+- The healthcheck uses the unauthenticated `/api/health` endpoint. Its ten-minute start period accommodates database migrations without marking an upgrade unhealthy prematurely.
+- If public exposure is added later, add an explicit public Caddy route, require Cloudflare Access, and review `HOUNDARR_SECURE_COOKIES`; enabling secure cookies is incompatible with the current plain-HTTP local URL.
+
+### Unpackerr
+
+The `unpackerr` stack extracts archived downloads reported by Sonarr, Radarr, and Lidarr. It is a background worker with no application UI, Caddy route, or direct host port.
+
+Before deploying, create dedicated Komodo variables from the three Arr API keys:
+
+```text
+UNPACKERR_SONARR_API_KEY
+UNPACKERR_RADARR_API_KEY
+UNPACKERR_LIDARR_API_KEY
+```
+
+Deploy order:
+
+1. Create the three API-key variables.
+2. Confirm `gluetun`, `sonarr`, `radarr`, and `lidarr` are deployed and healthy.
+3. Deploy `unpackerr`.
+4. Confirm the startup log reports all three Arr instances and `/data/downloads` as their fallback path.
+
+Unpackerr reaches the Arr APIs through `media_network` at `downloaders-vpn` and mounts only the shared download subtree:
+
+```text
+Host: /volume1/data/downloads
+Container: /data/downloads
+```
+
+This preserves the exact `/data/downloads/...` paths reported by the Arr applications without granting Unpackerr access to the managed media library. Torrent and Usenet protocol names are both enabled, extracted files use mode `0664`, and extracted directories use mode `0775`. Original archives are retained by default so torrent seeding is not broken.
+
+Operational notes:
+
+- The container runs as `999:10`, drops all capabilities, uses a read-only root filesystem, and has a `1g` memory limit for extraction bursts.
+- Prometheus metrics are enabled only on `127.0.0.1:5656` inside the container. The Docker healthcheck uses that loopback endpoint; it is not exposed on a Docker network or through Caddy.
+- The healthcheck proves the worker and its local webserver are alive, not that every Arr API key remains valid. Monitor Unpackerr logs for API, path, extraction, retry, and import errors.
+- The pre-deploy hook waits for Gluetun and all three Arr containers, then provisions only `/volume1/data/downloads` with the shared ownership policy. Never repair the entire `/volume1/data` tree recursively.
+
 ### Soularr And slskd
 
 Soularr is a background bridge between Lidarr's wanted albums and the `slskd` Soulseek client. The only UI is slskd, behind Caddy at:
@@ -695,13 +767,13 @@ Do not configure an slskd shared directory without an explicit sharing policy: a
 
 For monitoring, configure Uptime Kuma against slskd's authenticated API only with `X-API-Key`; an unauthenticated UI `401` is not a health signal. Soularr intentionally has no Docker healthcheck because its scheduler loop continues after an individual acquisition failure. Monitor the freshness and results of `/volume2/appdata/soularr/soularr.log`, and also watch the independent `slskd` and shared `gluetun` logs for VPN or acquisition failures.
 
-### Gluetun, qBittorrent, And SABnzbd
+### Gluetun And VPN-Bound Media Services
 
-The VPN-bound media applications are split from Gluetun so the VPN container can be reused across stacks. qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, Spottarr, and slskd now share that same Gluetun network namespace.
+The VPN-bound media applications are split from Gluetun so the VPN container can be reused across stacks. Autobrr, qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, Spottarr, and slskd share that same Gluetun network namespace.
 
 The pinned Gluetun image runs as `root`. Its server cache and runtime state live under `/volume2/appdata/gluetun`; the pre-deploy hook provisions only that top-level directory as `0:0` with mode `0750`, without recursively changing existing content. The bind uses `create_host_path: false`, so a missing or failed preflight path cannot silently become a Docker-created directory.
 
-In Docker terms, qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, Spottarr, and slskd do not join `media_network` or `proxy_network` directly. They use `network_mode: "container:gluetun"`, and Caddy or other non-VPN containers reach the routed services through Gluetun's `downloaders-vpn` network alias.
+In Docker terms, Autobrr, qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, Spottarr, and slskd do not join `media_network` or `proxy_network` directly. They use `network_mode: "container:gluetun"`, and Caddy or other non-VPN containers reach the routed services through Gluetun's `downloaders-vpn` network alias.
 
 Before deploying Gluetun, create the Proton VPN WireGuard private key as a Komodo secret:
 
@@ -732,20 +804,23 @@ Deploy order matters:
 
 1. Deploy `gluetun`.
 2. Deploy or redeploy `qbittorrent`.
-3. Deploy or redeploy `sabnzbd`.
-4. Deploy or redeploy `flaresolverr`.
-5. Deploy or redeploy `slskd`.
-6. Deploy or redeploy `sonarr`.
-7. Deploy or redeploy `radarr`.
-8. Deploy or redeploy `lidarr`.
-9. Deploy or redeploy `prowlarr`.
-10. Deploy or redeploy `bazarr`.
-11. Deploy or redeploy `spottarr`.
-12. Deploy or redeploy `homepage`.
+3. Deploy or redeploy `autobrr`.
+4. Deploy or redeploy `sabnzbd`.
+5. Deploy or redeploy `flaresolverr`.
+6. Deploy or redeploy `slskd`.
+7. Deploy or redeploy `sonarr`.
+8. Deploy or redeploy `radarr`.
+9. Deploy or redeploy `lidarr`.
+10. Deploy or redeploy `prowlarr`.
+11. Deploy or redeploy `bazarr`.
+12. Deploy or redeploy `spottarr`.
 13. Deploy or redeploy `recyclarr`.
-14. Deploy or redeploy `caddy`.
+14. Deploy or redeploy `houndarr`.
+15. Deploy or redeploy `unpackerr`.
+16. Deploy or redeploy `homepage`.
+17. Deploy or redeploy `caddy`.
 
-If Gluetun is recreated, every container sharing its network namespace must be recreated, not merely restarted, so it reattaches to the current namespace. That includes qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, Spottarr, and slskd. The repo encodes this with `after = ["gluetun"]`-style dependencies and `extra_args = ["--force-recreate"]` on each VPN-bound stack.
+If Gluetun is recreated, every container sharing its network namespace must be recreated, not merely restarted, so it reattaches to the current namespace. That includes Autobrr, qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, Spottarr, and slskd. The repo encodes this with `after = ["gluetun"]`-style dependencies and `extra_args = ["--force-recreate"]` on each VPN-bound stack.
 
 Komodo `after = ["gluetun"]` affects dependency ordering during Resource Sync deploys. If Gluetun is deployed manually outside a dependency-aware sync/procedure, explicitly redeploy all VPN-bound stacks afterwards; their `--force-recreate` deploy args handle the required namespace reattachment.
 
@@ -756,7 +831,7 @@ http://qbittorrent.atlas.local
 http://sabnzbd.atlas.local
 ```
 
-There are no direct qBittorrent or SABnzbd host UI ports. Keep UI access Caddy-only unless an emergency LAN-bound port is deliberately added to the Gluetun stack.
+There are no direct Autobrr, qBittorrent, or SABnzbd host UI ports. Keep UI access Caddy-only unless an emergency LAN-bound port is deliberately added to the Gluetun stack.
 
 On first startup, LinuxServer qBittorrent prints the temporary admin password in the container logs. Log in, change the password, then configure these paths:
 
@@ -778,6 +853,33 @@ Port: 8080
 ```
 
 SABnzbd uses port `8085` inside Gluetun's shared network namespace because qBittorrent already uses `8080`. The repo-managed LinuxServer custom init script patches SABnzbd's service runner before startup so the web UI binds `0.0.0.0:8085`. Treat `SABNZBD_PORT=8085` and the custom init script as the source of truth for the internal listening port.
+
+SABnzbd validates the HTTP `Host` header to protect against DNS-rebinding attacks. Because Caddy preserves the incoming hostname, add both Atlas hostnames under `Config > Special > host_whitelist`:
+
+```text
+sabnzbd.atlas.local, sabnzbd.atlas.vandaele.io
+```
+
+Keep the entries lowercase and comma-separated. Do not disable the check with a wildcard or rewrite the upstream `Host` header in Caddy. The setting persists in `/volume2/appdata/sabnzbd/sabnzbd.ini` and does not require a Komodo variable or secret. See the [SABnzbd hostname-verification documentation](https://sabnzbd.org/wiki/extra/hostname-check.html) for background.
+
+If the hostname check prevents all UI access, recover over SSH:
+
+```sh
+docker stop sabnzbd
+sudo vi /volume2/appdata/sabnzbd/sabnzbd.ini
+```
+
+Under `[misc]`, set:
+
+```ini
+host_whitelist = sabnzbd.atlas.local, sabnzbd.atlas.vandaele.io
+```
+
+Then restart the container:
+
+```sh
+docker start sabnzbd
+```
 
 On first startup, configure SABnzbd through Caddy and keep `External internet access` disabled or limited. Configure these paths:
 
@@ -810,6 +912,42 @@ API key: copied from Lidarr
 Proton VPN provides Gluetun-managed VPN port forwarding on supported paid-plan servers. qBittorrent's listening port is updated through Gluetun's `VPN_PORT_FORWARDING_UP_COMMAND` and reset through `VPN_PORT_FORWARDING_DOWN_COMMAND` when forwarding is removed.
 
 Homepage reads Gluetun through the internal control server at `http://downloaders-vpn:8000` using `GLUETUN_CONTROL_API_KEY`. The control server is exposed only on Docker networks, not through Caddy or a host port.
+
+### Autobrr
+
+The `autobrr` stack monitors tracker IRC announcements and feeds, then sends matching releases to configured download clients or Arr applications. It is VPN-bound through Gluetun and available locally through Caddy at:
+
+```text
+http://autobrr.atlas.local
+```
+
+Deploy order:
+
+1. Deploy `gluetun`.
+2. Deploy or redeploy `qbittorrent`.
+3. Deploy `autobrr`.
+4. Deploy or redeploy `homepage` if the dashboard entry is not hot-reloaded.
+5. Deploy or redeploy `caddy`.
+6. Create the Autobrr administrator account immediately, then configure only the indexers and actions you intend to use.
+
+Because Autobrr and the download applications share Gluetun's network namespace, use loopback URLs for Atlas services in that namespace:
+
+```text
+qBittorrent: http://127.0.0.1:8080
+SABnzbd: http://127.0.0.1:8085
+Sonarr: http://127.0.0.1:8989
+Radarr: http://127.0.0.1:7878
+Lidarr: http://127.0.0.1:8686
+```
+
+Operational notes:
+
+- Autobrr has no direct host port and no public `atlas.vandaele.io` route. Keep it local or reach the local hostname through Tailscale.
+- `/volume2/appdata/autobrr` contains its SQLite database, login state, tracker credentials, and downloader credentials. It is provisioned as `0700`; back it up with ownership and permissions preserved.
+- The image's own update check is disabled because Renovate manages the pinned Docker tag.
+- The readiness healthcheck verifies both the HTTP server and SQLite database.
+- Autobrr uses `network_mode: "container:gluetun"`, so it must be force-recreated after Gluetun is recreated. Its Komodo dependency and deploy args enforce that during dependency-aware syncs.
+- Start with narrowly scoped filters and conservative action limits. A broad or malformed filter can enqueue large numbers of downloads quickly.
 
 ### qui
 

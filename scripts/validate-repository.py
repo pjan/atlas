@@ -26,6 +26,7 @@ VALIDATION_VALUES = {
     "CONF_DIR": "/volume2/appdata/adguard/conf",
     "CRON_SCHEDULE": "15 4 * * *",
     "DATA_DIR": "/volume1/data",
+    "DOWNLOADS_DIR": "/volume1/data/downloads",
     "DNS_BIND_IP": "127.0.0.1",
     "HOMEPAGE_ALLOWED_HOSTS": (
         "homepage.atlas.local,homepage.atlas.vandaele.io"
@@ -33,6 +34,8 @@ VALIDATION_VALUES = {
     "HTTP_BIND_IP": "127.0.0.1",
     "HTTP_PORT": "18080",
     "KOMETA_TIMES": "04:30",
+    "LIDARR_API_KEY": "0123456789abcdef0123456789abcdef",
+    "LIDARR_URL": "http://downloaders-vpn:8686",
     "LOG_TARGETS": "stdout",
     "MEDIA_DIR": "/volume1/data/media",
     "MUSIC_DIR": "/volume1/data/media/music",
@@ -44,6 +47,7 @@ VALIDATION_VALUES = {
     "PUID": "999",
     "PRUNE_RESULTS_OLDER_THAN": "365",
     "RADARR_URL": "http://downloaders-vpn:7878",
+    "RADARR_API_KEY": "0123456789abcdef0123456789abcdef",
     "RCLONE_CACHE_DIR": "/volume2/tmp/rclone/cache",
     "RCLONE_CONFIG_DIR": "/volume2/appdata/rclone",
     "RCLONE_DATA_DIR": "/volume1/data",
@@ -54,6 +58,7 @@ VALIDATION_VALUES = {
     "SLSKD_CONFIG_DIR": "/volume2/appdata/slskd",
     "SLSKD_INCOMPLETE_DIR": "/volume1/data/downloads/slskd/incomplete",
     "SONARR_URL": "http://downloaders-vpn:8989",
+    "SONARR_API_KEY": "0123456789abcdef0123456789abcdef",
     "SOULARR_CONFIG_DIR": "/volume2/appdata/soularr",
     "SPEEDTEST_SCHEDULE": "6 */6 * * *",
     "SPEEDTEST_SERVERS": "",
@@ -612,8 +617,11 @@ def validate_komodo_compose(validation: Validation) -> None:
         )
 
 
-def validate_recyclarr_required_secrets(validation: Validation) -> None:
-    compose_file = STACKS_ROOT / "recyclarr" / "compose.yaml"
+def validate_required_compose_secrets(
+    compose_file: Path,
+    variable_names: tuple[str, ...],
+    validation: Validation,
+) -> None:
     command = [
         "docker",
         "compose",
@@ -627,7 +635,7 @@ def validate_recyclarr_required_secrets(validation: Validation) -> None:
 
     with tempfile.NamedTemporaryFile("w", encoding="utf-8") as environment_file:
         command[2:2] = ["--env-file", environment_file.name]
-        for variable in ("SONARR_API_KEY", "RADARR_API_KEY"):
+        for variable in variable_names:
             environment = compose_environment(compose_file)
             environment.pop(variable, None)
             result = subprocess.run(
@@ -670,7 +678,16 @@ def main() -> None:
     validate_renovate_config(renovate_data, validation)
     validate_tracked_files(tracked, validation)
     validate_komodo_compose(validation)
-    validate_recyclarr_required_secrets(validation)
+    validate_required_compose_secrets(
+        STACKS_ROOT / "recyclarr" / "compose.yaml",
+        ("SONARR_API_KEY", "RADARR_API_KEY"),
+        validation,
+    )
+    validate_required_compose_secrets(
+        STACKS_ROOT / "unpackerr" / "compose.yaml",
+        ("SONARR_API_KEY", "RADARR_API_KEY", "LIDARR_API_KEY"),
+        validation,
+    )
     validation.finish()
     print(
         f"validate-repository: validated {rendered_projects} stack Compose projects"

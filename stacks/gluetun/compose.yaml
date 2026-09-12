@@ -21,7 +21,7 @@ services:
       - VPN_PORT_FORWARDING_DOWN_COMMAND=/bin/sh -c 'wget -O- -nv --retry-connrefused --post-data "json={\"listen_port\":0,\"current_network_interface\":\"lo\"}" http://127.0.0.1:8080/api/v2/app/setPreferences'
       - GLUETUN_HTTP_CONTROL_SERVER_ENABLE=on
       - HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE={"auth":"apikey","apikey":"${GLUETUN_CONTROL_API_KEY:?missing Gluetun control API key}"}
-      - FIREWALL_INPUT_PORTS=8000,8080,8085,8989,7878,8686,9696,6767,8383,5030
+      - FIREWALL_INPUT_PORTS=8000,8080,8085,8989,7878,8686,9696,6767,8383,5030,7474
       - UPDATER_PERIOD=24h
     volumes:
       - type: bind
@@ -40,6 +40,7 @@ services:
       - "6767"
       - "8383"
       - "5030"
+      - "7474"
     networks:
       media_network:
         aliases:

@@ -1,0 +1,40 @@
+services:
+  autobrr:
+    image: ghcr.io/autobrr/autobrr:v1.86.0
+    container_name: autobrr
+    restart: unless-stopped
+    init: true
+    user: "${PUID}:${PGID}"
+    read_only: true
+    tmpfs:
+      - /tmp
+    network_mode: "container:gluetun"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TZ}
+      - AUTOBRR__HOST=0.0.0.0
+      - AUTOBRR__PORT=7474
+      - AUTOBRR__CHECK_FOR_UPDATES=false
+    volumes:
+      - type: bind
+        source: ${CONFIG_DIR:?CONFIG_DIR is required}
+        target: /config
+        bind:
+          create_host_path: false
+    mem_limit: 512m
+    pids_limit: 256
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:7474/api/healthz/readiness >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s

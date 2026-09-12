@@ -224,6 +224,80 @@ RADARR_API_KEY = [[RECYCLARR_RADARR_API_KEY]]
 """
 
 [[stack]]
+name = "houndarr"
+description = "Houndarr controlled missing-media search"
+deploy = true
+after = ["gluetun", "sonarr", "radarr", "lidarr"]
+tags = ["media", "automation"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/houndarr"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://houndarr.atlas.local"]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+sh ../../scripts/ensure-docker-network.sh media_network
+sh ../../scripts/ensure-docker-network.sh proxy_network
+for container in gluetun sonarr radarr lidarr; do
+  sh ../../scripts/wait-for-container-health.sh "$container" 180
+done
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/houndarr" [[PUID]] [[PGID]] 0700
+"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+CONFIG_DIR = [[APPDATA_DIR]]/houndarr
+"""
+
+[[stack]]
+name = "unpackerr"
+description = "Unpackerr archive extraction for Arr downloads"
+deploy = true
+after = ["gluetun", "sonarr", "radarr", "lidarr"]
+tags = ["media", "automation"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/unpackerr"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+sh ../../scripts/ensure-docker-network.sh media_network
+for container in gluetun sonarr radarr lidarr; do
+  sh ../../scripts/wait-for-container-health.sh "$container" 180
+done
+sh ../../scripts/atlas-hostfs.sh ensure-shared-dir \
+  "[[DATA_DIR]]/downloads" [[PUID]] [[PGID]] 2775
+"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+DOWNLOADS_DIR = [[DATA_DIR]]/downloads
+SONARR_URL = http://downloaders-vpn:8989
+SONARR_API_KEY = [[UNPACKERR_SONARR_API_KEY]]
+RADARR_URL = http://downloaders-vpn:7878
+RADARR_API_KEY = [[UNPACKERR_RADARR_API_KEY]]
+LIDARR_URL = http://downloaders-vpn:8686
+LIDARR_API_KEY = [[UNPACKERR_LIDARR_API_KEY]]
+"""
+
+[[stack]]
 name = "prowlarr"
 description = "prowlarr"
 deploy = true
@@ -749,6 +823,40 @@ GLUETUN_CONTROL_API_KEY = [[GLUETUN_CONTROL_API_KEY]]
 """
 
 [[stack]]
+name = "autobrr"
+description = "Autobrr download automation routed through Gluetun"
+deploy = true
+after = ["gluetun", "qbittorrent"]
+tags = ["media", "automation", "download"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/autobrr"
+file_paths = ["compose.yaml"]
+extra_args = ["--force-recreate"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://autobrr.atlas.local"]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+for container in gluetun qbittorrent; do
+  sh ../../scripts/wait-for-container-health.sh "$container" 180
+done
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/autobrr" [[PUID]] [[PGID]] 0700
+"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+CONFIG_DIR = [[APPDATA_DIR]]/autobrr
+"""
+
+[[stack]]
 name = "qbittorrent"
 description = "qBittorrent routed through Gluetun"
 deploy = true
@@ -1056,9 +1164,11 @@ poll_for_updates = true
 config_files = [
   { path = "conf/Caddyfile", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/adguard.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/autobrr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/bazarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/caddy.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/homepage.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/houndarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/komodo.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/plex.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/qui.caddy", services = ["caddy"], requires = "Restart" },

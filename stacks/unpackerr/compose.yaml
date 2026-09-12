@@ -1,0 +1,69 @@
+services:
+  unpackerr:
+    image: golift/unpackerr:0.16.1
+    container_name: unpackerr
+    restart: unless-stopped
+    init: true
+    user: "${PUID}:${PGID}"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TZ}
+      - UN_ERROR_STDERR=true
+      - UN_LOG_FILE=
+      - UN_INTERVAL=2m
+      - UN_START_DELAY=1m
+      - UN_RETRY_DELAY=5m
+      - UN_MAX_RETRIES=2
+      - UN_PARALLEL=1
+      - UN_FILE_MODE=0664
+      - UN_DIR_MODE=0775
+      - UN_WEBSERVER_METRICS=true
+      - UN_WEBSERVER_LISTEN_ADDR=127.0.0.1:5656
+      - UN_SONARR_0_URL=${SONARR_URL}
+      - UN_SONARR_0_API_KEY=${SONARR_API_KEY:?SONARR_API_KEY is required}
+      - UN_SONARR_0_PATHS_0=/data/downloads
+      - UN_SONARR_0_PROTOCOLS=torrent,TorrentDownloadProtocol,usenet,UsenetDownloadProtocol
+      - UN_SONARR_0_DELETE_ORIG=false
+      - UN_RADARR_0_URL=${RADARR_URL}
+      - UN_RADARR_0_API_KEY=${RADARR_API_KEY:?RADARR_API_KEY is required}
+      - UN_RADARR_0_PATHS_0=/data/downloads
+      - UN_RADARR_0_PROTOCOLS=torrent,TorrentDownloadProtocol,usenet,UsenetDownloadProtocol
+      - UN_RADARR_0_DELETE_ORIG=false
+      - UN_LIDARR_0_URL=${LIDARR_URL}
+      - UN_LIDARR_0_API_KEY=${LIDARR_API_KEY:?LIDARR_API_KEY is required}
+      - UN_LIDARR_0_PATHS_0=/data/downloads
+      - UN_LIDARR_0_PROTOCOLS=torrent,TorrentDownloadProtocol,usenet,UsenetDownloadProtocol
+      - UN_LIDARR_0_DELETE_ORIG=false
+    volumes:
+      - type: bind
+        source: ${DOWNLOADS_DIR:?DOWNLOADS_DIR is required}
+        target: /data/downloads
+        bind:
+          create_host_path: false
+    networks:
+      - media_network
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1:5656/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+networks:
+  media_network:
+    name: media_network
+    external: true

@@ -52,6 +52,14 @@
           type: prowlarr
           url: http://downloaders-vpn:9696
           key: "{{HOMEPAGE_VAR_PROWLARR_API_KEY}}"
+    - Autobrr:
+        icon: autobrr.png
+        href: http://autobrr.atlas.local
+        description: Download automation
+    - Houndarr:
+        icon: mdi-dog-side
+        href: http://houndarr.atlas.local
+        description: Controlled missing-media searches
     - qBittorrent:
         icon: qbittorrent.png
         href: http://qbittorrent.atlas.vandaele.io
