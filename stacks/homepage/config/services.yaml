@@ -94,7 +94,7 @@
         widget:
           type: plex
           url: http://plex:32400
-          key: "{{HOMEPAGE_VAR_PLEX_TOKEN}}"
+          key: "{{HOMEPAGE_VAR_PLEX_SERVER_TOKEN}}"
 
 - Operations:
     - Komodo:
@@ -136,7 +136,7 @@
         widget:
           type: gluetun
           url: http://downloaders-vpn:8000
-          key: "{{HOMEPAGE_VAR_GLUETUN_API_KEY}}"
+          key: "{{HOMEPAGE_VAR_GLUETUN_CONTROL_API_KEY}}"
           version: 2
           fields: ["public_ip", "country", "region", "port_forwarded"]
     - AdGuard Home:

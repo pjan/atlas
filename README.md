@@ -304,41 +304,50 @@ PERIPHERY_ROOT_DIRECTORY
 Shared stack values managed in Komodo:
 
 ```text
-PROTONVPN_WIREGUARD_PRIVATE_KEY
+BAZARR_API_KEY
+CLOUDFLARE_ACCOUNT_ID
+CLOUDFLARE_TUNNEL_ID
+CLOUDFLARE_TUNNEL_TOKEN
 GLUETUN_CONTROL_API_KEY
-SLSKD_SLSK_USERNAME
-SLSKD_SLSK_PASSWORD
-SLSKD_WEB_USERNAME
-SLSKD_WEB_PASSWORD
-SLSKD_JWT_KEY
-SLSKD_API_KEY
-SOULARR_LIDARR_API_KEY
-SPEEDTEST_TRACKER_APP_KEY
-CLOUDFLARED_TUNNEL_TOKEN
-HOMEPAGE_ADGUARD_USERNAME
 HOMEPAGE_ADGUARD_PASSWORD
+HOMEPAGE_ADGUARD_USERNAME
+HOMEPAGE_CLOUDFLARE_API_TOKEN
 HOMEPAGE_KOMODO_API_KEY
 HOMEPAGE_KOMODO_API_SECRET
-HOMEPAGE_LIDARR_API_KEY
-HOMEPAGE_PLEX_TOKEN
-HOMEPAGE_PROWLARR_API_KEY
-HOMEPAGE_QBITTORRENT_API_KEY
-HOMEPAGE_RADARR_API_KEY
-HOMEPAGE_SEERR_API_KEY
-HOMEPAGE_SONARR_API_KEY
 HOMEPAGE_SPEEDTEST_TRACKER_API_KEY
+HOMEPAGE_UNIFI_API_KEY
 KOMETA_PLEX_TOKEN
 KOMETA_TMDB_API_KEY
-RECYCLARR_SONARR_API_KEY
-RECYCLARR_RADARR_API_KEY
-UNPACKERR_SONARR_API_KEY
-UNPACKERR_RADARR_API_KEY
-UNPACKERR_LIDARR_API_KEY
-SPOTTARR_USENET_HOSTNAME
-SPOTTARR_USENET_USERNAME
-SPOTTARR_USENET_PASSWORD
+LIDARR_API_KEY
+PLEX_SERVER_TOKEN
+PROTONVPN_WIREGUARD_PRIVATE_KEY
+PROWLARR_API_KEY
+QBITTORRENT_PASSWORD
+QBITTORRENT_USERNAME
+RADARR_API_KEY
+SABNZBD_API_KEY
+SEERR_API_KEY
+SLSKD_API_KEY
+SLSKD_JWT_KEY
+SLSKD_SLSK_PASSWORD
+SLSKD_SLSK_USERNAME
+SLSKD_WEB_PASSWORD
+SLSKD_WEB_USERNAME
+SONARR_API_KEY
+SPEEDTEST_TRACKER_APP_KEY
 SPOTTARR_NEWZNAB_API_KEY
+SPOTTARR_USENET_HOSTNAME
+SPOTTARR_USENET_PASSWORD
+SPOTTARR_USENET_USERNAME
+UNIFI_URL
+UPTIME_KUMA_SLUG
 ```
+
+Komodo variables use uppercase snake case and are named for the service or
+resource that owns the value. Compose files translate those names to any
+upstream-specific environment names. Homepage's required `HOMEPAGE_VAR_*`
+prefix therefore appears only inside the Homepage container environment and
+its configuration placeholders, not in Komodo variable names or stack inputs.
 
 Optional or temporary values:
 
@@ -436,7 +445,7 @@ sed -n 's/.*PlexOnlineToken="\([^"]*\)".*/\1/p' "/volume2/appdata/plex/Library/A
 Set the returned value in Komodo as:
 
 ```text
-HOMEPAGE_PLEX_TOKEN
+PLEX_SERVER_TOKEN
 ```
 
 Then redeploy `homepage` so the updated environment variable is injected into the container.
@@ -446,7 +455,7 @@ Notes:
 - This only works after Plex has been successfully claimed and signed in to your Plex account.
 - If the command returns nothing, first confirm Plex is claimed and the server is visible in your Plex account.
 - Plex documents a browser-based way to obtain an `X-Plex-Token` from the Plex Web App XML view. The `Preferences.xml` method above is the more direct Atlas-specific approach for the Homepage variable.
-- If you reset your Plex password and sign out connected devices, Plex tokens can be invalidated. If the Homepage Plex widget stops working after an account security change, fetch the token again and update `HOMEPAGE_PLEX_TOKEN`.
+- If you reset your Plex password and sign out connected devices, Plex tokens can be invalidated. If the Homepage Plex widget stops working after an account security change, fetch the token again and update `PLEX_SERVER_TOKEN`.
 
 ### Seerr
 
@@ -591,8 +600,8 @@ Operational notes:
 - Spottarr stores its SQLite data in `/volume2/appdata/spottarr`, mounted at `/data`.
 - The container is not a LinuxServer image. It runs with Compose `user: "999:10"` rather than LSIO `PUID`/`PGID` environment variables.
 - Keep `/volume2/appdata/spottarr` private because it contains index state and may reveal Usenet-backed search behavior.
-- Coordinate `SPOTTARR_USENET_MAXCONNECTIONS` with SABnzbd and provider limits.
-- Start with the default `SPOTTARR_SPOTNET_RETRIEVEAFTER=2026-01-01T00:00:00Z`; moving earlier increases first-import time, storage, memory pressure, and Usenet request volume.
+- Coordinate `SPOTTARR_USENET_MAX_CONNECTIONS` with SABnzbd and provider limits.
+- Start with the default `SPOTTARR_SPOTNET_RETRIEVE_AFTER=2026-01-01T00:00:00Z`; moving earlier increases first-import time, storage, memory pressure, and Usenet request volume.
 
 ### Recyclarr
 
@@ -605,11 +614,11 @@ Sonarr URL: http://downloaders-vpn:8989
 Radarr URL: http://downloaders-vpn:7878
 ```
 
-Before deploying, create these Komodo variables from the Sonarr and Radarr API keys:
+Before deploying, ensure the canonical Sonarr and Radarr API-key variables exist in Komodo:
 
 ```text
-RECYCLARR_SONARR_API_KEY
-RECYCLARR_RADARR_API_KEY
+SONARR_API_KEY
+RADARR_API_KEY
 ```
 
 The repo-managed Recyclarr config lives at:
@@ -622,7 +631,7 @@ Runtime state is stored in `/volume2/appdata/recyclarr`, and disposable logs/res
 
 Deploy order:
 
-1. Create `RECYCLARR_SONARR_API_KEY` and `RECYCLARR_RADARR_API_KEY`.
+1. Create `SONARR_API_KEY` and `RADARR_API_KEY` if they do not already exist.
 2. Confirm `sonarr` and `radarr` are deployed and healthy.
 3. Deploy `recyclarr`.
 4. Run a preview sync from the Recyclarr stack directory.
@@ -684,17 +693,17 @@ Operational notes:
 
 The `unpackerr` stack extracts archived downloads reported by Sonarr, Radarr, and Lidarr. It is a background worker with no application UI, Caddy route, or direct host port.
 
-Before deploying, create dedicated Komodo variables from the three Arr API keys:
+Before deploying, ensure the canonical Arr API-key variables exist in Komodo:
 
 ```text
-UNPACKERR_SONARR_API_KEY
-UNPACKERR_RADARR_API_KEY
-UNPACKERR_LIDARR_API_KEY
+SONARR_API_KEY
+RADARR_API_KEY
+LIDARR_API_KEY
 ```
 
 Deploy order:
 
-1. Create the three API-key variables.
+1. Create the three canonical API-key variables if they do not already exist.
 2. Confirm `gluetun`, `sonarr`, `radarr`, and `lidarr` are deployed and healthy.
 3. Deploy `unpackerr`.
 4. Confirm the startup log reports all three Arr instances and `/data/downloads` as their fallback path.
@@ -735,7 +744,7 @@ SLSKD_WEB_USERNAME
 SLSKD_WEB_PASSWORD
 SLSKD_JWT_KEY
 SLSKD_API_KEY
-SOULARR_LIDARR_API_KEY
+LIDARR_API_KEY
 ```
 
 Deploy order:
@@ -1103,7 +1112,7 @@ The `cloudflared` stack runs a remotely managed Cloudflare Tunnel connector for 
 Before deploying, create a remotely managed tunnel in Cloudflare Zero Trust and save the tunnel token in Komodo:
 
 ```text
-CLOUDFLARED_TUNNEL_TOKEN
+CLOUDFLARE_TUNNEL_TOKEN
 ```
 
 Deploy order:
@@ -1156,7 +1165,7 @@ Operational notes:
 - Homepage is exposed through Caddy only. There is no direct Homepage host port.
 - Homepage does not mount `/var/run/docker.sock` and does not use Docker label discovery in the baseline setup.
 - `HOMEPAGE_ALLOWED_HOSTS` contains both canonical hosts: `homepage.atlas.local` and `homepage.atlas.vandaele.io`.
-- Homepage widget credentials stay in Komodo variables. The stack maps them into Homepage's `HOMEPAGE_VAR_*` templating environment variables.
+- Homepage widget credentials stay in canonical Komodo variables. The Compose adapter maps them into Homepage's required `HOMEPAGE_VAR_*` container variables; that upstream-only prefix is not used for Komodo variables or stack inputs.
 - `LOG_TARGETS=stdout` keeps Homepage from trying to create `/app/config/logs` inside the read-only config mount.
 - Resource Sync updates `stacks/homepage/config/*` through `config_files` with `requires = "None"`, so normal YAML, CSS, and JS edits do not force a container restart.
 - After Homepage config file changes land through Resource Sync, use Homepage's refresh icon to regenerate the static UI. A `homepage` redeploy is only needed for environment-variable changes or when adding new local static assets.

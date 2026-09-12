@@ -16,10 +16,73 @@ COMPOSE_VARIABLE_PATTERN = re.compile(
     r"(?<!\$)\$\{([A-Za-z_][A-Za-z0-9_]*)"
 )
 KOMODO_VARIABLE_PATTERN = re.compile(r"\[\[[A-Z][A-Z0-9_]*\]\]")
+README_VARIABLE_BLOCK_PATTERN = re.compile(
+    r"Shared stack values managed in Komodo:\n\n```text\n(?P<variables>.*?)\n```",
+    re.DOTALL,
+)
 SAFE_AUTOMERGE_UPDATE_TYPES = {"digest", "patch", "pin"}
+ALLOWED_DIRECT_INPUT_ALIASES = {
+    ("adguard", "DNS_BIND_IP", "NAS_LAN_IP"),
+    ("caddy", "HTTP_BIND_IP", "NAS_LAN_IP"),
+    ("rclone", "RCLONE_DATA_DIR", "DATA_DIR"),
+}
+DEPRECATED_VARIABLE_NAMES = {
+    "CLOUDFLARED_TUNNEL_TOKEN",
+    "HOMEPAGE_BAZARR_API_KEY",
+    "HOMEPAGE_CLOUDFLARE_ACCOUNT_ID",
+    "HOMEPAGE_CLOUDFLARE_TUNNEL_ID",
+    "HOMEPAGE_LIDARR_API_KEY",
+    "HOMEPAGE_PLEX_TOKEN",
+    "HOMEPAGE_PROWLARR_API_KEY",
+    "HOMEPAGE_QBITTORRENT_API_KEY",
+    "HOMEPAGE_QBITTORRENT_PASSWORD",
+    "HOMEPAGE_QBITTORRENT_USERNAME",
+    "HOMEPAGE_RADARR_API_KEY",
+    "HOMEPAGE_SABNZBD_API_KEY",
+    "HOMEPAGE_SEERR_API_KEY",
+    "HOMEPAGE_SONARR_API_KEY",
+    "HOMEPAGE_UNIFI_URL",
+    "HOMEPAGE_UPTIME_KUMA_SLUG",
+    "RECYCLARR_RADARR_API_KEY",
+    "RECYCLARR_SONARR_API_KEY",
+    "SOULARR_LIDARR_API_KEY",
+    "SPOTTARR_SPOTNET_IMPORTADULTCONTENT",
+    "SPOTTARR_SPOTNET_IMPORTBATCHSIZE",
+    "SPOTTARR_SPOTNET_RETENTIONDAYS",
+    "SPOTTARR_SPOTNET_RETRIEVEAFTER",
+    "SPOTTARR_USENET_MAXCONNECTIONS",
+    "SPOTTARR_USENET_USETLS",
+    "UNPACKERR_LIDARR_API_KEY",
+    "UNPACKERR_RADARR_API_KEY",
+    "UNPACKERR_SONARR_API_KEY",
+}
+HOMEPAGE_REQUIRED_INPUTS = (
+    "BAZARR_API_KEY",
+    "CLOUDFLARE_ACCOUNT_ID",
+    "CLOUDFLARE_TUNNEL_ID",
+    "GLUETUN_CONTROL_API_KEY",
+    "HOMEPAGE_ADGUARD_PASSWORD",
+    "HOMEPAGE_ADGUARD_USERNAME",
+    "HOMEPAGE_CLOUDFLARE_API_TOKEN",
+    "HOMEPAGE_KOMODO_API_KEY",
+    "HOMEPAGE_KOMODO_API_SECRET",
+    "HOMEPAGE_SPEEDTEST_TRACKER_API_KEY",
+    "HOMEPAGE_UNIFI_API_KEY",
+    "LIDARR_API_KEY",
+    "PLEX_SERVER_TOKEN",
+    "PROWLARR_API_KEY",
+    "QBITTORRENT_PASSWORD",
+    "QBITTORRENT_USERNAME",
+    "RADARR_API_KEY",
+    "SABNZBD_API_KEY",
+    "SEERR_API_KEY",
+    "SLSKD_API_KEY",
+    "SONARR_API_KEY",
+    "UNIFI_URL",
+    "UPTIME_KUMA_SLUG",
+)
 
 VALIDATION_VALUES = {
-    "APP_KEY": "base64:dmFsaWRhdGlvbi1vbmx5",
     "APP_URL": "http://speedtest.atlas.local",
     "BACKUP_DIR": "/volume1/backups/roonserver",
     "CONFIG_DIR": "/volume2/appdata/validation",
@@ -45,7 +108,6 @@ VALIDATION_VALUES = {
     "PROTONVPN_SERVER_COUNTRIES": "Netherlands",
     "PROTONVPN_VPN_PORT_FORWARDING": "on",
     "PUID": "999",
-    "PRUNE_RESULTS_OLDER_THAN": "365",
     "RADARR_URL": "http://downloaders-vpn:7878",
     "RADARR_API_KEY": "0123456789abcdef0123456789abcdef",
     "RCLONE_CACHE_DIR": "/volume2/tmp/rclone/cache",
@@ -60,20 +122,22 @@ VALIDATION_VALUES = {
     "SONARR_URL": "http://downloaders-vpn:8989",
     "SONARR_API_KEY": "0123456789abcdef0123456789abcdef",
     "SOULARR_CONFIG_DIR": "/volume2/appdata/soularr",
-    "SPEEDTEST_SCHEDULE": "6 */6 * * *",
-    "SPEEDTEST_SERVERS": "",
-    "SPOTNET_IMPORTADULTCONTENT": "false",
-    "SPOTNET_IMPORTBATCHSIZE": "500",
-    "SPOTNET_RETENTIONDAYS": "1100",
-    "SPOTNET_RETRIEVEAFTER": "2025-01-01",
+    "SPEEDTEST_TRACKER_APP_KEY": "base64:dmFsaWRhdGlvbi1vbmx5",
+    "SPEEDTEST_TRACKER_PRUNE_RESULTS_OLDER_THAN": "365",
+    "SPEEDTEST_TRACKER_SCHEDULE": "6 */6 * * *",
+    "SPEEDTEST_TRACKER_SERVERS": "",
+    "SPOTTARR_SPOTNET_IMPORT_ADULT_CONTENT": "false",
+    "SPOTTARR_SPOTNET_IMPORT_BATCH_SIZE": "500",
+    "SPOTTARR_SPOTNET_RETENTION_DAYS": "1100",
+    "SPOTTARR_SPOTNET_RETRIEVE_AFTER": "2025-01-01",
+    "SPOTTARR_USENET_MAX_CONNECTIONS": "20",
+    "SPOTTARR_USENET_PORT": "563",
+    "SPOTTARR_USENET_USE_TLS": "true",
     "TRANSCODE_DIR": "/volume2/tmp/plex/transcode",
     "TZ": "Etc/UTC",
     "UMASK": "002",
     "TORRENTS_DIR": "/volume1/data/downloads/torrents",
     "USENET_DIR": "/volume1/data/downloads/usenet",
-    "USENET_MAXCONNECTIONS": "20",
-    "USENET_PORT": "563",
-    "USENET_USETLS": "true",
     "WORK_DIR": "/volume2/appdata/adguard/work",
 }
 
@@ -220,6 +284,119 @@ def validate_stack_inventory(
         )
 
     return stacks_by_name
+
+
+def validate_stack_environment(
+    compose_file: Path,
+    stack: dict,
+    validation: Validation,
+) -> None:
+    environment = stack.get("config", {}).get("environment", "")
+    input_names = []
+    for line in environment.splitlines():
+        if not line.strip():
+            continue
+        name, separator, value = line.partition("=")
+        name = name.strip()
+        validation.require(
+            bool(separator) and bool(re.fullmatch(r"[A-Z][A-Z0-9_]*", name)),
+            f"stack {stack['name']} has an invalid environment assignment: {line}",
+        )
+        if separator:
+            input_names.append(name)
+            reference = re.fullmatch(
+                r"\[\[([A-Z][A-Z0-9_]*)\]\]",
+                value.strip(),
+            )
+            if reference is not None and name != reference.group(1):
+                alias = (stack["name"], name, reference.group(1))
+                validation.require(
+                    alias in ALLOWED_DIRECT_INPUT_ALIASES,
+                    f"stack {stack['name']} input {name} aliases Komodo variable "
+                    f"{reference.group(1)} without an approved adapter",
+                )
+
+    duplicate_names = {
+        name for name in input_names if input_names.count(name) > 1
+    }
+    for name in sorted(duplicate_names):
+        validation.errors.append(
+            f"stack {stack['name']} defines environment input more than once: {name}"
+        )
+
+    for name in input_names:
+        validation.require(
+            "_VAR_" not in name,
+            f"stack {stack['name']} environment input uses an upstream adapter name: {name}",
+        )
+
+    compose_inputs = set(
+        COMPOSE_VARIABLE_PATTERN.findall(compose_file.read_text(encoding="utf-8"))
+    )
+    stack_inputs = set(input_names)
+    for name in sorted(compose_inputs - stack_inputs):
+        validation.errors.append(
+            f"stack {stack['name']} does not provide Compose input: {name}"
+        )
+    for name in sorted(stack_inputs - compose_inputs):
+        validation.errors.append(
+            f"stack {stack['name']} provides unused Compose input: {name}"
+        )
+
+
+def validate_variable_contract(stacks_data: dict, validation: Validation) -> None:
+    stacks_text = (REPO_ROOT / "stacks.toml").read_text(encoding="utf-8")
+    readme_text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    declared_names = [
+        variable["name"] for variable in stacks_data.get("variable", [])
+    ]
+    validation.require(
+        len(declared_names) == len(set(declared_names)),
+        "stacks.toml contains duplicate [[variable]] names",
+    )
+    referenced_names = {
+        token[2:-2] for token in KOMODO_VARIABLE_PATTERN.findall(stacks_text)
+    }
+    external_names = referenced_names - set(declared_names)
+
+    match = README_VARIABLE_BLOCK_PATTERN.search(readme_text)
+    validation.require(
+        match is not None,
+        "README.md lacks the shared Komodo variable inventory",
+    )
+    documented_names = set()
+    if match is not None:
+        documented_lines = match.group("variables").splitlines()
+        for line in documented_lines:
+            validation.require(
+                bool(re.fullmatch(r"[A-Z][A-Z0-9_]*", line)),
+                f"README.md has an invalid Komodo variable name: {line}",
+            )
+        validation.require(
+            documented_lines == sorted(documented_lines),
+            "README.md shared Komodo variable inventory must be sorted",
+        )
+        validation.require(
+            len(documented_lines) == len(set(documented_lines)),
+            "README.md shared Komodo variable inventory contains duplicates",
+        )
+        documented_names = set(documented_lines)
+
+    for name in sorted(external_names - documented_names):
+        validation.errors.append(f"README.md does not document Komodo variable: {name}")
+    for name in sorted(documented_names - external_names):
+        validation.errors.append(f"README.md documents unused Komodo variable: {name}")
+
+    implementation_text = f"{stacks_text}\n{readme_text}"
+    for name in sorted(DEPRECATED_VARIABLE_NAMES):
+        if re.search(rf"\b{re.escape(name)}\b", implementation_text):
+            validation.errors.append(f"deprecated variable name remains: {name}")
+
+    for name in sorted(set(declared_names) | external_names):
+        validation.require(
+            "_VAR_" not in name,
+            f"repository-controlled variable uses an upstream adapter name: {name}",
+        )
 
 
 def validate_image(image: str | None, context: str, validation: Validation) -> None:
@@ -617,7 +794,7 @@ def validate_komodo_compose(validation: Validation) -> None:
         )
 
 
-def validate_required_compose_secrets(
+def validate_required_compose_inputs(
     compose_file: Path,
     variable_names: tuple[str, ...],
     validation: Validation,
@@ -669,23 +846,30 @@ def main() -> None:
             validate_service_policy(compose_file, service_name, service, validation)
         validate_bind_mount_policy(compose_file, rendered, validation)
         if stack:
+            validate_stack_environment(compose_file, stack, validation)
             validate_relative_binds(
                 compose_file, rendered, stack, validation
             )
 
     validate_caddy(stacks_by_name, validation)
     validate_hooks(stacks_by_name, validation)
+    validate_variable_contract(stacks_data, validation)
     validate_renovate_config(renovate_data, validation)
     validate_tracked_files(tracked, validation)
     validate_komodo_compose(validation)
-    validate_required_compose_secrets(
+    validate_required_compose_inputs(
         STACKS_ROOT / "recyclarr" / "compose.yaml",
         ("SONARR_API_KEY", "RADARR_API_KEY"),
         validation,
     )
-    validate_required_compose_secrets(
+    validate_required_compose_inputs(
         STACKS_ROOT / "unpackerr" / "compose.yaml",
         ("SONARR_API_KEY", "RADARR_API_KEY", "LIDARR_API_KEY"),
+        validation,
+    )
+    validate_required_compose_inputs(
+        STACKS_ROOT / "homepage" / "compose.yaml",
+        HOMEPAGE_REQUIRED_INPUTS,
         validation,
     )
     validation.finish()

@@ -9,14 +9,14 @@ services:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
-      - APP_KEY=${APP_KEY:?missing Speedtest Tracker app key}
+      - APP_KEY=${SPEEDTEST_TRACKER_APP_KEY:?missing Speedtest Tracker app key}
       - APP_URL=${APP_URL}
       - ASSET_URL=${APP_URL}
       - DB_CONNECTION=sqlite
-      - SPEEDTEST_SCHEDULE=${SPEEDTEST_SCHEDULE}
-      - SPEEDTEST_SERVERS=${SPEEDTEST_SERVERS:-}
+      - SPEEDTEST_SCHEDULE=${SPEEDTEST_TRACKER_SCHEDULE}
+      - SPEEDTEST_SERVERS=${SPEEDTEST_TRACKER_SERVERS:-}
       - DISPLAY_TIMEZONE=${TZ}
-      - PRUNE_RESULTS_OLDER_THAN=${PRUNE_RESULTS_OLDER_THAN}
+      - PRUNE_RESULTS_OLDER_THAN=${SPEEDTEST_TRACKER_PRUNE_RESULTS_OLDER_THAN}
     volumes:
       - type: bind
         source: ${CONFIG_DIR:?CONFIG_DIR is required}

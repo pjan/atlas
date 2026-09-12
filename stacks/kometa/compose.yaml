@@ -17,8 +17,8 @@ services:
       - KOMETA_RUN=False
       - KOMETA_TESTS=False
       - KOMETA_NO_MISSING=False
-      - KOMETA_PLEXTOKEN=${KOMETA_PLEXTOKEN:?KOMETA_PLEXTOKEN is required}
-      - KOMETA_TMDBAPIKEY=${KOMETA_TMDBAPIKEY:?KOMETA_TMDBAPIKEY is required}
+      - KOMETA_PLEXTOKEN=${KOMETA_PLEX_TOKEN:?KOMETA_PLEX_TOKEN is required}
+      - KOMETA_TMDBAPIKEY=${KOMETA_TMDB_API_KEY:?KOMETA_TMDB_API_KEY is required}
     volumes:
       - type: bind
         source: ${CONFIG_DIR:?CONFIG_DIR is required}
