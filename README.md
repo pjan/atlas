@@ -322,8 +322,7 @@ LIDARR_API_KEY
 PLEX_SERVER_TOKEN
 PROTONVPN_WIREGUARD_PRIVATE_KEY
 PROWLARR_API_KEY
-QBITTORRENT_PASSWORD
-QBITTORRENT_USERNAME
+QBITTORRENT_API_KEY
 RADARR_API_KEY
 SABNZBD_API_KEY
 SEERR_API_KEY
@@ -348,6 +347,11 @@ resource that owns the value. Compose files translate those names to any
 upstream-specific environment names. Homepage's required `HOMEPAGE_VAR_*`
 prefix therefore appears only inside the Homepage container environment and
 its configuration placeholders, not in Komodo variable names or stack inputs.
+
+Generate `QBITTORRENT_API_KEY` in qBittorrent under `Options > WebUI >
+Authentication > API Key`, then store the complete `qbt_...` value in Komodo.
+Homepage uses this key for stateless Web API access; it does not replace the
+qBittorrent WebUI username and password used for interactive login.
 
 Optional or temporary values:
 

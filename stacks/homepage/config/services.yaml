@@ -67,8 +67,7 @@
         widget:
           type: qbittorrent
           url: http://downloaders-vpn:8080
-          username: "{{HOMEPAGE_VAR_QBITTORRENT_USERNAME}}"
-          password: "{{HOMEPAGE_VAR_QBITTORRENT_PASSWORD}}"
+          key: "{{HOMEPAGE_VAR_QBITTORRENT_API_KEY}}"
     - SABnzbd:
         icon: sabnzbd.png
         href: http://sabnzbd.atlas.vandaele.io
