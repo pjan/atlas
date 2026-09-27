@@ -40,6 +40,7 @@
         "prom/blackbox-exporter",
         "prom/node-exporter",
         "prom/prometheus",
+        "prometheuscommunity/smartctl-exporter",
         "qmcgaw/gluetun",
         "rclone/rclone",
         "recyclarr/recyclarr",

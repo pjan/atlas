@@ -226,7 +226,7 @@ Keep new scheduled work out of the 04:30–06:30 window, which is reserved for t
 
 Off-site, Backrest copies all of `/volume1/backups` to the Google Shared Drive `Atlas` every day at 06:00 (see [Off-Site Backups With Backrest](#off-site-backups-with-backrest)).
 
-The appdata copy excludes `roonserver` (covered by Roon's own backups), Prometheus data, Plex caches, codecs, drivers, logs, and crash reports, and AdGuard query logs. The rules live in `stacks/appdata-backup/filters.txt`.
+The appdata copy excludes `roonserver` (covered by Roon's own backups), monitoring data (`prometheus` and `grafana`, see [Monitoring](#monitoring)), Plex caches, codecs, drivers, logs, and crash reports, and AdGuard query logs. The rules live in `stacks/appdata-backup/filters.txt`.
 
 ### Nightly Appdata Snapshot
 
@@ -1444,20 +1444,18 @@ Operational notes:
 
 ## Monitoring
 
-Monitoring is split into two stacks:
+The `monitoring` stack runs Prometheus, node-exporter, blackbox-exporter, and Grafana on the private `monitoring_network`. Only Grafana also joins `proxy_network`, and it is reachable at `http://grafana.atlas.local` and at `https://grafana.atlas.vandaele.io`, which must be protected by Cloudflare Access; Grafana also requires its own login. Prometheus has no host port and no web route; query it through Grafana.
 
-- `monitoring` runs Prometheus, node-exporter, and blackbox-exporter on the private `monitoring_network`. It has no host ports and no web route; query it through Grafana. The nightly `appdata-backup` Action never stops it.
-- `grafana` runs Grafana with its SQLite database in `/volume2/appdata/grafana`. It is a separate stack so the nightly backup Action stops it and copies a consistent database. It is reachable at `http://grafana.atlas.local` and at `https://grafana.atlas.vandaele.io`, which must be protected by Cloudflare Access; Grafana also requires its own login.
+The nightly `appdata-backup` Action never stops the `monitoring` stack, and its data is not backed up: `/volume2/appdata/prometheus` (90 days, at most 20 GB) and `/volume2/appdata/grafana` (Grafana's SQLite database) are excluded. Only configuration is kept, in git: Prometheus, blackbox, and Grafana provisioning in this repository, and dashboards in `pjan/atlas-dashboards`. After losing Volume 2, Grafana starts with an empty database: the admin login comes from `GRAFANA_ADMIN_PASSWORD`, the datasource (and alerting) from provisioning, and the dashboards return once Git Sync is reconnected with the token from the password manager. Extra users, service accounts, and alert history are lost. Scrapes run every 30 seconds and probes every 60 seconds.
 
-Prometheus keeps 90 days (at most 20 GB) in `/volume2/appdata/prometheus`. That data is regenerable and excluded from backups. Scrapes run every 30 seconds and probes every 60 seconds.
-
-Resource Sync only runs `compose up -d` when a tracked config file changes, which does not recreate an unchanged container. Prometheus and blackbox therefore reload `stacks/monitoring/prometheus/prometheus.yml` and `stacks/monitoring/blackbox/blackbox.yml` automatically, and the `grafana` stack restarts Grafana in `post_deploy` so provisioning changes apply. `scripts/validate.sh` checks both configurations with the pinned images (`promtool check config`, `blackbox_exporter --config.check`).
+Resource Sync only runs `compose up -d` when a tracked config file changes, which does not recreate an unchanged container. Prometheus and blackbox therefore reload `stacks/monitoring/prometheus/prometheus.yml` and `stacks/monitoring/blackbox/blackbox.yml` automatically, and the stack restarts Grafana in `post_deploy` so provisioning changes apply. `scripts/validate.sh` checks both configurations with the pinned images (`promtool check config`, `blackbox_exporter --config.check`).
 
 Current signals:
 
 | Job | What it checks |
 |---|---|
 | `node` | CPU, memory, filesystems, md RAID, btrfs, and the backup textfile metrics in `/volume1/backups/.metrics` |
+| `smartctl` | SMART health, NVMe wear, spare, critical warnings, media errors, and temperatures for `sda` (Seagate 12 TB, Volume 1), `nvme0` (Lexar 512 GB, Volume 2), and `nvme1` (TWSC 128 GB, UGOS system disk) |
 | `probe_routes` | Every deployed `*.atlas.local` Caddy route (UniFi DNS, Caddy, and the application; 401 and 403 count as healthy) |
 | `probe_tcp` | AdGuard DNS `:53`, Caddy `:80`, Komodo `:9120`, Plex `:32400` on `192.168.2.200` |
 | `probe_dns_atlas_local` | UniFi resolves `sonarr.atlas.local` to `192.168.2.200` |
@@ -1465,7 +1463,11 @@ Current signals:
 | `probe_cloudflare_access` | Public hostnames answer with the Cloudflare Access login redirect |
 | `probe_internet` | Outbound HTTPS from the NAS |
 
-Grafana provisions the Prometheus datasource (uid `prometheus`) from `stacks/grafana/provisioning/`. Dashboards are kept in the private `pjan/atlas-dashboards` repository with Grafana Git Sync, using a fine-grained token scoped to that repository only. Do not create dashboards outside synced folders: anything else exists only in `grafana.db`.
+smartctl-exporter addresses disks by their stable `/dev/disk/by-id` names (`wwn-*` and `nvme-eui.*`, which avoid publishing serial numbers). Docker resolves those names when the container is created, so recreate the `monitoring` stack after adding or replacing a disk and update the device list in `stacks/monitoring/compose.yaml`. It runs as root with only those devices and the `SYS_RAWIO` (SATA) and `SYS_ADMIN` (NVMe) capabilities.
+
+Volume 1 is a single 12 TB disk (`md1` is RAID 1 with one member), so it has no redundancy: media and the local backups share one disk. The off-site Backrest copy protects `/volume1/backups`; media are not protected.
+
+Grafana provisions the Prometheus datasource (uid `prometheus`) from `stacks/monitoring/grafana/provisioning/`. Dashboards are kept in the private `pjan/atlas-dashboards` repository with Grafana Git Sync, using a fine-grained token scoped to that repository only. Do not create dashboards outside synced folders: anything else exists only in `grafana.db`.
 
 Secrets never go into Prometheus, blackbox, or exporter configuration files. Exporters that accept environment variables receive keys from Komodo variables; services that read secret files use `/run/secrets`.
 

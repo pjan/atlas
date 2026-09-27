@@ -1,6 +1,10 @@
-# Metrics collection. Never stopped by the nightly backup Action.
-# Prometheus and blackbox reload their configuration automatically, because
-# Resource Sync only runs `compose up -d` when a config file changes.
+# Prometheus, exporters, and Grafana. Never stopped by the nightly backup
+# Action, and its data (Prometheus TSDB, Grafana SQLite) is not backed up:
+# configuration lives in this repository and dashboards in the
+# pjan/atlas-dashboards repository (Grafana Git Sync).
+# Prometheus and blackbox reload their configuration automatically, and the
+# stack restarts Grafana after deploy, because Resource Sync only runs
+# `compose up -d` when a config file changes.
 
 services:
   prometheus:
@@ -138,7 +142,115 @@ services:
       retries: 3
       start_period: 20s
 
+  # SMART for every disk: sda (Seagate 12 TB, Volume 1), nvme0 (Lexar 512 GB,
+  # Volume 2), nvme1 (TWSC 128 GB, UGOS system). Stable by-id names avoid
+  # sdX/nvmeX reordering; recreate the stack after adding or replacing disks.
+  # Root with only these devices plus SYS_RAWIO (SATA) and SYS_ADMIN (NVMe).
+  smartctl-exporter:
+    image: prometheuscommunity/smartctl-exporter:v0.14.0
+    container_name: smartctl-exporter
+    restart: unless-stopped
+    user: "0:0"
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SYS_ADMIN
+      - SYS_RAWIO
+    security_opt:
+      - no-new-privileges:true
+    devices:
+      - /dev/disk/by-id/wwn-0x5000c500c81fb81d:/dev/disk/by-id/wwn-0x5000c500c81fb81d
+      - /dev/disk/by-id/nvme-eui.0000000626012893caf25b0b330000ca:/dev/disk/by-id/nvme-eui.0000000626012893caf25b0b330000ca
+      - /dev/disk/by-id/nvme-eui.00000000000000000c82d52610042585:/dev/disk/by-id/nvme-eui.00000000000000000c82d52610042585
+    command:
+      - --smartctl.device=/dev/disk/by-id/wwn-0x5000c500c81fb81d
+      - --smartctl.device=/dev/disk/by-id/nvme-eui.0000000626012893caf25b0b330000ca
+      - --smartctl.device=/dev/disk/by-id/nvme-eui.00000000000000000c82d52610042585
+      - --smartctl.interval=60s
+      - --web.listen-address=:9633
+    expose:
+      - "9633"
+    networks:
+      - monitoring_network
+    mem_limit: 64m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:9633/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  grafana:
+    image: grafana/grafana:13.2.2
+    container_name: grafana
+    restart: unless-stopped
+    user: "472:0"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TZ}
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      - GF_SECURITY_SECRET_KEY=${GRAFANA_SECRET_KEY:?GRAFANA_SECRET_KEY is required}
+      - GF_SECURITY_DISABLE_GRAVATAR=true
+      - GF_SERVER_ROOT_URL=https://grafana.atlas.vandaele.io
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false
+      - GF_NEWS_NEWS_FEED_ENABLED=false
+      - GF_LOG_MODE=console
+      - GF_DATABASE_TYPE=sqlite3
+      - GF_DATABASE_WAL=true
+    volumes:
+      - type: bind
+        source: ${GRAFANA_DATA_DIR:?GRAFANA_DATA_DIR is required}
+        target: /var/lib/grafana
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./grafana/provisioning
+        target: /etc/grafana/provisioning
+        read_only: true
+        bind:
+          create_host_path: false
+    expose:
+      - "3000"
+    networks:
+      - monitoring_network
+      - proxy_network
+    mem_limit: 512m
+    pids_limit: 256
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
 networks:
   monitoring_network:
     name: monitoring_network
+    external: true
+  proxy_network:
+    name: proxy_network
     external: true

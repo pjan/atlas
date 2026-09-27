@@ -1224,8 +1224,9 @@ BACKUPS_DIR = /volume1/backups
 
 [[stack]]
 name = "monitoring"
-description = "Prometheus, node-exporter, and blackbox probes"
-# Never stopped by the appdata-backup Action (listed in its NEVER_STOP).
+description = "Prometheus, exporters, blackbox probes, and Grafana"
+# Never stopped by the appdata-backup Action (listed in its NEVER_STOP), and its
+# data directories are excluded from backups; only configuration is kept.
 deploy = true
 tags = ["infra", "monitoring"]
 
@@ -1237,57 +1238,27 @@ run_directory = "stacks/monitoring"
 file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
-# Prometheus and blackbox reload these automatically; Resource Sync only runs
-# compose up -d when they change.
+links = ["http://grafana.atlas.local"]
+# Prometheus and blackbox reload their files automatically; post_deploy
+# restarts Grafana for provisioning. Resource Sync only runs compose up -d.
 config_files = [
   { path = "prometheus/prometheus.yml", services = ["prometheus"], requires = "None" },
   { path = "blackbox/blackbox.yml", services = ["blackbox-exporter"], requires = "None" },
+  { path = "grafana/provisioning/datasources/prometheus.yml", services = ["grafana"], requires = "Restart" },
 ]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
 sh ../../scripts/ensure-docker-network.sh monitoring_network
+sh ../../scripts/ensure-docker-network.sh proxy_network
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/prometheus" 65534 65534 0700
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/grafana" 472 0 0700
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "/volume1/backups/.metrics" 0 0 0755
 """
 pre_deploy.shell_mode = true
-environment = """
-TZ = [[TZ]]
-PROMETHEUS_DATA_DIR = [[APPDATA_DIR]]/prometheus
-METRICS_DIR = /volume1/backups/.metrics
-"""
-
-[[stack]]
-name = "grafana"
-description = "Grafana dashboards (SQLite), stopped nightly for consistent backups"
-deploy = true
-after = ["monitoring"]
-tags = ["infra", "monitoring"]
-
-[stack.config]
-server = "atlas"
-repo = "pjan/atlas"
-branch = "main"
-run_directory = "stacks/grafana"
-file_paths = ["compose.yaml"]
-auto_pull = true
-poll_for_updates = true
-links = ["http://grafana.atlas.local"]
-config_files = [
-  { path = "provisioning/datasources/prometheus.yml", services = ["grafana"], requires = "Restart" },
-]
-pre_deploy.path = "."
-pre_deploy.command = """
-set -eu
-sh ../../scripts/ensure-docker-network.sh proxy_network
-sh ../../scripts/ensure-docker-network.sh monitoring_network
-sh ../../scripts/atlas-hostfs.sh ensure-dir \
-  "[[APPDATA_DIR]]/grafana" 472 0 0700
-"""
-pre_deploy.shell_mode = true
-# Resource Sync only runs compose up -d, which does not reload provisioning.
 post_deploy.path = "."
 post_deploy.command = """
 set -eu
@@ -1296,6 +1267,8 @@ docker compose restart grafana
 post_deploy.shell_mode = true
 environment = """
 TZ = [[TZ]]
+PROMETHEUS_DATA_DIR = [[APPDATA_DIR]]/prometheus
+METRICS_DIR = /volume1/backups/.metrics
 GRAFANA_DATA_DIR = [[APPDATA_DIR]]/grafana
 GRAFANA_ADMIN_PASSWORD = [[GRAFANA_ADMIN_PASSWORD]]
 GRAFANA_SECRET_KEY = [[GRAFANA_SECRET_KEY]]
