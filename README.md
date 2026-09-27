@@ -184,6 +184,56 @@ After pushing changes to `main`:
 3. Review the diff.
 4. Execute the sync.
 
+## Disaster Recovery: Rebuilding Volume 2
+
+Volume 2 holds Docker, the Komodo bootstrap directory, Periphery's workspace, and all application state under `/volume2/appdata` and `/volume2/tmp`. Volume 1 holds media, downloads, and `/volume1/backups`, including Komodo's daily database backups in `/volume1/backups/komodo` (the 14 most recent are kept) and Roon backups in `/volume1/backups/roonserver`. Application appdata is not backed up off Volume 2, so after a Volume 2 loss every application except Komodo and Roon starts from a fresh configuration.
+
+1. Reinstall the UGOS Docker app on Volume 2 and confirm `docker info --format '{{.DockerRootDir}}'` reports `/volume2/@docker`.
+2. Keep a copy of the Komodo backups before Core starts pruning them: `cp -a /volume1/backups/komodo /volume1/backups/komodo-pre-rebuild-<date>`.
+3. Recreate `/volume2/komodo` and `/volume2/docker/komodo`, place `komodo/compose.yaml` there, and create a new `.env` as described in [Bootstrap Komodo Manually](#3-bootstrap-komodo-manually). New secrets are fine: the restore brings back the users with their existing passwords.
+4. Start only Mongo. Do not start Core yet: a fresh Core creates an admin user, the `atlas` server, and default procedures that collide with the restored ones.
+
+   ```sh
+   docker compose --env-file .env -f compose.yaml up -d mongo
+   ```
+
+5. Restore the newest backup folder into the empty database:
+
+   ```sh
+   DB_USER=$(sed -n 's/^KOMODO_DATABASE_USERNAME=//p' .env)
+   DB_PASS=$(sed -n 's/^KOMODO_DATABASE_PASSWORD=//p' .env)
+   docker run --rm \
+     --network komodo_default \
+     -v /volume1/backups/komodo:/backups:ro \
+     -e KOMODO_CLI_DATABASE_TARGET_ADDRESS=mongo:27017 \
+     -e KOMODO_CLI_DATABASE_TARGET_USERNAME="$DB_USER" \
+     -e KOMODO_CLI_DATABASE_TARGET_PASSWORD="$DB_PASS" \
+     -e KOMODO_CLI_DATABASE_TARGET_DB_NAME=komodo \
+     ghcr.io/moghtech/komodo-cli:<core-version> \
+     km database restore -y --restore-folder <YYYY-MM-DD_HH-MM-SS>
+   unset DB_USER DB_PASS
+   ```
+
+6. Start Core and Periphery with `docker compose --env-file .env -f compose.yaml up -d` and log in with the restored admin password. The restored `atlas` server still expects the old Periphery public key. Open `Servers > atlas > Confirm Public Key` and accept the new key only after checking that it matches the `Public Key` line in `docker logs komodo-periphery`.
+7. Do not execute the `atlas` Resource Sync yet. With `deploy = true`, it deploys every stack that is not running at once, before first-run steps such as the AdGuard wizard (port `3000`), the Plex claim token, and the SABnzbd host whitelist can be handled. Deploy stacks manually instead, one wave at a time:
+
+   ```text
+   caddy, adguard
+   gluetun (verify the public IP and forwarded port)
+   qbittorrent, sabnzbd
+   flaresolverr, prowlarr, sonarr, radarr, lidarr
+   recyclarr (before Library Import, so the TRaSH profiles exist)
+   bazarr, spottarr, slskd, autobrr, qui
+   unpackerr, seerr, houndarr, soularr
+   plex, kometa, roonserver
+   remaining stacks
+   ```
+
+   Execute the Resource Sync only once every stack that should run is running; it should then find nothing to deploy.
+
+8. Restored secrets that Atlas passes to an application stay valid, for example the Proton VPN key, the Gluetun control key, slskd and Spottarr credentials, the Cloudflare tunnel token, the Speedtest Tracker app key, and the Homepage Komodo API key. Keys that an application generates itself do not: after each first-run setup, copy the new Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, SABnzbd, qBittorrent, Seerr, Plex server, and Speedtest Tracker API keys or tokens into their Komodo variables before deploying the stacks that consume them.
+9. For Roon, choose `Restore a backup` on the first start of the new core, select `/RoonBackups`, and unauthorize the old core when prompted.
+
 ## Host Filesystem Provisioning
 
 Komodo Periphery runs in a container. A plain `mkdir`, `chown`, or `cp` in a stack hook operates inside that container unless the destination is mounted there. Docker bind mounts, however, are resolved by the NAS Docker daemon. If a short bind source is absent, Docker can create it on the NAS as `root:root` even when a preceding Periphery command appeared to prepare it.
@@ -383,6 +433,8 @@ The disposable transcode directory is `/volume2/tmp/plex/transcode`, provisioned
 
 All Plex bind sources use `create_host_path: false`, so missing appdata, media, or transcode paths fail instead of becoming Docker-created `root:root` directories. Plex keeps the direct `192.168.2.200:32400` listener for native clients and discovery, while the browser UI remains available through `http://plex.atlas.local`.
 
+In Plex `Settings > Network`, set `LAN Networks` to `192.168.2.0/24`. Plex runs on a Docker bridge network and otherwise treats LAN clients as remote, applying remote bandwidth limits and transcoding. Do not add Docker subnets: Caddy-proxied public traffic would then count as local. Leave `List of IP addresses and networks that are allowed without auth` empty.
+
 ### Roon Server Storage
 
 The pinned Roon Server image runs its server processes as `root`. Its private state lives under `/volume2/appdata/roonserver`; the pre-deploy hook provisions only that top-level directory as `0:0` with mode `0750`. It does not recursively change the existing Roon database tree.
@@ -501,6 +553,10 @@ Sonarr, Radarr, Lidarr, and Bazarr mount the existing `/volume1/data` tree at `/
 
 All writable Arr bind mounts use `create_host_path: false`. The corresponding pre-deploy hook must succeed before Compose starts, preventing Docker from silently replacing a missing NAS source with a `root:root` directory.
 
+### Arr Authentication
+
+In Sonarr, Radarr, Lidarr, and Prowlarr, set `Authentication` to `Forms` and `Authentication Required` to `Enabled`. Enable `Forms` authentication in Bazarr as well. Do not choose `Disabled for Local Addresses`: every request, including public Cloudflare Tunnel traffic, reaches these applications from Caddy's private Docker address, so all clients would be treated as local.
+
 ### Bazarr
 
 The `bazarr` stack runs Bazarr behind Caddy at:
@@ -595,8 +651,11 @@ Prefer adding Spottarr to Prowlarr as a `Generic Newznab` indexer, then syncing 
 
 ```text
 URL: http://127.0.0.1:8383
+API Path: /newznab/api
 API key: SPOTTARR_NEWZNAB_API_KEY
 ```
+
+Spottarr 1.20 serves the Newznab API under `/newznab/api`. The Generic Newznab default API path `/api` returns an empty `404`, which Prowlarr reports as `Root element is missing`. Make sure neither field has leading or trailing whitespace; Prowlarr concatenates them.
 
 Operational notes:
 
@@ -876,6 +935,15 @@ sabnzbd.atlas.local, sabnzbd.atlas.vandaele.io
 
 Keep the entries lowercase and comma-separated. Do not disable the check with a wildcard or rewrite the upstream `Host` header in Caddy. The setting persists in `/volume2/appdata/sabnzbd/sabnzbd.ini` and does not require a Komodo variable or secret. See the [SABnzbd hostname-verification documentation](https://sabnzbd.org/wiki/extra/hostname-check.html) for background.
 
+On a fresh install, SABnzbd rejects `sabnzbd.atlas.local` before the setting can be changed in the UI. After the first deploy has created `sabnzbd.ini` and the container is healthy, set the whitelist over SSH before the first visit:
+
+```sh
+docker stop sabnzbd
+sed -i 's/^host_whitelist = .*/host_whitelist = sabnzbd.atlas.local, sabnzbd.atlas.vandaele.io/' \
+  /volume2/appdata/sabnzbd/sabnzbd.ini
+docker start sabnzbd
+```
+
 If the hostname check prevents all UI access, recover over SSH:
 
 ```sh
@@ -928,6 +996,25 @@ API key: copied from Lidarr
 Proton VPN provides Gluetun-managed VPN port forwarding on supported paid-plan servers. qBittorrent's listening port is updated through Gluetun's `VPN_PORT_FORWARDING_UP_COMMAND` and reset through `VPN_PORT_FORWARDING_DOWN_COMMAND` when forwarding is removed.
 
 Homepage reads Gluetun through the internal control server at `http://downloaders-vpn:8000` using `GLUETUN_CONTROL_API_KEY`. The control server is exposed only on Docker networks, not through Caddy or a host port.
+
+Gluetun logs the successful qBittorrent port update as `ERROR [port forwarding] ... URL:http://127.0.0.1:8080/api/v2/app/setPreferences [0/0] -> "-" [1]` because `wget -nv` writes its success line to stderr. Confirm the result with `docker exec gluetun cat /tmp/gluetun/forwarded_port` and qBittorrent's listening port. Proton servers intermittently refuse NAT-PMP mappings (`read udp ...:5351: recvfrom: connection refused`); reconnect the VPN to try another server.
+
+Gluetun looks up its public IP only when the VPN connects. Gluetun `v3.41.3` stops trying fallback lookup services once the first configured service is rate-limited, which leaves the public IP empty (`all fetchers failed: %!w(<nil>)`) until the container restarts. slskd then waits indefinitely with `Waiting for VPN client; IP: ?`. The stack therefore sets `PUBLICIP_API=cloudflare,ifconfigco,ip2location`, leaving out ipinfo, which rate-limits shared VPN addresses.
+
+To reconnect the VPN without recreating Gluetun or the containers that share its network namespace, use the control server. A reconnect selects a new server, repeats the public IP lookup, and retries port forwarding:
+
+```sh
+GK=$(docker exec gluetun sh -c 'printenv HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE | sed -n "s/.*\"apikey\":\"\([^\"]*\)\".*/\1/p"')
+for s in stopped running; do
+  docker run --rm --network container:gluetun curlimages/curl:8.16.0 -fsS \
+    -X PUT -H "X-API-Key: $GK" -H 'Content-Type: application/json' \
+    -d "{\"status\":\"$s\"}" http://127.0.0.1:8000/v1/vpn/status
+  echo; sleep 5
+done
+unset GK
+```
+
+Do not use `docker restart gluetun` once VPN-bound containers are attached; it replaces the namespace and every dependent stack must then be redeployed.
 
 ### Autobrr
 
