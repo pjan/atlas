@@ -194,7 +194,7 @@ Two places cannot read the Komodo variable and must be changed by hand when `TZ`
 - Komodo Core's own procedures use `TZ` in `/volume2/docker/komodo/.env`. Update it and run `docker compose --env-file .env -f compose.yaml up -d` in `/volume2/docker/komodo`.
 - Schedules configured inside application UIs: the Plex maintenance window (`Settings > Scheduled Tasks`) and the Roon scheduled backup (`Settings > Backups`).
 
-Changing `TZ` in `stacks.toml` changes the environment of every stack. Executing the Resource Sync then redeploys every running stack once, in `after` order, including Gluetun and every VPN-bound stack. Stacks with `deploy = false` stay down.
+Changing `TZ` in `stacks.toml` only updates the Komodo variable. Stack configurations contain the literal `TZ = [[TZ]]`, and Resource Sync compares raw configuration, so executing the sync does not redeploy any stack. Containers keep the old timezone until their stack is redeployed. Redeploy `gluetun` first and wait until it is healthy, then redeploy the remaining running stacks. Do not redeploy Gluetun in the same batch as the VPN-bound stacks: their pre-deploy check could pass against the old Gluetun container before it is replaced.
 
 Nightly schedule in local time:
 
