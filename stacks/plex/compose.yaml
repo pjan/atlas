@@ -30,6 +30,11 @@ services:
         target: /transcode
         bind:
           create_host_path: false
+      - type: bind
+        source: ${BACKUP_DIR:?BACKUP_DIR is required}
+        target: /backups
+        bind:
+          create_host_path: false
     devices:
       - /dev/dri/renderD128:/dev/dri/renderD128
     ports:

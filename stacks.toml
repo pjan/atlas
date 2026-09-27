@@ -692,6 +692,8 @@ sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/plex" [[PUID]] [[PGID]] 0750
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[TMP_DIR]]/plex/transcode" [[PUID]] [[PGID]] 0770
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "/volume1/backups/plex" [[PUID]] [[PGID]] 0750
 """
 pre_deploy.shell_mode = true
 environment = """
@@ -703,6 +705,7 @@ NAS_LAN_IP = [[NAS_LAN_IP]]
 CONFIG_DIR = [[APPDATA_DIR]]/plex
 MEDIA_DIR = [[DATA_DIR]]/media
 TRANSCODE_DIR = [[TMP_DIR]]/plex/transcode
+BACKUP_DIR = /volume1/backups/plex
 PLEX_CLAIM =
 """
 

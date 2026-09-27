@@ -431,7 +431,9 @@ Plex stores its database, metadata, preferences, claim state, and authentication
 
 The disposable transcode directory is `/volume2/tmp/plex/transcode`, provisioned as `999:10` with mode `0770`. It does not need to be backed up. Plex mounts `/volume1/data/media` read-only, and deployment must never recursively change ownership or permissions in that shared library tree.
 
-All Plex bind sources use `create_host_path: false`, so missing appdata, media, or transcode paths fail instead of becoming Docker-created `root:root` directories. Plex keeps the direct `192.168.2.200:32400` listener for native clients and discovery, while the browser UI remains available through `http://plex.atlas.local`.
+Plex's scheduled database backups go to `/volume1/backups/plex`, mounted at `/backups`, so they survive a Volume 2 failure. The pre-deploy hook provisions that directory as `999:10` with mode `0750`. In Plex `Settings > Scheduled Tasks`, keep `Backup database every three days` enabled and set `Backup directory` to `/backups`.
+
+All Plex bind sources use `create_host_path: false`, so missing appdata, media, transcode, or backup paths fail instead of becoming Docker-created `root:root` directories. Plex keeps the direct `192.168.2.200:32400` listener for native clients and discovery, while the browser UI remains available through `http://plex.atlas.local`.
 
 In Plex `Settings > Network`, set `LAN Networks` to `192.168.2.0/24`. Plex runs on a Docker bridge network and otherwise treats LAN clients as remote, applying remote bandwidth limits and transcoding. Do not add Docker subnets: Caddy-proxied public traffic would then count as local. Leave `List of IP addresses and networks that are allowed without auth` empty.
 
