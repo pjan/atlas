@@ -219,10 +219,28 @@ def render_compose(
         return {}
 
 
+def komodo_toml_text(toml_text: str) -> str:
+    """Mirror Komodo's escape_between_triple_string before parsing.
+
+    Komodo doubles every backslash between triple double quotes, so those
+    strings behave as literal strings in Resource Sync. Parsing the same
+    transformed text keeps validation identical to what Komodo deploys.
+    """
+    sections = toml_text.split('"""')
+    return '"""'.join(
+        section.replace("\\", "\\\\") if index % 2 else section
+        for index, section in enumerate(sections)
+    )
+
+
+def load_stacks_toml() -> dict:
+    stacks_text = (REPO_ROOT / "stacks.toml").read_text(encoding="utf-8")
+    return tomllib.loads(komodo_toml_text(stacks_text))
+
+
 def load_repository(validation: Validation) -> tuple[dict, dict]:
     try:
-        with (REPO_ROOT / "stacks.toml").open("rb") as file:
-            stacks_data = tomllib.load(file)
+        stacks_data = load_stacks_toml()
     except (OSError, tomllib.TOMLDecodeError) as error:
         validation.errors.append(f"stacks.toml is invalid: {error}")
         stacks_data = {}
@@ -731,10 +749,9 @@ def validate_hooks(stacks_by_name: dict[str, dict], validation: Validation) -> N
                 f"stack {stack['name']} {hook_name} has invalid shell: {result.stderr.strip()}",
             )
 
-    with (REPO_ROOT / "stacks.toml").open("rb") as file:
-        declared_variables = {
-            item["name"] for item in tomllib.load(file).get("variable", [])
-        }
+    declared_variables = {
+        item["name"] for item in load_stacks_toml().get("variable", [])
+    }
     for name in sorted(variable_names - declared_variables):
         validation.errors.append(f"Komodo hook references undeclared variable: {name}")
 

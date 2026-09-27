@@ -176,6 +176,8 @@ Normal workflow:
 Push to main -> wait for Komodo polling -> execute Resource Sync -> Komodo applies stack definitions
 ```
 
+Komodo doubles every backslash between triple double quotes (`"""`) before parsing `stacks.toml`, so those strings are literal: `\` at a line end stays a shell line continuation, and escape sequences such as `\.` or `\n` are not interpreted. Avoid backslash escapes inside `"""` hook commands (for example, write `[.]` in a regular expression). `scripts/validate-repository.py` applies the same transformation, so validation sees what Komodo deploys.
+
 ## Deploying Stack Changes
 
 After pushing changes to `main`:
