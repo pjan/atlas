@@ -1457,7 +1457,7 @@ Current signals:
 | `node` | CPU, memory, filesystems, md RAID, btrfs, and the backup textfile metrics in `/volume1/backups/.metrics` |
 | `smartctl` | SMART health, NVMe wear, spare, critical warnings, media errors, and temperatures for `sda` (Seagate 12 TB, Volume 1), `nvme0` (Lexar 512 GB, Volume 2), and `nvme1` (TWSC 128 GB, UGOS system disk) |
 | `probe_routes` | Every deployed `*.atlas.local` Caddy route (UniFi DNS, Caddy, and the application; 401 and 403 count as healthy) |
-| `probe_tcp` | AdGuard DNS `:53`, Caddy `:80`, Komodo `:9120`, Plex `:32400` on `192.168.2.200` |
+| `probe_tcp` | AdGuard DNS `:53`, Caddy `:80`, Komodo `:9120`, Plex `:32400`, and Roon Server `:9330` on `192.168.2.200` |
 | `probe_dns_atlas_local` | UniFi resolves `sonarr.atlas.local` to `192.168.2.200` |
 | `probe_dns_external` | AdGuard resolves an external name |
 | `probe_cloudflare_access` | Public hostnames answer with the Cloudflare Access login redirect |
@@ -1473,7 +1473,7 @@ Volume 1 is a single 12 TB disk (`md1` is RAID 1 with one member), so it has no 
 
 Caddy, cloudflared, and Unpackerr join `monitoring_network` for scraping; their metrics ports are not published on the host. Public `*.atlas.vandaele.io` hostnames answer `404` for `/metrics` and `/prometheus`, so application metrics endpoints (for example slskd and Speedtest Tracker) are never exposed through Cloudflare.
 
-Grafana provisions the Prometheus datasource (uid `prometheus`) from `stacks/monitoring/grafana/provisioning/`. Grafana runs with a read-only root filesystem, so plugin preinstallation and automatic plugin updates are disabled (`GF_PLUGINS_PREINSTALL_DISABLED`, `GF_PLUGINS_PREINSTALL_AUTO_UPDATE`): plugin versions come only from the pinned image. Grafana 13 ships Prometheus as a bundled plugin, and a failed startup update would otherwise leave it unregistered. Dashboards are kept in the private `pjan/atlas-dashboards` repository with Grafana Git Sync, using a fine-grained token scoped to that repository only. Do not create dashboards outside synced folders: anything else exists only in `grafana.db`.
+Grafana provisions the Prometheus datasource (uid `prometheus`) from `stacks/monitoring/grafana/provisioning/`. Grafana runs with a read-only root filesystem, so plugin preinstallation and automatic plugin updates are disabled (`GF_PLUGINS_PREINSTALL_DISABLED`, `GF_PLUGINS_PREINSTALL_AUTO_UPDATE`): plugin versions come only from the pinned image. The app plugins Grafana installed on its first start (Advisor, Explore Traces, Logs Drilldown, Metrics Drilldown, Pyroscope) remain in `/volume2/appdata/grafana/plugins`, are no longer updated, and do not return after a Volume 2 loss. Grafana 13 ships Prometheus as a bundled plugin, and a failed startup update would otherwise leave it unregistered. Dashboards are kept in the private `pjan/atlas-dashboards` repository with Grafana Git Sync, using a fine-grained token scoped to that repository only. Do not create dashboards outside synced folders: anything else exists only in `grafana.db`.
 
 Secrets never go into Prometheus, blackbox, or exporter configuration files. Exporters that accept environment variables receive keys from Komodo variables; services that read secret files use `/run/secrets`.
 

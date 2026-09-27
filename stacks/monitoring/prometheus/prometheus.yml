@@ -148,6 +148,9 @@ scrape_configs:
       - targets: ["192.168.2.200:32400"]
         labels:
           service: plex
+      - targets: ["192.168.2.200:9330"]
+        labels:
+          service: roon
     relabel_configs: *probe_relabel
 
   # UniFi serves the *.atlas.local wildcard; it must resolve to the NAS.
