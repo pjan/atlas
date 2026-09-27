@@ -530,6 +530,8 @@ CLOUDFLARE_ACCOUNT_ID
 CLOUDFLARE_TUNNEL_ID
 CLOUDFLARE_TUNNEL_TOKEN
 GLUETUN_CONTROL_API_KEY
+GRAFANA_ADMIN_PASSWORD
+GRAFANA_SECRET_KEY
 HEALTHCHECKS_APPDATA_PING_URL
 HOMEPAGE_ADGUARD_PASSWORD
 HOMEPAGE_ADGUARD_USERNAME
@@ -1439,6 +1441,35 @@ Operational notes:
 - Resource Sync updates `stacks/homepage/config/*` through `config_files` with `requires = "None"`, so normal YAML, CSS, and JS edits do not force a container restart.
 - After Homepage config file changes land through Resource Sync, use Homepage's refresh icon to regenerate the static UI. A `homepage` redeploy is only needed for environment-variable changes or when adding new local static assets.
 - Caddy route changes still require an explicit `caddy` deploy or redeploy after Resource Sync so the Caddy `post_deploy` reload hook updates the live config.
+
+## Monitoring
+
+Monitoring is split into two stacks:
+
+- `monitoring` runs Prometheus, node-exporter, and blackbox-exporter on the private `monitoring_network`. It has no host ports and no web route; query it through Grafana. The nightly `appdata-backup` Action never stops it.
+- `grafana` runs Grafana with its SQLite database in `/volume2/appdata/grafana`. It is a separate stack so the nightly backup Action stops it and copies a consistent database. It is reachable at `http://grafana.atlas.local` and at `https://grafana.atlas.vandaele.io`, which must be protected by Cloudflare Access; Grafana also requires its own login.
+
+Prometheus keeps 90 days (at most 20 GB) in `/volume2/appdata/prometheus`. That data is regenerable and excluded from backups. Scrapes run every 30 seconds and probes every 60 seconds.
+
+Resource Sync only runs `compose up -d` when a tracked config file changes, which does not recreate an unchanged container. Prometheus and blackbox therefore reload `stacks/monitoring/prometheus/prometheus.yml` and `stacks/monitoring/blackbox/blackbox.yml` automatically, and the `grafana` stack restarts Grafana in `post_deploy` so provisioning changes apply. `scripts/validate.sh` checks both configurations with the pinned images (`promtool check config`, `blackbox_exporter --config.check`).
+
+Current signals:
+
+| Job | What it checks |
+|---|---|
+| `node` | CPU, memory, filesystems, md RAID, btrfs, and the backup textfile metrics in `/volume1/backups/.metrics` |
+| `probe_routes` | Every deployed `*.atlas.local` Caddy route (UniFi DNS, Caddy, and the application; 401 and 403 count as healthy) |
+| `probe_tcp` | AdGuard DNS `:53`, Caddy `:80`, Komodo `:9120`, Plex `:32400` on `192.168.2.200` |
+| `probe_dns_atlas_local` | UniFi resolves `sonarr.atlas.local` to `192.168.2.200` |
+| `probe_dns_external` | AdGuard resolves an external name |
+| `probe_cloudflare_access` | Public hostnames answer with the Cloudflare Access login redirect |
+| `probe_internet` | Outbound HTTPS from the NAS |
+
+Grafana provisions the Prometheus datasource (uid `prometheus`) from `stacks/grafana/provisioning/`. Dashboards are kept in the private `pjan/atlas-dashboards` repository with Grafana Git Sync, using a fine-grained token scoped to that repository only. Do not create dashboards outside synced folders: anything else exists only in `grafana.db`.
+
+Secrets never go into Prometheus, blackbox, or exporter configuration files. Exporters that accept environment variables receive keys from Komodo variables; services that read secret files use `/run/secrets`.
+
+`GRAFANA_SECRET_KEY` encrypts secrets stored in Grafana (contact points, the Git Sync token). Set it before Grafana's first start, keep it in the password manager, and never change it afterwards. `GRAFANA_ADMIN_PASSWORD` only applies on first start; change the password in Grafana later.
 
 ## Caddy Configuration
 

@@ -100,6 +100,9 @@ VALIDATION_VALUES = {
     "DATA_DIR": "/volume1/data",
     "DOWNLOADS_DIR": "/volume1/data/downloads",
     "DNS_BIND_IP": "127.0.0.1",
+    "GRAFANA_ADMIN_PASSWORD": "validation-only-password",
+    "GRAFANA_DATA_DIR": "/volume2/appdata/grafana",
+    "GRAFANA_SECRET_KEY": "validation-only-secret-key",
     "HOMEPAGE_ALLOWED_HOSTS": (
         "homepage.atlas.local,homepage.atlas.vandaele.io"
     ),
@@ -111,9 +114,11 @@ VALIDATION_VALUES = {
     "LIDARR_URL": "http://downloaders-vpn:8686",
     "LOG_TARGETS": "stdout",
     "MEDIA_DIR": "/volume1/data/media",
+    "METRICS_DIR": "/volume1/backups/.metrics",
     "MUSIC_DIR": "/volume1/data/media/music",
     "NAS_LAN_IP": "127.0.0.1",
     "PGID": "10",
+    "PROMETHEUS_DATA_DIR": "/volume2/appdata/prometheus",
     "PROTONVPN_PORT_FORWARD_ONLY": "on",
     "PROTONVPN_SERVER_COUNTRIES": "Netherlands",
     "PROTONVPN_VPN_PORT_FORWARDING": "on",

@@ -1,0 +1,73 @@
+# Grafana with SQLite in appdata. A separate stack from monitoring so the
+# nightly backup Action stops it and copies a consistent database.
+# Dashboards are synced with Git Sync to the pjan/atlas-dashboards repository;
+# the datasource (and later alerting) is provisioned from ./provisioning.
+
+services:
+  grafana:
+    image: grafana/grafana:13.2.2
+    container_name: grafana
+    restart: unless-stopped
+    user: "472:0"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TZ}
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      - GF_SECURITY_SECRET_KEY=${GRAFANA_SECRET_KEY:?GRAFANA_SECRET_KEY is required}
+      - GF_SECURITY_DISABLE_GRAVATAR=true
+      - GF_SERVER_ROOT_URL=https://grafana.atlas.vandaele.io
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false
+      - GF_NEWS_NEWS_FEED_ENABLED=false
+      - GF_LOG_MODE=console
+      - GF_DATABASE_TYPE=sqlite3
+      - GF_DATABASE_WAL=true
+    volumes:
+      - type: bind
+        source: ${GRAFANA_DATA_DIR:?GRAFANA_DATA_DIR is required}
+        target: /var/lib/grafana
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./provisioning
+        target: /etc/grafana/provisioning
+        read_only: true
+        bind:
+          create_host_path: false
+    expose:
+      - "3000"
+    networks:
+      - proxy_network
+      - monitoring_network
+    mem_limit: 512m
+    pids_limit: 256
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+networks:
+  proxy_network:
+    name: proxy_network
+    external: true
+  monitoring_network:
+    name: monitoring_network
+    external: true

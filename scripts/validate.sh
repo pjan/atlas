@@ -16,6 +16,21 @@ sh scripts/test-phase-1.sh
 sh scripts/ensure-docker-network.sh media_network
 sh scripts/ensure-docker-network.sh proxy_network
 sh scripts/ensure-docker-network.sh rclone_network
+sh scripts/ensure-docker-network.sh monitoring_network
+
+compose_image() {
+  sed -n "s|^ *image: *\($2\)\$|\1|p" "$1" | head -n 1
+}
+
+prometheus_image=$(compose_image stacks/monitoring/compose.yaml 'prom/prometheus:[^ ]*')
+docker run --rm --entrypoint promtool \
+  -v "$repo_root/stacks/monitoring/prometheus:/etc/prometheus:ro" \
+  "$prometheus_image" check config /etc/prometheus/prometheus.yml
+
+blackbox_image=$(compose_image stacks/monitoring/compose.yaml 'prom/blackbox-exporter:[^ ]*')
+docker run --rm \
+  -v "$repo_root/stacks/monitoring/blackbox:/etc/blackbox_exporter:ro" \
+  "$blackbox_image" --config.file=/etc/blackbox_exporter/blackbox.yml --config.check
 
 HTTP_BIND_IP=127.0.0.1 HTTP_PORT=18080 \
   docker compose -f stacks/caddy/compose.yaml run --rm --no-deps caddy \

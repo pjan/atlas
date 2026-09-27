@@ -1,0 +1,63 @@
+# blackbox_exporter modules for Atlas. Reloaded automatically
+# (--config.enable-auto-reload). Never put secrets in this file; read secret
+# headers from files under /run/secrets instead.
+
+modules:
+  # Caddy route to an application. 401/403 mean the application answered and
+  # requires a login, which is healthy for an unauthenticated probe.
+  http_route:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      follow_redirects: false
+      valid_status_codes: [200, 204, 301, 302, 303, 307, 308, 401, 403]
+
+  http_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+
+  http_cloudflare_access:
+    prober: http
+    timeout: 15s
+    http:
+      preferred_ip_protocol: ip4
+      follow_redirects: false
+      valid_status_codes: [302]
+      fail_if_header_not_matches:
+        - header: Location
+          regexp: 'cloudflareaccess\.com'
+
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      preferred_ip_protocol: ip4
+
+  dns_atlas_local:
+    prober: dns
+    timeout: 5s
+    dns:
+      preferred_ip_protocol: ip4
+      transport_protocol: udp
+      query_name: sonarr.atlas.local
+      query_type: A
+      valid_rcodes: [NOERROR]
+      validate_answer_rrs:
+        fail_if_none_matches_regexp:
+          - '.*\t192\.168\.2\.200$'
+
+  dns_external:
+    prober: dns
+    timeout: 5s
+    dns:
+      preferred_ip_protocol: ip4
+      transport_protocol: udp
+      query_name: github.com
+      query_type: A
+      valid_rcodes: [NOERROR]
+      validate_answer_rrs:
+        fail_if_none_matches_regexp:
+          - '.*\tA\t.*'

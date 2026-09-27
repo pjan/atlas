@@ -1,0 +1,144 @@
+# Metrics collection. Never stopped by the nightly backup Action.
+# Prometheus and blackbox reload their configuration automatically, because
+# Resource Sync only runs `compose up -d` when a config file changes.
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    container_name: prometheus
+    restart: unless-stopped
+    user: "65534:65534"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --config.auto-reload
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=90d
+      - --storage.tsdb.retention.size=20GB
+      - --web.listen-address=:9090
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - type: bind
+        source: ./prometheus
+        target: /etc/prometheus
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${PROMETHEUS_DATA_DIR:?PROMETHEUS_DATA_DIR is required}
+        target: /prometheus
+        bind:
+          create_host_path: false
+    expose:
+      - "9090"
+    networks:
+      - monitoring_network
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 1m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    container_name: node-exporter
+    restart: unless-stopped
+    user: "65534:65534"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - --path.rootfs=/host
+      - --collector.textfile.directory=/textfile
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|run|sys|var/lib/docker/.+|volume2/@docker/.+)($$|/)
+      - --web.listen-address=:9100
+    volumes:
+      - type: bind
+        source: /
+        target: /host
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${METRICS_DIR:?METRICS_DIR is required}
+        target: /textfile
+        read_only: true
+        bind:
+          create_host_path: false
+    expose:
+      - "9100"
+    networks:
+      - monitoring_network
+    mem_limit: 64m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:9100/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.28.0
+    container_name: blackbox-exporter
+    restart: unless-stopped
+    user: "65534:65534"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - --config.file=/etc/blackbox_exporter/blackbox.yml
+      - --config.enable-auto-reload
+      - --web.listen-address=:9115
+    volumes:
+      - type: bind
+        source: ./blackbox
+        target: /etc/blackbox_exporter
+        read_only: true
+        bind:
+          create_host_path: false
+    expose:
+      - "9115"
+    networks:
+      - monitoring_network
+    mem_limit: 64m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:9115/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+networks:
+  monitoring_network:
+    name: monitoring_network
+    external: true

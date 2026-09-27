@@ -1,0 +1,136 @@
+# Prometheus configuration for Atlas. Reloaded automatically (--config.auto-reload).
+# Never put secrets in this file; use *_file settings with /run/secrets instead.
+
+global:
+  scrape_interval: 30s
+  scrape_timeout: 10s
+  evaluation_interval: 30s
+  external_labels:
+    instance_group: atlas
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["prometheus:9090"]
+
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          instance: atlas
+
+  - job_name: blackbox
+    static_configs:
+      - targets: ["blackbox-exporter:9115"]
+
+  - job_name: grafana
+    static_configs:
+      - targets: ["grafana:3000"]
+
+  # Every Caddy route on the LAN hostname: DNS (UniFi wildcard), Caddy, and the app.
+  - job_name: probe_routes
+    scrape_interval: 60s
+    metrics_path: /probe
+    params:
+      module: [http_route]
+    static_configs:
+      - targets:
+          - http://adguard.atlas.local
+          - http://autobrr.atlas.local
+          - http://backrest.atlas.local
+          - http://bazarr.atlas.local
+          - http://caddy.atlas.local
+          - http://grafana.atlas.local
+          - http://houndarr.atlas.local
+          - http://komodo.atlas.local
+          - http://lidarr.atlas.local
+          - http://plex.atlas.local
+          - http://prowlarr.atlas.local
+          - http://qbittorrent.atlas.local
+          - http://qui.atlas.local
+          - http://radarr.atlas.local
+          - http://sabnzbd.atlas.local
+          - http://seerr.atlas.local
+          - http://slskd.atlas.local
+          - http://sonarr.atlas.local
+          - http://speedtest.atlas.local
+          - http://spottarr.atlas.local
+          - http://ugos.atlas.local
+    relabel_configs: &probe_relabel
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # TCP services published on the NAS address.
+  - job_name: probe_tcp
+    scrape_interval: 60s
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
+    static_configs:
+      - targets: ["192.168.2.200:53"]
+        labels:
+          service: adguard-dns
+      - targets: ["192.168.2.200:80"]
+        labels:
+          service: caddy
+      - targets: ["192.168.2.200:9120"]
+        labels:
+          service: komodo
+      - targets: ["192.168.2.200:32400"]
+        labels:
+          service: plex
+    relabel_configs: *probe_relabel
+
+  # UniFi serves the *.atlas.local wildcard; it must resolve to the NAS.
+  - job_name: probe_dns_atlas_local
+    scrape_interval: 60s
+    metrics_path: /probe
+    params:
+      module: [dns_atlas_local]
+    static_configs:
+      - targets: ["192.168.2.1:53"]
+        labels:
+          service: unifi-dns
+    relabel_configs: *probe_relabel
+
+  # AdGuard must resolve external names.
+  - job_name: probe_dns_external
+    scrape_interval: 60s
+    metrics_path: /probe
+    params:
+      module: [dns_external]
+    static_configs:
+      - targets: ["192.168.2.200:53"]
+        labels:
+          service: adguard-dns
+    relabel_configs: *probe_relabel
+
+  # Public hostnames must answer with the Cloudflare Access login redirect.
+  # This proves DNS and the Cloudflare edge, not the tunnel itself (see
+  # cloudflared metrics in Phase 4b).
+  - job_name: probe_cloudflare_access
+    scrape_interval: 300s
+    metrics_path: /probe
+    params:
+      module: [http_cloudflare_access]
+    static_configs:
+      - targets:
+          - https://grafana.atlas.vandaele.io
+          - https://seerr.atlas.vandaele.io
+    relabel_configs: *probe_relabel
+
+  # Outbound internet from the NAS (not through the VPN).
+  - job_name: probe_internet
+    scrape_interval: 60s
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets: ["https://1.1.1.1/cdn-cgi/trace"]
+        labels:
+          service: internet
+    relabel_configs: *probe_relabel
