@@ -34,6 +34,64 @@ scrape_configs:
     static_configs:
       - targets: ["grafana:3000"]
 
+  - job_name: caddy
+    static_configs:
+      - targets: ["caddy:2020"]
+
+  - job_name: cloudflared
+    static_configs:
+      - targets: ["cloudflared:2000"]
+
+  - job_name: unpackerr
+    static_configs:
+      - targets: ["unpackerr:5656"]
+
+  # Application health endpoints through Caddy. Each target selects its
+  # blackbox module with the "module" label.
+  - job_name: probe_health
+    scrape_interval: 60s
+    metrics_path: /probe
+    static_configs:
+      - targets: ["http://caddy.atlas.local/"]
+        labels: {module: http_caddy_ok, service: caddy}
+      - targets: ["http://grafana.atlas.local/api/health"]
+        labels: {module: http_grafana_health, service: grafana}
+      - targets: ["http://komodo.atlas.local/version"]
+        labels: {module: http_health_200, service: komodo}
+      - targets: ["http://sonarr.atlas.local/ping"]
+        labels: {module: http_servarr_ping, service: sonarr}
+      - targets: ["http://radarr.atlas.local/ping"]
+        labels: {module: http_servarr_ping, service: radarr}
+      - targets: ["http://lidarr.atlas.local/ping"]
+        labels: {module: http_servarr_ping, service: lidarr}
+      - targets: ["http://prowlarr.atlas.local/ping"]
+        labels: {module: http_servarr_ping, service: prowlarr}
+      - targets: ["http://sabnzbd.atlas.local/api?mode=version&output=json"]
+        labels: {module: http_sabnzbd_version, service: sabnzbd}
+      - targets: ["http://plex.atlas.local/identity"]
+        labels: {module: http_plex_identity, service: plex}
+      - targets: ["http://192.168.2.200:32400/identity"]
+        labels: {module: http_plex_identity, service: plex-direct}
+      - targets: ["http://seerr.atlas.local/api/v1/status"]
+        labels: {module: http_health_200, service: seerr}
+      - targets: ["http://autobrr.atlas.local/api/healthz/readiness"]
+        labels: {module: http_health_200, service: autobrr}
+      - targets: ["http://houndarr.atlas.local/api/health"]
+        labels: {module: http_health_200, service: houndarr}
+      - targets: ["http://qui.atlas.local/health"]
+        labels: {module: http_health_200, service: qui}
+      - targets: ["http://spottarr.atlas.local/healthz"]
+        labels: {module: http_health_200, service: spottarr}
+    relabel_configs:
+      - source_labels: [module]
+        target_label: __param_module
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
   # Every Caddy route on the LAN hostname: DNS (UniFi wildcard), Caddy, and the app.
   - job_name: probe_routes
     scrape_interval: 60s

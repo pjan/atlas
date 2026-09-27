@@ -11,12 +11,13 @@ services:
     command:
       - tunnel
       - --metrics
-      - 127.0.0.1:2000
+      - 0.0.0.0:2000
       - run
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:?missing Cloudflare Tunnel token}
     networks:
       - proxy_network
+      - monitoring_network
     mem_limit: 128m
     pids_limit: 128
     stop_grace_period: 30s
@@ -35,4 +36,7 @@ services:
 networks:
   proxy_network:
     name: proxy_network
+    external: true
+  monitoring_network:
+    name: monitoring_network
     external: true

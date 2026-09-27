@@ -28,6 +28,7 @@ services:
     networks:
       - proxy_network
       - rclone_network
+      - monitoring_network
     mem_limit: 128m
     pids_limit: 128
     stop_grace_period: 30s
@@ -49,6 +50,9 @@ networks:
     external: true
   rclone_network:
     name: rclone_network
+    external: true
+  monitoring_network:
+    name: monitoring_network
     external: true
 
 volumes:

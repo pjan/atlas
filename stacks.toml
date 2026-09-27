@@ -282,6 +282,7 @@ pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
 sh ../../scripts/ensure-docker-network.sh media_network
+sh ../../scripts/ensure-docker-network.sh monitoring_network
 for container in gluetun sonarr radarr lidarr; do
   sh ../../scripts/wait-for-container-health.sh "$container" 180
 done
@@ -1150,6 +1151,7 @@ pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
 sh ../../scripts/ensure-docker-network.sh proxy_network
+sh ../../scripts/ensure-docker-network.sh monitoring_network
 """
 pre_deploy.shell_mode = true
 environment = """
@@ -1313,6 +1315,7 @@ config_files = [
   { path = "conf/sites/radarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/prowlarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/lidarr.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/metrics.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/uptime-kuma.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/ugos.caddy", services = ["caddy"], requires = "Restart" },
 ]
@@ -1323,6 +1326,7 @@ set -eu
 sh ../../scripts/ensure-docker-network.sh media_network
 sh ../../scripts/ensure-docker-network.sh proxy_network
 sh ../../scripts/ensure-docker-network.sh rclone_network
+sh ../../scripts/ensure-docker-network.sh monitoring_network
 HTTP_BIND_IP=[[NAS_LAN_IP]] HTTP_PORT=[[HTTP_PORT]] docker compose -f compose.yaml pull caddy
 HTTP_BIND_IP=[[NAS_LAN_IP]] HTTP_PORT=[[HTTP_PORT]] docker compose -f compose.yaml run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 """

@@ -1,5 +1,22 @@
+{
+	metrics {
+		per_host
+	}
+}
+
+# Public hostnames never expose application metrics endpoints.
+(atlas_hide_metrics) {
+	@metrics path /metrics /metrics/* /prometheus /prometheus/*
+	respond @metrics 404
+}
+
 (atlas_reverse_proxy) {
-	http://{args[0]}.atlas.local, http://{args[0]}.atlas.vandaele.io {
+	http://{args[0]}.atlas.local {
+		reverse_proxy {args[1]}
+	}
+
+	http://{args[0]}.atlas.vandaele.io {
+		import atlas_hide_metrics
 		reverse_proxy {args[1]}
 	}
 }

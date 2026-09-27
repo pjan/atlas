@@ -19,6 +19,67 @@ modules:
     http:
       preferred_ip_protocol: ip4
 
+  # Application health endpoints: HTTP 200 and an expected body.
+  http_health_200:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      follow_redirects: false
+      valid_status_codes: [200]
+
+  # Sonarr, Radarr, Lidarr, Prowlarr: anonymous /ping returns 500 and
+  # "Error" when the application cannot reach its database.
+  http_servarr_ping:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      follow_redirects: false
+      valid_status_codes: [200]
+      fail_if_body_not_matches_regexp:
+        - '"status"\s*:\s*"OK"'
+
+  http_plex_identity:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      follow_redirects: false
+      valid_status_codes: [200]
+      fail_if_body_not_matches_regexp:
+        - 'machineIdentifier="[^"]+"'
+
+  http_grafana_health:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      follow_redirects: false
+      valid_status_codes: [200]
+      fail_if_body_not_matches_regexp:
+        - '"database"\s*:\s*"ok"'
+
+  http_sabnzbd_version:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      follow_redirects: false
+      valid_status_codes: [200]
+      fail_if_body_not_matches_regexp:
+        - '"version"\s*:\s*"[0-9]'
+
+  http_caddy_ok:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      follow_redirects: false
+      valid_status_codes: [200]
+      fail_if_body_not_matches_regexp:
+        - '^ok$'
+
   http_cloudflare_access:
     prober: http
     timeout: 15s

@@ -960,7 +960,7 @@ This preserves the exact `/data/downloads/...` paths reported by the Arr applica
 Operational notes:
 
 - The container runs as `999:10`, drops all capabilities, uses a read-only root filesystem, and has a `1g` memory limit for extraction bursts.
-- Prometheus metrics are enabled only on `127.0.0.1:5656` inside the container. The Docker healthcheck uses that loopback endpoint; it is not exposed on a Docker network or through Caddy.
+- Prometheus metrics listen on port `5656` inside the container. Unpackerr joins `monitoring_network` so Prometheus can scrape them; the port is not published on the host and has no Caddy route. The Docker healthcheck uses the loopback address.
 - The healthcheck proves the worker and its local webserver are alive, not that every Arr API key remains valid. Monitor Unpackerr logs for API, path, extraction, retry, and import errors.
 - The pre-deploy hook waits for Gluetun and all three Arr containers, then provisions only `/volume1/data/downloads` with the shared ownership policy. Never repair the entire `/volume1/data` tree recursively.
 
@@ -1462,10 +1462,16 @@ Current signals:
 | `probe_dns_external` | AdGuard resolves an external name |
 | `probe_cloudflare_access` | Public hostnames answer with the Cloudflare Access login redirect |
 | `probe_internet` | Outbound HTTPS from the NAS |
+| `probe_health` | Application health through Caddy: Servarr `/ping` must report `OK` (fails when the app cannot reach its database), Plex `/identity` must contain a `machineIdentifier` (through Caddy and directly on `:32400`), Grafana `/api/health` must report the database `ok`, SABnzbd must report its version, Caddy must answer `ok`, and Komodo, Seerr, Autobrr, Houndarr, qui, and Spottarr health endpoints must return 200 |
+| `caddy` | Caddy's own metrics per hostname (requests, errors, latency) on the internal listener `:2020` |
+| `cloudflared` | Tunnel metrics, including `cloudflared_tunnel_ha_connections`, on `:2000` |
+| `unpackerr` | Extraction metrics on `:5656` |
 
 smartctl-exporter addresses disks by their stable `/dev/disk/by-id` names (`wwn-*` and `nvme-eui.*`, which avoid publishing serial numbers). Docker resolves those names when the container is created, so recreate the `monitoring` stack after adding or replacing a disk and update the device list in `stacks/monitoring/compose.yaml`. It runs as root with only those devices and the `SYS_RAWIO` (SATA) and `SYS_ADMIN` (NVMe) capabilities. smartctl cannot infer the device type from those names, so every device is listed with its type (`;sat` or `;nvme`).
 
 Volume 1 is a single 12 TB disk (`md1` is RAID 1 with one member), so it has no redundancy: media and the local backups share one disk. The off-site Backrest copy protects `/volume1/backups`; media are not protected.
+
+Caddy, cloudflared, and Unpackerr join `monitoring_network` for scraping; their metrics ports are not published on the host. Public `*.atlas.vandaele.io` hostnames answer `404` for `/metrics` and `/prometheus`, so application metrics endpoints (for example slskd and Speedtest Tracker) are never exposed through Cloudflare.
 
 Grafana provisions the Prometheus datasource (uid `prometheus`) from `stacks/monitoring/grafana/provisioning/`. Dashboards are kept in the private `pjan/atlas-dashboards` repository with Grafana Git Sync, using a fine-grained token scoped to that repository only. Do not create dashboards outside synced folders: anything else exists only in `grafana.db`.
 

@@ -24,7 +24,7 @@ services:
       - UN_FILE_MODE=0664
       - UN_DIR_MODE=0775
       - UN_WEBSERVER_METRICS=true
-      - UN_WEBSERVER_LISTEN_ADDR=127.0.0.1:5656
+      - UN_WEBSERVER_LISTEN_ADDR=0.0.0.0:5656
       - UN_SONARR_0_URL=${SONARR_URL}
       - UN_SONARR_0_API_KEY=${SONARR_API_KEY:?SONARR_API_KEY is required}
       - UN_SONARR_0_PATHS_0=/data/downloads
@@ -48,6 +48,7 @@ services:
           create_host_path: false
     networks:
       - media_network
+      - monitoring_network
     mem_limit: 1g
     pids_limit: 256
     stop_grace_period: 30s
@@ -66,4 +67,7 @@ services:
 networks:
   media_network:
     name: media_network
+    external: true
+  monitoring_network:
+    name: monitoring_network
     external: true

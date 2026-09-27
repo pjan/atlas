@@ -1,0 +1,5 @@
+# Caddy's Prometheus metrics for the monitoring stack. Port 2020 is not
+# published on the host; it is reachable only on Docker networks.
+http://:2020 {
+	metrics /metrics
+}
