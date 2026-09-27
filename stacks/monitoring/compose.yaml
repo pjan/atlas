@@ -189,6 +189,249 @@ services:
       retries: 3
       start_period: 30s
 
+
+  # App exporters reach the VPN-bound applications through Gluetun's
+  # downloaders-vpn alias on media_network. exportarr is distroless (no shell),
+  # so Prometheus' up metric replaces a container healthcheck.
+  exportarr-sonarr:
+    image: ghcr.io/onedr0p/exportarr:v2.3.0
+    container_name: exportarr-sonarr
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command: ["sonarr"]
+    environment:
+      - PORT=9707
+      - URL=http://downloaders-vpn:8989
+      - API_KEY=${SONARR_API_KEY:?SONARR_API_KEY is required}
+    expose:
+      - "9707"
+    networks:
+      - media_network
+      - monitoring_network
+    mem_limit: 128m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  exportarr-radarr:
+    image: ghcr.io/onedr0p/exportarr:v2.3.0
+    container_name: exportarr-radarr
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command: ["radarr"]
+    environment:
+      - PORT=9707
+      - URL=http://downloaders-vpn:7878
+      - API_KEY=${RADARR_API_KEY:?RADARR_API_KEY is required}
+    expose:
+      - "9707"
+    networks:
+      - media_network
+      - monitoring_network
+    mem_limit: 128m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  exportarr-lidarr:
+    image: ghcr.io/onedr0p/exportarr:v2.3.0
+    container_name: exportarr-lidarr
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command: ["lidarr"]
+    environment:
+      - PORT=9707
+      - URL=http://downloaders-vpn:8686
+      - API_KEY=${LIDARR_API_KEY:?LIDARR_API_KEY is required}
+    expose:
+      - "9707"
+    networks:
+      - media_network
+      - monitoring_network
+    mem_limit: 128m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  exportarr-prowlarr:
+    image: ghcr.io/onedr0p/exportarr:v2.3.0
+    container_name: exportarr-prowlarr
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command: ["prowlarr"]
+    environment:
+      - PORT=9707
+      - URL=http://downloaders-vpn:9696
+      - API_KEY=${PROWLARR_API_KEY:?PROWLARR_API_KEY is required}
+    expose:
+      - "9707"
+    networks:
+      - media_network
+      - monitoring_network
+    mem_limit: 128m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  exportarr-bazarr:
+    image: ghcr.io/onedr0p/exportarr:v2.3.0
+    container_name: exportarr-bazarr
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command: ["bazarr"]
+    environment:
+      - PORT=9707
+      - URL=http://downloaders-vpn:6767
+      - API_KEY=${BAZARR_API_KEY:?BAZARR_API_KEY is required}
+    expose:
+      - "9707"
+    networks:
+      - media_network
+      - monitoring_network
+    mem_limit: 128m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  exportarr-sabnzbd:
+    image: ghcr.io/onedr0p/exportarr:v2.3.0
+    container_name: exportarr-sabnzbd
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command: ["sabnzbd"]
+    environment:
+      - PORT=9707
+      - URL=http://downloaders-vpn:8085
+      - API_KEY=${SABNZBD_API_KEY:?SABNZBD_API_KEY is required}
+    expose:
+      - "9707"
+    networks:
+      - media_network
+      - monitoring_network
+    mem_limit: 128m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  qbittorrent-exporter:
+    image: ghcr.io/esanchezm/prometheus-qbittorrent-exporter:v1.7.0
+    container_name: qbittorrent-exporter
+    restart: unless-stopped
+    user: "65534:65534"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - QBITTORRENT_HOST=downloaders-vpn
+      - QBITTORRENT_PORT=8080
+      - QBITTORRENT_API_KEY=${QBITTORRENT_API_KEY:?QBITTORRENT_API_KEY is required}
+      - EXPORTER_PORT=8000
+    expose:
+      - "8000"
+    networks:
+      - media_network
+      - monitoring_network
+    mem_limit: 128m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Reads Gluetun, qBittorrent, slskd, and Komodo APIs. Its keys come from
+  # Komodo variables as Compose secrets under /run/secrets, which is why this
+  # service cannot use a read-only root filesystem.
+  json-exporter:
+    image: prometheuscommunity/json-exporter:v0.8.0
+    container_name: json-exporter
+    restart: unless-stopped
+    user: "65534:65534"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - --config.file=/etc/json_exporter/json.yml
+      - --web.listen-address=:7979
+    secrets:
+      - gluetun_api_key
+      - qbittorrent_api_key
+      - slskd_api_key
+      - komodo_api_key
+      - komodo_api_secret
+    volumes:
+      - type: bind
+        source: ./json
+        target: /etc/json_exporter
+        read_only: true
+        bind:
+          create_host_path: false
+    expose:
+      - "7979"
+    networks:
+      - media_network
+      - monitoring_network
+    mem_limit: 64m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:7979/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
   grafana:
     image: grafana/grafana:13.2.2
     container_name: grafana
@@ -261,3 +504,18 @@ networks:
   proxy_network:
     name: proxy_network
     external: true
+  media_network:
+    name: media_network
+    external: true
+
+secrets:
+  gluetun_api_key:
+    environment: GLUETUN_CONTROL_API_KEY
+  qbittorrent_api_key:
+    environment: QBITTORRENT_API_KEY
+  slskd_api_key:
+    environment: SLSKD_API_KEY
+  komodo_api_key:
+    environment: KOMODO_MONITORING_API_KEY
+  komodo_api_secret:
+    environment: KOMODO_MONITORING_API_SECRET

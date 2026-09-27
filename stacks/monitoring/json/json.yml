@@ -1,0 +1,97 @@
+# json_exporter modules for Atlas. Secrets are read from /run/secrets (Compose
+# secrets fed by Komodo variables); never put a secret in this file.
+# json-exporter is restarted after deploy because it does not reload this file.
+
+modules:
+  # Gluetun control server: GET /v1/vpn/status -> {"status": "running"}
+  gluetun_vpn_status:
+    http_client_config:
+      http_headers:
+        X-API-Key:
+          files: [/run/secrets/gluetun_api_key]
+    metrics:
+      - name: gluetun_vpn
+        help: Gluetun VPN status (1 for the reported status).
+        type: object
+        path: '{ @ }'
+        labels:
+          status: '{ .status }'
+        values:
+          status_info: 1
+
+  # GET /v1/publicip/ip -> {"public_ip": "...", "country": "..."}
+  gluetun_public_ip:
+    http_client_config:
+      http_headers:
+        X-API-Key:
+          files: [/run/secrets/gluetun_api_key]
+    metrics:
+      - name: gluetun_public_ip
+        help: Public IP address and country seen through the VPN.
+        type: object
+        path: '{ @ }'
+        labels:
+          public_ip: '{ .public_ip }'
+          country: '{ .country }'
+        values:
+          info: 1
+
+  # GET /v1/portforward -> {"port": 12345, "ports": [12345]}
+  gluetun_port_forward:
+    http_client_config:
+      http_headers:
+        X-API-Key:
+          files: [/run/secrets/gluetun_api_key]
+    metrics:
+      - name: gluetun_forwarded_port
+        help: Port forwarded by the VPN provider (0 when none).
+        path: '{ .port }'
+
+  # qBittorrent GET /api/v2/app/preferences -> {"listen_port": 12345, ...}
+  qbittorrent_preferences:
+    http_client_config:
+      authorization:
+        type: Bearer
+        credentials_file: /run/secrets/qbittorrent_api_key
+    metrics:
+      - name: qbittorrent_listen_port
+        help: qBittorrent incoming connection port; must equal the Gluetun forwarded port.
+        path: '{ .listen_port }'
+
+  # slskd GET /api/v0/server -> {"isConnected": true, "isLoggedIn": true, ...}
+  slskd_server:
+    http_client_config:
+      http_headers:
+        X-API-Key:
+          files: [/run/secrets/slskd_api_key]
+    metrics:
+      - name: slskd_server
+        help: slskd Soulseek server connection state (1 = true).
+        type: object
+        path: '{ @ }'
+        values:
+          connected: '{ .isConnected }'
+          logged_in: '{ .isLoggedIn }'
+
+  # Komodo POST /read/ListStacks -> [{"name": "...", "info": {"state": "running"}}]
+  komodo_stacks:
+    headers:
+      Content-Type: application/json
+    http_client_config:
+      http_headers:
+        X-Api-Key:
+          files: [/run/secrets/komodo_api_key]
+        X-Api-Secret:
+          files: [/run/secrets/komodo_api_secret]
+    body:
+      content: '{}'
+    metrics:
+      - name: komodo_stack
+        help: Komodo stack state (1 for the reported state).
+        type: object
+        path: '{ [*] }'
+        labels:
+          stack: '{ .name }'
+          state: '{ .info.state }'
+        values:
+          info: 1

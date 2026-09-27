@@ -15,6 +15,10 @@ STACKS_ROOT = REPO_ROOT / "stacks"
 COMPOSE_VARIABLE_PATTERN = re.compile(
     r"(?<!\$)\$\{([A-Za-z_][A-Za-z0-9_]*)"
 )
+# Top-level Compose secrets fed from the environment (secrets.<name>.environment).
+COMPOSE_SECRET_ENVIRONMENT_PATTERN = re.compile(
+    r"(?m)^ {4}environment: ([A-Z][A-Z0-9_]*)\s*$"
+)
 KOMODO_VARIABLE_PATTERN = re.compile(r"\[\[[A-Z][A-Z0-9_]*\]\]")
 README_VARIABLE_BLOCK_PATTERN = re.compile(
     r"Shared stack values managed in Komodo:\n\n```text\n(?P<variables>.*?)\n```",
@@ -177,10 +181,16 @@ def relative(path: Path) -> str:
     return path.relative_to(REPO_ROOT).as_posix()
 
 
+def compose_input_names(compose_text: str) -> set[str]:
+    return set(COMPOSE_VARIABLE_PATTERN.findall(compose_text)) | set(
+        COMPOSE_SECRET_ENVIRONMENT_PATTERN.findall(compose_text)
+    )
+
+
 def compose_environment(compose_file: Path) -> dict[str, str]:
     compose_text = compose_file.read_text(encoding="utf-8")
     environment = os.environ.copy()
-    for variable in COMPOSE_VARIABLE_PATTERN.findall(compose_text):
+    for variable in compose_input_names(compose_text):
         environment[variable] = VALIDATION_VALUES.get(variable, "validation-only")
     return environment
 
@@ -366,9 +376,7 @@ def validate_stack_environment(
             f"stack {stack['name']} environment input uses an upstream adapter name: {name}",
         )
 
-    compose_inputs = set(
-        COMPOSE_VARIABLE_PATTERN.findall(compose_file.read_text(encoding="utf-8"))
-    )
+    compose_inputs = compose_input_names(compose_file.read_text(encoding="utf-8"))
     stack_inputs = set(input_names)
     for name in sorted(compose_inputs - stack_inputs):
         validation.errors.append(

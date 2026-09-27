@@ -1242,10 +1242,11 @@ auto_pull = true
 poll_for_updates = true
 links = ["http://grafana.atlas.local"]
 # Prometheus and blackbox reload their files automatically; post_deploy
-# restarts Grafana for provisioning. Resource Sync only runs compose up -d.
+# restarts Grafana and json-exporter. Resource Sync only runs compose up -d.
 config_files = [
   { path = "prometheus/prometheus.yml", services = ["prometheus"], requires = "None" },
   { path = "blackbox/blackbox.yml", services = ["blackbox-exporter"], requires = "None" },
+  { path = "json/json.yml", services = ["json-exporter"], requires = "Restart" },
   { path = "grafana/provisioning/datasources/prometheus.yml", services = ["grafana"], requires = "Restart" },
 ]
 pre_deploy.path = "."
@@ -1253,6 +1254,7 @@ pre_deploy.command = """
 set -eu
 sh ../../scripts/ensure-docker-network.sh monitoring_network
 sh ../../scripts/ensure-docker-network.sh proxy_network
+sh ../../scripts/ensure-docker-network.sh media_network
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/prometheus" 65534 65534 0700
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
@@ -1264,7 +1266,7 @@ pre_deploy.shell_mode = true
 post_deploy.path = "."
 post_deploy.command = """
 set -eu
-docker compose restart grafana
+docker compose restart grafana json-exporter
 """
 post_deploy.shell_mode = true
 environment = """
@@ -1274,6 +1276,17 @@ METRICS_DIR = /volume1/backups/.metrics
 GRAFANA_DATA_DIR = [[APPDATA_DIR]]/grafana
 GRAFANA_ADMIN_PASSWORD = [[GRAFANA_ADMIN_PASSWORD]]
 GRAFANA_SECRET_KEY = [[GRAFANA_SECRET_KEY]]
+SONARR_API_KEY = [[SONARR_API_KEY]]
+RADARR_API_KEY = [[RADARR_API_KEY]]
+LIDARR_API_KEY = [[LIDARR_API_KEY]]
+PROWLARR_API_KEY = [[PROWLARR_API_KEY]]
+BAZARR_API_KEY = [[BAZARR_API_KEY]]
+SABNZBD_API_KEY = [[SABNZBD_API_KEY]]
+QBITTORRENT_API_KEY = [[QBITTORRENT_API_KEY]]
+GLUETUN_CONTROL_API_KEY = [[GLUETUN_CONTROL_API_KEY]]
+SLSKD_API_KEY = [[SLSKD_API_KEY]]
+KOMODO_MONITORING_API_KEY = [[KOMODO_MONITORING_API_KEY]]
+KOMODO_MONITORING_API_SECRET = [[KOMODO_MONITORING_API_SECRET]]
 """
 
 [[stack]]

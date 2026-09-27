@@ -542,6 +542,8 @@ HOMEPAGE_SPEEDTEST_TRACKER_API_KEY
 HOMEPAGE_UNIFI_API_KEY
 KOMETA_PLEX_TOKEN
 KOMETA_TMDB_API_KEY
+KOMODO_MONITORING_API_KEY
+KOMODO_MONITORING_API_SECRET
 LIDARR_API_KEY
 PLEX_SERVER_TOKEN
 PROTONVPN_WIREGUARD_PRIVATE_KEY
@@ -1466,6 +1468,9 @@ Current signals:
 | `caddy` | Caddy's own metrics per hostname (requests, errors, latency) on the internal listener `:2020` |
 | `cloudflared` | Tunnel metrics, including `cloudflared_tunnel_ha_connections`, on `:2000` |
 | `unpackerr` | Extraction metrics on `:5656` |
+| `exportarr`, `exportarr_slow` | Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, and SABnzbd through exportarr: the applications' own health issues (`<app>_system_health_issues`, for example unavailable indexers or download clients), status, and queues. Sonarr and Bazarr are scraped every 5 minutes because they are slow to query |
+| `qbittorrent` | qBittorrent connection state (`qbittorrent_connected`, `qbittorrent_firewalled`), peers, and transfers, using the qBittorrent API key |
+| `json_apis` | Gluetun VPN status, public IP and country, and forwarded port; qBittorrent `listen_port` (must equal the Gluetun forwarded port); slskd connected and logged in to Soulseek; and the state of every Komodo stack (`komodo_stack_info`) |
 
 smartctl-exporter addresses disks by their stable `/dev/disk/by-id` names (`wwn-*` and `nvme-eui.*`, which avoid publishing serial numbers). Docker resolves those names when the container is created, so recreate the `monitoring` stack after adding or replacing a disk and update the device list in `stacks/monitoring/compose.yaml`. It runs as root with only those devices and the `SYS_RAWIO` (SATA) and `SYS_ADMIN` (NVMe) capabilities. smartctl cannot infer the device type from those names, so every device is listed with its type (`;sat` or `;nvme`).
 
@@ -1475,7 +1480,9 @@ Caddy, cloudflared, and Unpackerr join `monitoring_network` for scraping; their 
 
 Grafana provisions the Prometheus datasource (uid `prometheus`) from `stacks/monitoring/grafana/provisioning/`. Grafana runs with a read-only root filesystem, so plugin preinstallation and automatic plugin updates are disabled (`GF_PLUGINS_PREINSTALL_DISABLED`, `GF_PLUGINS_PREINSTALL_AUTO_UPDATE`): plugin versions come only from the pinned image. The app plugins Grafana installed on its first start (Advisor, Explore Traces, Logs Drilldown, Metrics Drilldown, Pyroscope) remain in `/volume2/appdata/grafana/plugins`, are no longer updated, and do not return after a Volume 2 loss. Grafana 13 ships Prometheus as a bundled plugin, and a failed startup update would otherwise leave it unregistered. Dashboards are kept in the private `pjan/atlas-dashboards` repository with Grafana Git Sync, using a fine-grained token scoped to that repository only. Do not create dashboards outside synced folders: anything else exists only in `grafana.db`.
 
-Secrets never go into Prometheus, blackbox, or exporter configuration files. Exporters that accept environment variables receive keys from Komodo variables; services that read secret files use `/run/secrets`.
+Secrets never go into Prometheus, blackbox, or exporter configuration files. Exporters that accept an API key in their environment (exportarr, the qBittorrent exporter) receive it from the existing Komodo variables. `json-exporter` reads its keys from Compose secrets fed by Komodo variables (`secrets.<name>.environment` in `stacks/monitoring/compose.yaml`), mounted under `/run/secrets`, and uses them only through `*_file` or header `files` settings in `stacks/monitoring/json/json.yml`; because of those secrets it runs without a read-only root filesystem. The validator counts secret environment variables as Compose inputs.
+
+`KOMODO_MONITORING_API_KEY` and `KOMODO_MONITORING_API_SECRET` belong to a dedicated Komodo service user with read-only access to stacks; they let `json-exporter` report every stack's state without the Docker socket. The Gluetun control key used for the VPN metrics is the shared `GLUETUN_CONTROL_API_KEY`, whose default role can also change the VPN state; a GET-only role for monitoring is optional hardening. Exporters that accept environment variables receive keys from Komodo variables; services that read secret files use `/run/secrets`.
 
 `GRAFANA_SECRET_KEY` encrypts secrets stored in Grafana (contact points, the Git Sync token). Set it before Grafana's first start, keep it in the password manager, and never change it afterwards. `GRAFANA_ADMIN_PASSWORD` only applies on first start; change the password in Grafana later.
 

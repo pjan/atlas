@@ -46,6 +46,66 @@ scrape_configs:
     static_configs:
       - targets: ["unpackerr:5656"]
 
+  # Application exporters (API keys from Komodo variables).
+  - job_name: exportarr
+    scrape_interval: 2m
+    scrape_timeout: 90s
+    static_configs:
+      - targets: ["exportarr-radarr:9707"]
+        labels: {app: radarr}
+      - targets: ["exportarr-lidarr:9707"]
+        labels: {app: lidarr}
+      - targets: ["exportarr-prowlarr:9707"]
+        labels: {app: prowlarr}
+      - targets: ["exportarr-sabnzbd:9707"]
+        labels: {app: sabnzbd}
+
+  # Sonarr and Bazarr are slower to query.
+  - job_name: exportarr_slow
+    scrape_interval: 5m
+    scrape_timeout: 2m
+    static_configs:
+      - targets: ["exportarr-sonarr:9707"]
+        labels: {app: sonarr}
+      - targets: ["exportarr-bazarr:9707"]
+        labels: {app: bazarr}
+
+  - job_name: qbittorrent
+    scrape_interval: 60s
+    static_configs:
+      - targets: ["qbittorrent-exporter:8000"]
+
+  - job_name: json_exporter
+    static_configs:
+      - targets: ["json-exporter:7979"]
+
+  # JSON APIs through json_exporter; each target selects its module.
+  - job_name: json_apis
+    scrape_interval: 60s
+    metrics_path: /probe
+    static_configs:
+      - targets: ["http://downloaders-vpn:8000/v1/vpn/status"]
+        labels: {module: gluetun_vpn_status, service: gluetun}
+      - targets: ["http://downloaders-vpn:8000/v1/publicip/ip"]
+        labels: {module: gluetun_public_ip, service: gluetun}
+      - targets: ["http://downloaders-vpn:8000/v1/portforward"]
+        labels: {module: gluetun_port_forward, service: gluetun}
+      - targets: ["http://downloaders-vpn:8080/api/v2/app/preferences"]
+        labels: {module: qbittorrent_preferences, service: qbittorrent}
+      - targets: ["http://downloaders-vpn:5030/api/v0/server"]
+        labels: {module: slskd_server, service: slskd}
+      - targets: ["http://192.168.2.200:9120/read/ListStacks"]
+        labels: {module: komodo_stacks, service: komodo}
+    relabel_configs:
+      - source_labels: [module]
+        target_label: __param_module
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: json-exporter:7979
+
   # Application health endpoints through Caddy. Each target selects its
   # blackbox module with the "module" label.
   - job_name: probe_health
