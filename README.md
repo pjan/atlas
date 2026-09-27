@@ -268,9 +268,9 @@ Layout inside the container:
 
 Naming conventions:
 
-- A **repository** is named after its destination, for example `gdrive-atlas`. Each repository has its own restic password.
-- A **plan** is named after its source, for example `volume1-backups`, and points at one repository.
-- An **rclone remote** is a named section in `/config/rclone/rclone.conf` with the same name as the repository that uses it.
+- An **rclone remote** is a named section in `/config/rclone/rclone.conf`, named after its destination, for example `gdrive-atlas` for the `Atlas` Shared Drive.
+- A **repository** is named `<rclone remote>-<folder>`, for example `gdrive-atlas-backups` for `rclone:gdrive-atlas:backups`, so several repositories can share one destination. Each repository has its own restic password. Backrest repository IDs cannot be renamed.
+- A **plan** is named `<instance>-<source>`, for example `atlas-volume1-backups`, and points at one repository.
 - Each plan has its own Healthchecks check; repository-level hooks (Discord on any error) apply to every plan that uses the repository.
 
 Current configuration:
@@ -278,9 +278,9 @@ Current configuration:
 | Item | Value |
 |---|---|
 | rclone remote | `[gdrive-atlas]`: `type = drive`, `scope = drive`, `service_account_file = /config/rclone/io-vandaele-atlas-backrest.json`, `team_drive = <Atlas Shared Drive ID>` |
-| Repository | `gdrive-atlas`, URI `rclone:gdrive-atlas:backups`, flag `--pack-size=64`, auto unlock, weekly prune and check (last-run clock), Discord hook on any error |
-| Plan | `volume1-backups`: source `/sources/volume1-backups`, excluding `#recycle`, `manual`, and `komodo-pre-rebuild-*`; daily at 06:00 (local clock); keep 7 daily, 4 weekly, 12 monthly |
-| Plan hooks | Pre-check on snapshot start with `ON_ERROR_FATAL` (fails unless the appdata snapshot is complete and younger than 26 hours); Healthchecks on start, success, and error |
+| Repository | `gdrive-atlas-backups`, URI `rclone:gdrive-atlas:backups`, flag `--pack-size=64`, auto unlock, weekly prune and check (last-run clock), Discord hook on any error |
+| Plan | `atlas-volume1-backups`: source `/sources/volume1-backups`, excluding `#recycle`, `manual`, and `komodo-pre-rebuild-*`; daily at 06:00 (local clock); keep 7 daily, 4 weekly, 12 monthly |
+| Plan hooks | Pre-check on snapshot start with `ON_ERROR_FATAL` (fails unless the appdata snapshot is complete and younger than 26 hours); Healthchecks on snapshot start, success, warning, skipped, and error |
 
 The restic password and the service-account key are also stored inside the backup itself (in the appdata snapshot of `/volume2/appdata/backrest`), so they must be kept in the password manager too; without them the off-site copy cannot be opened.
 
@@ -320,7 +320,7 @@ restic restore latest --target ./restore \
 ### Adding Another Backrest Backup
 
 - **New source:** add a read-only bind to `stacks/backrest/compose.yaml` mounted at `/sources/<name>` (long syntax, `create_host_path: false`), provide its host path through the stack environment, and redeploy `backrest`.
-- **New destination:** for Google Drive, add the service account as `Content manager` to the Shared Drive and add a `[<repository-name>]` section to `/config/rclone/rclone.conf` (a different Shared Drive only needs another `team_drive`; another Google account needs its own key file). For native restic backends such as B2, S3, or SFTP, set the backend variables on the repository in the Backrest UI instead; SFTP keys live in `/config/.backrest-ssh`. Then create the repository with a new password stored in the password manager, and add the repository-level Discord hook.
+- **New destination:** for Google Drive, add the service account as `Content manager` to the Shared Drive and add a `[<remote-name>]` section to `/config/rclone/rclone.conf` (a different Shared Drive only needs another `team_drive`; another Google account needs its own key file). For native restic backends such as B2, S3, or SFTP, set the backend variables on the repository in the Backrest UI instead; SFTP keys live in `/config/.backrest-ssh`. Then create the repository with a new password stored in the password manager, and add the repository-level Discord hook.
 - **New plan:** point it at the source and repository, give it its own Healthchecks check, and schedule it so it does not overlap the 04:30–06:30 window or other plans on the same repository.
 - Raise `mem_limit` in `stacks/backrest/compose.yaml` if large sources make restic run out of memory.
 
