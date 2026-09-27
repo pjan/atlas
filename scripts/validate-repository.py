@@ -97,7 +97,7 @@ VALIDATION_VALUES = {
     ),
     "HTTP_BIND_IP": "127.0.0.1",
     "HTTP_PORT": "18080",
-    "KOMETA_TIMES": "04:30",
+    "KOMETA_TIMES": "03:00",
     "LIDARR_API_KEY": "0123456789abcdef0123456789abcdef",
     "LIDARR_URL": "http://downloaders-vpn:8686",
     "LOG_TARGETS": "stdout",

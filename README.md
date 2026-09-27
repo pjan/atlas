@@ -14,7 +14,8 @@ This repository manages Docker Compose stacks for the `Atlas` NAS.
 - Caddy HTTP entrypoint: `http://192.168.2.200:80`
 - Local DNS zone: `*.atlas.local`
 - Public application zone: `*.atlas.vandaele.io` through Cloudflare Tunnel and Caddy
-- Remote access: Tailscale for private access, with selected Caddy applications also available through Cloudflare Access-protected public hostnames
+- Remote access: Tailscale (on the UniFi router) for private access, with selected Caddy applications also available through Cloudflare Access-protected public hostnames
+- Timezone: `Asia/Singapore`, set once in the Komodo `TZ` variable (see [Timezone And Schedules](#timezone-and-schedules))
 
 ## One-Time NAS Preparation
 
@@ -183,6 +184,31 @@ After pushing changes to `main`:
 2. Wait for the `atlas` Resource Sync to show pending changes.
 3. Review the diff.
 4. Execute the sync.
+
+## Timezone And Schedules
+
+The Komodo variable `TZ` (declared in `stacks.toml`) is the single source of local time for Atlas. Every stack passes `TZ = [[TZ]]` to its containers, so application logs and container-internal schedules (Recyclarr, Kometa, Speedtest Tracker, Plex) run in that timezone.
+
+Two places cannot read the Komodo variable and must be changed by hand when `TZ` changes:
+
+- Komodo Core's own procedures use `TZ` in `/volume2/docker/komodo/.env`. Update it and run `docker compose --env-file .env -f compose.yaml up -d` in `/volume2/docker/komodo`.
+- Schedules configured inside application UIs: the Plex maintenance window (`Settings > Scheduled Tasks`) and the Roon scheduled backup (`Settings > Backups`).
+
+Changing `TZ` in `stacks.toml` changes the environment of every stack. Executing the Resource Sync then redeploys every running stack once, in `after` order, including Gluetun and every VPN-bound stack. Stacks with `deploy = false` stay down.
+
+Nightly schedule in local time:
+
+```text
+01:00  Komodo procedure: Backup Core Database           (Core .env TZ)
+02:00  Plex maintenance window opens (until 04:30)      (Plex UI)
+03:00  Komodo procedure: Global Auto Update             (Core .env TZ)
+03:00  Kometa run (KOMETA_TIMES)                        (TZ)
+04:00  Roon scheduled backup                            (Roon UI)
+04:15  Recyclarr sync (CRON_SCHEDULE)                   (TZ)
+06:00  Komodo procedure: Rotate Server Keys             (Core .env TZ)
+```
+
+Keep new scheduled work out of the 04:30–06:30 window, which is reserved for the planned nightly appdata backup.
 
 ## Disaster Recovery: Rebuilding Volume 2
 
