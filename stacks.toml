@@ -1183,6 +1183,46 @@ BACKUPS_DIR = /volume1/backups
 """
 
 [[stack]]
+name = "backrest"
+description = "Backrest (restic) off-site backups, LAN-only UI"
+deploy = true
+tags = ["infra"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/backrest"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["http://backrest.atlas.local"]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+sh ../../scripts/ensure-docker-network.sh proxy_network
+for path in \
+  "[[APPDATA_DIR]]/backrest" \
+  "[[APPDATA_DIR]]/backrest/config" \
+  "[[APPDATA_DIR]]/backrest/config/rclone" \
+  "[[APPDATA_DIR]]/backrest/data" \
+  "[[TMP_DIR]]/backrest" \
+  "[[TMP_DIR]]/backrest/cache" \
+  "[[TMP_DIR]]/backrest/restore"; do
+  sh ../../scripts/atlas-hostfs.sh ensure-dir "$path" 0 0 0700
+done
+"""
+pre_deploy.shell_mode = true
+environment = """
+TZ = [[TZ]]
+BACKREST_CONFIG_DIR = [[APPDATA_DIR]]/backrest/config
+BACKREST_DATA_DIR = [[APPDATA_DIR]]/backrest/data
+BACKREST_CACHE_DIR = [[TMP_DIR]]/backrest/cache
+BACKREST_RESTORE_DIR = [[TMP_DIR]]/backrest/restore
+BACKUPS_DIR = /volume1/backups
+"""
+
+[[stack]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
@@ -1201,6 +1241,7 @@ config_files = [
   { path = "conf/Caddyfile", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/adguard.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/autobrr.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/backrest.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/bazarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/caddy.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/homepage.caddy", services = ["caddy"], requires = "Restart" },

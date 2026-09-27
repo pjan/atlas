@@ -18,6 +18,7 @@
         "caddy",
         "cloudflare/cloudflared",
         "flaresolverr/flaresolverr",
+        "garethgeorge/backrest",
         "ghcr.io/autobrr/autobrr",
         "ghcr.io/autobrr/qui",
         "ghcr.io/av1155/houndarr",

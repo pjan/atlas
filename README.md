@@ -222,6 +222,8 @@ Keep new scheduled work out of the 04:30–06:30 window, which is reserved for t
 | Plex database | `/volume1/backups/plex` | Plex scheduled task, every three days |
 | Roon database | `/volume1/backups/roonserver` | Roon scheduled backup, daily at 04:00 |
 
+Off-site, Backrest copies all of `/volume1/backups` to the Google Shared Drive `Atlas` every day at 06:00 (see [Off-Site Backups With Backrest](#off-site-backups-with-backrest)).
+
 The appdata copy excludes `roonserver` (covered by Roon's own backups), Prometheus data, Plex caches, codecs, drivers, logs, and crash reports, and AdGuard query logs. The rules live in `stacks/appdata-backup/filters.txt`.
 
 ### Nightly Appdata Snapshot
@@ -247,6 +249,78 @@ touch /volume2/appdata/.atlas-backup-source
 The sentinel is part of every snapshot, so restoring appdata from a snapshot restores it too.
 
 To run a backup immediately, run the `appdata-backup-now` Action in Komodo. The Komodo UI cannot pass arguments to an Action, so this wrapper calls `appdata-backup` with `FORCE=true`.
+
+### Off-Site Backups With Backrest
+
+The `backrest` stack runs [Backrest](https://github.com/garethgeorge/backrest), a web UI and scheduler for restic. Its UI is reachable only on the LAN at `http://backrest.atlas.local`: it holds every repository password and destination credential, so it has no public hostname, and the validator enforces that through `LOCAL_ONLY_CADDY_ROUTES`. Backrest also requires its own login.
+
+Layout inside the container:
+
+| Path | Host | Purpose |
+|---|---|---|
+| `/sources/<name>` | read-only source binds | What can be backed up. Today only `/sources/volume1-backups` (`/volume1/backups`). |
+| `/config` | `/volume2/appdata/backrest/config` | `config.json`, `rclone/rclone.conf`, service-account keys, and SSH keys (`.backrest-ssh`) |
+| `/data` | `/volume2/appdata/backrest/data` | Operation history and logs |
+| `/cache` | `/volume2/tmp/backrest/cache` | restic cache, one per repository, disposable |
+| `/restore` | `/volume2/tmp/backrest/restore` | Target for restores from the UI |
+
+Naming conventions:
+
+- A **repository** is named after its destination, for example `gdrive-atlas`. Each repository has its own restic password.
+- A **plan** is named after its source, for example `volume1-backups`, and points at one repository.
+- An **rclone remote** is a named section in `/config/rclone/rclone.conf` with the same name as the repository that uses it.
+- Each plan has its own Healthchecks check; repository-level hooks (Discord on any error) apply to every plan that uses the repository.
+
+Current configuration:
+
+| Item | Value |
+|---|---|
+| rclone remote | `[gdrive-atlas]`: `type = drive`, `scope = drive`, `service_account_file = /config/rclone/io-vandaele-atlas-backrest.json`, `team_drive = <Atlas Shared Drive ID>` |
+| Repository | `gdrive-atlas`, URI `rclone:gdrive-atlas:backups`, flag `--pack-size=64`, auto unlock, weekly prune and check (last-run clock), Discord hook on any error |
+| Plan | `volume1-backups`: source `/sources/volume1-backups`, excluding `#recycle`, `manual`, and `komodo-pre-rebuild-*`; daily at 06:00 (local clock); keep 7 daily, 4 weekly, 12 monthly |
+| Plan hooks | Pre-check on snapshot start with `ON_ERROR_FATAL` (fails unless the appdata snapshot is complete and younger than 26 hours); Healthchecks on start, success, and error |
+
+The restic password and the service-account key are also stored inside the backup itself (in the appdata snapshot of `/volume2/appdata/backrest`), so they must be kept in the password manager too; without them the off-site copy cannot be opened.
+
+Restore from the off-site copy on the NAS:
+
+1. In Backrest, open the plan or repository, choose a snapshot, and restore the needed path to `/restore/<name>`.
+2. On the NAS, stop the affected stack and copy the files into place, for example:
+
+   ```sh
+   rsync -aH --numeric-ids \
+     /volume2/tmp/backrest/restore/<name>/sources/volume1-backups/appdata/latest/appdata/<app>/ \
+     /volume2/appdata/<app>/
+   ```
+
+3. Start the stack and remove the restore directory.
+
+Restore without the NAS, from a computer with `restic` and `rclone` (for example `brew install restic rclone`), using the password-manager copies of the restic password, the service-account key, and the Shared Drive ID:
+
+```sh
+mkdir -p ~/atlas-restore && cd ~/atlas-restore
+# Save the service-account key here as io-vandaele-atlas-backrest.json.
+cat > rclone.conf <<EOF
+[gdrive-atlas]
+type = drive
+scope = drive
+service_account_file = $PWD/io-vandaele-atlas-backrest.json
+team_drive = <Atlas Shared Drive ID>
+EOF
+export RCLONE_CONFIG="$PWD/rclone.conf"
+export RESTIC_REPOSITORY=rclone:gdrive-atlas:backups
+restic snapshots   # prompts for the restic password
+restic restore latest --target ./restore \
+  --include /sources/volume1-backups/komodo \
+  --include /sources/volume1-backups/appdata
+```
+
+### Adding Another Backrest Backup
+
+- **New source:** add a read-only bind to `stacks/backrest/compose.yaml` mounted at `/sources/<name>` (long syntax, `create_host_path: false`), provide its host path through the stack environment, and redeploy `backrest`.
+- **New destination:** for Google Drive, add the service account as `Content manager` to the Shared Drive and add a `[<repository-name>]` section to `/config/rclone/rclone.conf` (a different Shared Drive only needs another `team_drive`; another Google account needs its own key file). For native restic backends such as B2, S3, or SFTP, set the backend variables on the repository in the Backrest UI instead; SFTP keys live in `/config/.backrest-ssh`. Then create the repository with a new password stored in the password manager, and add the repository-level Discord hook.
+- **New plan:** point it at the source and repository, give it its own Healthchecks check, and schedule it so it does not overlap the 04:30–06:30 window or other plans on the same repository.
+- Raise `mem_limit` in `stacks/backrest/compose.yaml` if large sources make restic run out of memory.
 
 ### Restoring From The Local Snapshot
 
@@ -1388,7 +1462,7 @@ To add a new app route:
 3. Ensure the app container joins `proxy_network`, or proxy to `host.docker.internal` for host services.
 4. Push to `main`, execute Resource Sync, then explicitly deploy or redeploy `caddy` so the `post_deploy` reload hook applies the live config.
 
-Most application UIs are exposed only through Caddy, using paired `*.atlas.local` and `*.atlas.vandaele.io` hostnames. Public hostnames must be protected by appropriate Cloudflare Access policies. Plex is the direct-port exception and still publishes `192.168.2.200:32400/tcp` for native client discovery and direct access.
+Most application UIs are exposed only through Caddy, using paired `*.atlas.local` and `*.atlas.vandaele.io` hostnames. Public hostnames must be protected by appropriate Cloudflare Access policies. Routes listed in `LOCAL_ONLY_CADDY_ROUTES` in `scripts/validate-repository.py` (currently `backrest`) are LAN-only and must not get a public hostname. Plex is the direct-port exception and still publishes `192.168.2.200:32400/tcp` for native client discovery and direct access.
 
 Validation note:
 

@@ -21,6 +21,8 @@ README_VARIABLE_BLOCK_PATTERN = re.compile(
     re.DOTALL,
 )
 SAFE_AUTOMERGE_UPDATE_TYPES = {"digest", "patch", "pin"}
+# Routes that must stay LAN-only: they expose every backup secret.
+LOCAL_ONLY_CADDY_ROUTES = {"backrest"}
 ALLOWED_DIRECT_INPUT_ALIASES = {
     ("adguard", "DNS_BIND_IP", "NAS_LAN_IP"),
     ("caddy", "HTTP_BIND_IP", "NAS_LAN_IP"),
@@ -86,6 +88,10 @@ HOMEPAGE_REQUIRED_INPUTS = (
 VALIDATION_VALUES = {
     "APPDATA_DIR": "/volume2/appdata",
     "APP_URL": "http://speedtest.atlas.local",
+    "BACKREST_CACHE_DIR": "/volume2/tmp/backrest/cache",
+    "BACKREST_CONFIG_DIR": "/volume2/appdata/backrest/config",
+    "BACKREST_DATA_DIR": "/volume2/appdata/backrest/data",
+    "BACKREST_RESTORE_DIR": "/volume2/tmp/backrest/restore",
     "BACKUPS_DIR": "/volume1/backups",
     "BACKUP_DIR": "/volume1/backups/roonserver",
     "CONFIG_DIR": "/volume2/appdata/validation",
@@ -654,9 +660,14 @@ def validate_caddy(stacks_by_name: dict[str, dict], validation: Validation) -> N
         if hostname.endswith(".atlas.vandaele.io")
     }
     validation.require(
-        local_route_names == public_route_names,
+        not (LOCAL_ONLY_CADDY_ROUTES & public_route_names),
+        "LAN-only Caddy routes must not define public hostnames: "
+        f"{sorted(LOCAL_ONLY_CADDY_ROUTES & public_route_names)}",
+    )
+    validation.require(
+        local_route_names - LOCAL_ONLY_CADDY_ROUTES == public_route_names,
         "Caddy routes must define matching local and public hostnames: "
-        f"{sorted(local_route_names ^ public_route_names)}",
+        f"{sorted((local_route_names - LOCAL_ONLY_CADDY_ROUTES) ^ public_route_names)}",
     )
 
     homepage_services = (

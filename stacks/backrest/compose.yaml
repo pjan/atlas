@@ -1,0 +1,83 @@
+# Backrest (restic) for off-site backups. Sources are mounted read-only under
+# /sources/<name>; destinations are rclone remotes in /config/rclone/rclone.conf
+# or native restic backends configured per repository in the Backrest UI.
+
+services:
+  backrest:
+    image: garethgeorge/backrest:v1.14.1
+    container_name: backrest
+    hostname: atlas
+    restart: unless-stopped
+    user: "0:0"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - DAC_READ_SEARCH
+      - FOWNER
+      - FSETID
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TZ}
+      - BACKREST_PORT=0.0.0.0:9898
+      - BACKREST_DATA=/data
+      - BACKREST_CONFIG=/config/config.json
+      - BACKREST_RESTIC_COMMAND=/bin/restic
+      - XDG_CACHE_HOME=/cache
+      - TMPDIR=/tmp
+      - RCLONE_CONFIG=/config/rclone/rclone.conf
+    volumes:
+      - type: bind
+        source: ${BACKREST_CONFIG_DIR:?BACKREST_CONFIG_DIR is required}
+        target: /config
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BACKREST_DATA_DIR:?BACKREST_DATA_DIR is required}
+        target: /data
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BACKREST_CACHE_DIR:?BACKREST_CACHE_DIR is required}
+        target: /cache
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BACKREST_RESTORE_DIR:?BACKREST_RESTORE_DIR is required}
+        target: /restore
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BACKUPS_DIR:?BACKUPS_DIR is required}
+        target: /sources/volume1-backups
+        read_only: true
+        bind:
+          create_host_path: false
+    expose:
+      - "9898"
+    networks:
+      - proxy_network
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 2m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9898/ >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+networks:
+  proxy_network:
+    name: proxy_network
+    external: true
