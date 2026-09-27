@@ -1463,7 +1463,7 @@ Current signals:
 | `probe_cloudflare_access` | Public hostnames answer with the Cloudflare Access login redirect |
 | `probe_internet` | Outbound HTTPS from the NAS |
 
-smartctl-exporter addresses disks by their stable `/dev/disk/by-id` names (`wwn-*` and `nvme-eui.*`, which avoid publishing serial numbers). Docker resolves those names when the container is created, so recreate the `monitoring` stack after adding or replacing a disk and update the device list in `stacks/monitoring/compose.yaml`. It runs as root with only those devices and the `SYS_RAWIO` (SATA) and `SYS_ADMIN` (NVMe) capabilities.
+smartctl-exporter addresses disks by their stable `/dev/disk/by-id` names (`wwn-*` and `nvme-eui.*`, which avoid publishing serial numbers). Docker resolves those names when the container is created, so recreate the `monitoring` stack after adding or replacing a disk and update the device list in `stacks/monitoring/compose.yaml`. It runs as root with only those devices and the `SYS_RAWIO` (SATA) and `SYS_ADMIN` (NVMe) capabilities. smartctl cannot infer the device type from those names, so every device is listed with its type (`;sat` or `;nvme`).
 
 Volume 1 is a single 12 TB disk (`md1` is RAID 1 with one member), so it has no redundancy: media and the local backups share one disk. The off-site Backrest copy protects `/volume1/backups`; media are not protected.
 

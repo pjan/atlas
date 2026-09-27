@@ -146,6 +146,8 @@ services:
   # Volume 2), nvme1 (TWSC 128 GB, UGOS system). Stable by-id names avoid
   # sdX/nvmeX reordering; recreate the stack after adding or replacing disks.
   # Root with only these devices plus SYS_RAWIO (SATA) and SYS_ADMIN (NVMe).
+  # smartctl cannot infer the device type from by-id names, so each device
+  # names its type after the semicolon (sat or nvme).
   smartctl-exporter:
     image: prometheuscommunity/smartctl-exporter:v0.14.0
     container_name: smartctl-exporter
@@ -164,9 +166,9 @@ services:
       - /dev/disk/by-id/nvme-eui.0000000626012893caf25b0b330000ca:/dev/disk/by-id/nvme-eui.0000000626012893caf25b0b330000ca
       - /dev/disk/by-id/nvme-eui.00000000000000000c82d52610042585:/dev/disk/by-id/nvme-eui.00000000000000000c82d52610042585
     command:
-      - --smartctl.device=/dev/disk/by-id/wwn-0x5000c500c81fb81d
-      - --smartctl.device=/dev/disk/by-id/nvme-eui.0000000626012893caf25b0b330000ca
-      - --smartctl.device=/dev/disk/by-id/nvme-eui.00000000000000000c82d52610042585
+      - --smartctl.device=/dev/disk/by-id/wwn-0x5000c500c81fb81d;sat
+      - --smartctl.device=/dev/disk/by-id/nvme-eui.0000000626012893caf25b0b330000ca;nvme
+      - --smartctl.device=/dev/disk/by-id/nvme-eui.00000000000000000c82d52610042585;nvme
       - --smartctl.interval=60s
       - --web.listen-address=:9633
     expose:
