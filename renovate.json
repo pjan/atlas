@@ -22,7 +22,6 @@
         "ghcr.io/autobrr/autobrr",
         "ghcr.io/autobrr/qui",
         "ghcr.io/av1155/houndarr",
-        "ghcr.io/esanchezm/prometheus-qbittorrent-exporter",
         "ghcr.io/gethomepage/homepage",
         "ghcr.io/moghtech/komodo-core",
         "ghcr.io/moghtech/komodo-periphery",

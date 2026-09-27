@@ -58,6 +58,31 @@ modules:
         help: qBittorrent incoming connection port; must equal the Gluetun forwarded port.
         path: '{ .listen_port }'
 
+  # qBittorrent GET /api/v2/transfer/info -> {"connection_status": "connected", ...}
+  qbittorrent_transfer:
+    http_client_config:
+      authorization:
+        type: Bearer
+        credentials_file: /run/secrets/qbittorrent_api_key
+    metrics:
+      - name: qbittorrent_transfer
+        help: qBittorrent connection status (connected, firewalled, or disconnected).
+        type: object
+        path: '{ @ }'
+        labels:
+          connection_status: '{ .connection_status }'
+        values:
+          status_info: 1
+      - name: qbittorrent_dht_nodes
+        help: Number of DHT nodes qBittorrent is connected to.
+        path: '{ .dht_nodes }'
+      - name: qbittorrent_download_bytes_per_second
+        help: Current qBittorrent download rate.
+        path: '{ .dl_info_speed }'
+      - name: qbittorrent_upload_bytes_per_second
+        help: Current qBittorrent upload rate.
+        path: '{ .up_info_speed }'
+
   # slskd GET /api/v0/server -> {"isConnected": true, "isLoggedIn": true, ...}
   slskd_server:
     http_client_config:

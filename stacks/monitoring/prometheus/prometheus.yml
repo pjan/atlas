@@ -70,11 +70,6 @@ scrape_configs:
       - targets: ["exportarr-bazarr:9707"]
         labels: {app: bazarr}
 
-  - job_name: qbittorrent
-    scrape_interval: 60s
-    static_configs:
-      - targets: ["qbittorrent-exporter:8000"]
-
   - job_name: json_exporter
     static_configs:
       - targets: ["json-exporter:7979"]
@@ -92,6 +87,8 @@ scrape_configs:
         labels: {module: gluetun_port_forward, service: gluetun}
       - targets: ["http://downloaders-vpn:8080/api/v2/app/preferences"]
         labels: {module: qbittorrent_preferences, service: qbittorrent}
+      - targets: ["http://downloaders-vpn:8080/api/v2/transfer/info"]
+        labels: {module: qbittorrent_transfer, service: qbittorrent}
       - targets: ["http://downloaders-vpn:5030/api/v0/server"]
         labels: {module: slskd_server, service: slskd}
       - targets: ["http://192.168.2.200:9120/read/ListStacks"]

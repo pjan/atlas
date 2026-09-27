@@ -355,36 +355,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  qbittorrent-exporter:
-    image: ghcr.io/esanchezm/prometheus-qbittorrent-exporter:v1.7.0
-    container_name: qbittorrent-exporter
-    restart: unless-stopped
-    user: "65534:65534"
-    read_only: true
-    tmpfs:
-      - /tmp
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    environment:
-      - QBITTORRENT_HOST=downloaders-vpn
-      - QBITTORRENT_PORT=8080
-      - QBITTORRENT_API_KEY=${QBITTORRENT_API_KEY:?QBITTORRENT_API_KEY is required}
-      - EXPORTER_PORT=8000
-    expose:
-      - "8000"
-    networks:
-      - media_network
-      - monitoring_network
-    mem_limit: 128m
-    pids_limit: 64
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
   # Reads Gluetun, qBittorrent, slskd, and Komodo APIs. Its keys come from
   # Komodo variables as Compose secrets under /run/secrets, which is why this
   # service cannot use a read-only root filesystem.
