@@ -51,6 +51,12 @@
       "versioning": "regex:^(?<major>[0-9])\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
     },
     {
+      "description": "Use Alpine release and package revision components for the rsync image.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["instrumentisto/rsync-ssh"],
+      "versioning": "regex:^alpine(?<major>\\d+)\\.(?<minor>\\d+)-r(?<patch>\\d+)$"
+    },
+    {
       "description": "Use LinuxServer Lidarr tag components.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["lscr.io/linuxserver/lidarr"],

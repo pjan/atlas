@@ -94,6 +94,11 @@ value = "365"
 name = "KOMETA_TIMES"
 value = "03:00"
 
+[[variable]]
+name = "APPDATA_BACKUP_HOUR"
+# Local hour, in the TZ timezone, at which the appdata-backup Action takes its snapshot.
+value = "5"
+
 ### STACKS ###
 
 [[stack]]
@@ -1152,6 +1157,32 @@ CLOUDFLARE_TUNNEL_TOKEN = [[CLOUDFLARE_TUNNEL_TOKEN]]
 """
 
 [[stack]]
+name = "appdata-backup"
+description = "Nightly appdata snapshot jobs, run only by the appdata-backup Action"
+# Never deploy: both services use the manual profile and are started with
+# RunStackService by the appdata-backup Action while stateful stacks are stopped.
+deploy = false
+tags = ["infra"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/appdata-backup"
+file_paths = ["compose.yaml"]
+config_files = [
+  { path = "prepare.sh", services = ["prepare"], requires = "None" },
+  { path = "backup.sh", services = ["backup"], requires = "None" },
+  { path = "filters.txt", services = ["backup"], requires = "None" },
+]
+environment = """
+TZ = [[TZ]]
+APPDATA_DIR = [[APPDATA_DIR]]
+KOMODO_BOOTSTRAP_DIR = /volume2/docker/komodo
+BACKUPS_DIR = /volume1/backups
+"""
+
+[[stack]]
 name = "caddy"
 description = "Caddy reverse proxy"
 deploy = true
@@ -1250,3 +1281,188 @@ environment = """
 HTTP_BIND_IP = [[NAS_LAN_IP]]
 HTTP_PORT = [[HTTP_PORT]]
 """
+
+### ACTIONS ###
+
+[[action]]
+name = "appdata-backup"
+description = "Hourly check; at APPDATA_BACKUP_HOUR local time, stop stateful stacks, snapshot appdata, start them again"
+tags = ["infra"]
+
+[action.config]
+schedule_format = "Cron"
+schedule = "0 0 * * * *"
+schedule_enabled = true
+schedule_alert = false
+failure_alert = true
+run_at_startup = true
+file_contents = '''
+// Runs hourly. Acts only at APPDATA_BACKUP_HOUR in TZ, unless FORCE is "true"
+// (see the appdata-backup-now Action). Every run first restarts stacks that an
+// interrupted run left stopped; run_at_startup covers Core restarts.
+const TZ = "[[TZ]]";
+const BACKUP_HOUR = Number("[[APPDATA_BACKUP_HOUR]]");
+const HEALTHCHECK_URL = "[[HEALTHCHECKS_APPDATA_PING_URL]]";
+const STATE_VARIABLE = "APPDATA_BACKUP_STOPPED_STACKS";
+const BACKUP_STACK = "appdata-backup";
+const NEVER_STOP = new Set([
+  "appdata-backup",
+  "backrest",
+  "caddy",
+  "cloudflared",
+  "flaresolverr",
+  "gluetun",
+  "monitoring",
+  "roonserver",
+]);
+
+async function readStopped(): Promise<string[]> {
+  try {
+    const variable = await komodo.read("GetVariable", { name: STATE_VARIABLE });
+    return variable.value ? JSON.parse(variable.value) : [];
+  } catch {
+    await komodo.write("CreateVariable", {
+      name: STATE_VARIABLE,
+      value: "[]",
+      description: "Stacks stopped by the appdata-backup Action. Managed automatically.",
+      is_secret: false,
+    });
+    return [];
+  }
+}
+
+async function writeStopped(stacks: string[]) {
+  await komodo.write("UpdateVariableValue", {
+    name: STATE_VARIABLE,
+    value: JSON.stringify(stacks),
+  });
+}
+
+async function executeEach(operation: string, stacks: string[]): Promise<string[]> {
+  const results = await Promise.allSettled(
+    stacks.map((stack) => komodo.execute_and_poll(operation as any, { stack } as any)),
+  );
+  return stacks.filter((_, index) => {
+    const result = results[index];
+    return result.status === "rejected" || !(result.value as any).success;
+  });
+}
+
+async function runService(service: string, command: string[]): Promise<boolean> {
+  try {
+    const update: any = await komodo.execute_and_poll("RunStackService", {
+      stack: BACKUP_STACK,
+      service,
+      command,
+      no_tty: true,
+    });
+    return Boolean(update.success);
+  } catch (error) {
+    console.error(`RunStackService ${service} ${command.join(" ")} failed: ${error}`);
+    return false;
+  }
+}
+
+async function ping(suffix: string, body: string) {
+  if (!HEALTHCHECK_URL.startsWith("https://")) return;
+  try {
+    await fetch(`${HEALTHCHECK_URL}${suffix}`, { method: "POST", body });
+  } catch (error) {
+    console.error(`Healthchecks ping failed: ${error}`);
+  }
+}
+
+// 0. Recover stacks left stopped by an interrupted run.
+const leftover = await readStopped();
+if (leftover.length > 0) {
+  console.log(`Recovering stacks left stopped: ${leftover.join(", ")}`);
+  const stillStopped = await executeEach("StartStack", leftover);
+  await writeStopped(stillStopped);
+  if (stillStopped.length > 0) {
+    await ping("/fail", `Recovery could not start: ${stillStopped.join(", ")}`);
+    throw new Error(`Recovery could not start: ${stillStopped.join(", ")}`);
+  }
+}
+
+// 1. Hour gate.
+const force = ARGS.FORCE === "true";
+const localHour = Number(
+  new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", hourCycle: "h23" })
+    .format(new Date()),
+);
+if (!force && localHour !== BACKUP_HOUR) {
+  return;
+}
+console.log(`Starting appdata backup (local hour ${localHour} in ${TZ}, force=${force})`);
+await ping("/start", "");
+
+// 2. Prepare directories and check the source before stopping anything.
+const errors: string[] = [];
+if (!(await runService("prepare", []))) {
+  errors.push("prepare failed");
+} else if (!(await runService("backup", ["check"]))) {
+  errors.push("source check failed (sentinel missing or too few files)");
+}
+if (errors.length > 0) {
+  await ping("/fail", errors.join("\n"));
+  throw new Error(`appdata-backup aborted: ${errors.join("; ")}`);
+}
+
+// 3. Persist the stop list, then stop every running stateful stack in parallel.
+const stacks: any[] = await komodo.read("ListStacks", {});
+const toStop = stacks
+  .filter((stack) => stack.info.state === "running" && !NEVER_STOP.has(stack.name))
+  .map((stack) => stack.name)
+  .sort();
+const copiedLive = stacks
+  .filter((stack) => !["running", "stopped", "down"].includes(stack.info.state) && !NEVER_STOP.has(stack.name))
+  .map((stack) => `${stack.name} (${stack.info.state})`);
+if (copiedLive.length > 0) {
+  console.log(`Not stopped, copied live: ${copiedLive.join(", ")}`);
+}
+console.log(`Stopping: ${toStop.join(", ")}`);
+await writeStopped(toStop);
+const stopFailures = await executeEach("StopStack", toStop);
+if (stopFailures.length > 0) {
+  errors.push(`stop failed: ${stopFailures.join(", ")}`);
+}
+
+// 4. Snapshot only if every stop succeeded.
+if (errors.length === 0 && !(await runService("backup", ["run"]))) {
+  errors.push("snapshot failed");
+}
+
+// 5. Start everything that was stopped, independently, then clear the record.
+const startFailures = await executeEach("StartStack", toStop);
+await writeStopped(startFailures);
+if (startFailures.length > 0) {
+  errors.push(`start failed: ${startFailures.join(", ")}`);
+}
+
+// 6. Report.
+if (errors.length > 0) {
+  await ping("/fail", errors.join("\n"));
+  throw new Error(`appdata-backup failed: ${errors.join("; ")}`);
+}
+await ping("", `Snapshot complete; stopped and restarted ${toStop.length} stacks`);
+console.log(`appdata-backup complete; stopped and restarted ${toStop.length} stacks`);
+'''
+
+[[action]]
+name = "appdata-backup-now"
+description = "Run the appdata-backup Action immediately, outside its scheduled hour"
+tags = ["infra"]
+
+[action.config]
+failure_alert = true
+file_contents = '''
+// The Komodo UI runs Actions without arguments, so this wrapper passes FORCE.
+const update: any = await komodo.execute_and_poll("RunAction", {
+  action: "appdata-backup",
+  args: { FORCE: "true" },
+});
+if (!update.success) {
+  throw new Error("appdata-backup failed; see its latest run for details");
+}
+console.log("appdata-backup completed");
+'''

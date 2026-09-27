@@ -1,0 +1,13 @@
+# rsync filter rules, anchored at the transfer root (/source/).
+# Roon is covered by its own backups in /volume1/backups/roonserver.
+- /appdata/roonserver/
+# Regenerable Prometheus history.
+- /appdata/prometheus/
+# Regenerable Plex caches, logs, codecs, and drivers.
+- /appdata/plex/Library/Application Support/Plex Media Server/Cache/
+- /appdata/plex/Library/Application Support/Plex Media Server/Codecs/
+- /appdata/plex/Library/Application Support/Plex Media Server/Crash Reports/
+- /appdata/plex/Library/Application Support/Plex Media Server/Drivers/
+- /appdata/plex/Library/Application Support/Plex Media Server/Logs/
+# AdGuard query logs.
+- /appdata/adguard/work/data/querylog*

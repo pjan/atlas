@@ -84,7 +84,9 @@ HOMEPAGE_REQUIRED_INPUTS = (
 )
 
 VALIDATION_VALUES = {
+    "APPDATA_DIR": "/volume2/appdata",
     "APP_URL": "http://speedtest.atlas.local",
+    "BACKUPS_DIR": "/volume1/backups",
     "BACKUP_DIR": "/volume1/backups/roonserver",
     "CONFIG_DIR": "/volume2/appdata/validation",
     "CONF_DIR": "/volume2/appdata/adguard/conf",
@@ -98,6 +100,7 @@ VALIDATION_VALUES = {
     "HTTP_BIND_IP": "127.0.0.1",
     "HTTP_PORT": "18080",
     "KOMETA_TIMES": "03:00",
+    "KOMODO_BOOTSTRAP_DIR": "/volume2/docker/komodo",
     "LIDARR_API_KEY": "0123456789abcdef0123456789abcdef",
     "LIDARR_URL": "http://downloaders-vpn:8686",
     "LOG_TARGETS": "stdout",
@@ -183,6 +186,8 @@ def render_compose(
         str(compose_file.parent),
         "-f",
         str(compose_file),
+        "--profile",
+        "*",
         "config",
         "--format",
         "json",

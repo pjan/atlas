@@ -1,0 +1,131 @@
+# One-shot jobs run only by the Komodo appdata-backup Action through
+# RunStackService. Both services use the manual profile, so an accidental
+# stack deploy fails with "no service selected" instead of starting a backup
+# while applications are running.
+
+services:
+  prepare:
+    image: busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e
+    profiles:
+      - manual
+    restart: "no"
+    user: "0:0"
+    network_mode: none
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+    security_opt:
+      - no-new-privileges:true
+    entrypoint: ["/bin/sh", "/prepare.sh"]
+    volumes:
+      - type: bind
+        source: ${BACKUPS_DIR:?BACKUPS_DIR is required}
+        target: /backups
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./prepare.sh
+        target: /prepare.sh
+        read_only: true
+        bind:
+          create_host_path: false
+    mem_limit: 32m
+    pids_limit: 32
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backup:
+    image: instrumentisto/rsync-ssh:alpine3.23-r3
+    profiles:
+      - manual
+    restart: "no"
+    user: "0:0"
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - DAC_READ_SEARCH
+      - FOWNER
+      - FSETID
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TZ}
+      - APPDATA_BACKUP_MIN_FILES=500
+      - APPDATA_BACKUP_MIN_RATIO_PERCENT=60
+      - APPDATA_BACKUP_KEEP_DAYS=14
+      - APPDATA_BACKUP_KEEP_MIN=7
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    command: ["run"]
+    volumes:
+      - type: bind
+        source: ${APPDATA_DIR:?APPDATA_DIR is required}
+        target: /source/appdata
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${KOMODO_BOOTSTRAP_DIR:?KOMODO_BOOTSTRAP_DIR is required}
+        target: /source/komodo-bootstrap
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BACKUPS_DIR:?BACKUPS_DIR is required}/komodo
+        target: /inspect/komodo
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BACKUPS_DIR:?BACKUPS_DIR is required}/plex
+        target: /inspect/plex
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BACKUPS_DIR:?BACKUPS_DIR is required}/roonserver
+        target: /inspect/roonserver
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BACKUPS_DIR:?BACKUPS_DIR is required}/appdata
+        target: /target
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BACKUPS_DIR:?BACKUPS_DIR is required}/.metrics
+        target: /metrics
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./backup.sh
+        target: /backup.sh
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./filters.txt
+        target: /filters.txt
+        read_only: true
+        bind:
+          create_host_path: false
+    mem_limit: 512m
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

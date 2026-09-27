@@ -205,10 +205,62 @@ Nightly schedule in local time:
 03:00  Kometa run (KOMETA_TIMES)                        (TZ)
 04:00  Roon scheduled backup                            (Roon UI)
 04:15  Recyclarr sync (CRON_SCHEDULE)                   (TZ)
+05:00  Komodo Action: appdata-backup (APPDATA_BACKUP_HOUR, see Backups)   (TZ)
 06:00  Komodo procedure: Rotate Server Keys             (Core .env TZ)
 ```
 
-Keep new scheduled work out of the 04:30–06:30 window, which is reserved for the planned nightly appdata backup.
+Keep new scheduled work out of the 04:30–06:30 window, which is reserved for the nightly backups.
+
+## Backups
+
+### What Is Backed Up Where
+
+| Data | Local copy | Written by |
+|---|---|---|
+| Application state (`/volume2/appdata`) and the Komodo bootstrap directory (`/volume2/docker/komodo`) | `/volume1/backups/appdata` | `appdata-backup` Action, daily at `APPDATA_BACKUP_HOUR` |
+| Komodo database | `/volume1/backups/komodo` | Komodo procedure "Backup Core Database", daily at 01:00, 14 kept |
+| Plex database | `/volume1/backups/plex` | Plex scheduled task, every three days |
+| Roon database | `/volume1/backups/roonserver` | Roon scheduled backup, daily at 04:00 |
+
+The appdata copy excludes `roonserver` (covered by Roon's own backups), Prometheus data, Plex caches, codecs, drivers, logs, and crash reports, and AdGuard query logs. The rules live in `stacks/appdata-backup/filters.txt`.
+
+### Nightly Appdata Snapshot
+
+The `appdata-backup` Komodo Action is defined in `stacks.toml`. It runs every hour and acts only when the local hour in `TZ` equals `APPDATA_BACKUP_HOUR`:
+
+1. Restart any stacks that an interrupted run left stopped. The list is kept in the runtime Komodo variable `APPDATA_BACKUP_STOPPED_STACKS`, which the Action creates itself and which must not be added to `stacks.toml`. `run_at_startup` repeats this recovery whenever Core starts.
+2. Run the `prepare` service, which creates `/volume1/backups/appdata` (`0700`), its `snapshots` directory, and `/volume1/backups/.metrics`.
+3. Run `backup check` before anything is stopped. It fails unless the sentinel `/volume2/appdata/.atlas-backup-source` exists and the source holds at least 500 files and at least 60% of the previous snapshot's file count.
+4. Record every running stack except `appdata-backup`, `backrest`, `caddy`, `cloudflared`, `flaresolverr`, `gluetun`, `monitoring`, and `roonserver`, then stop them in parallel.
+5. Only if every stop succeeded, run `backup run`: a new dated snapshot under `snapshots/`, hard-linked against the previous one with `rsync --link-dest`, so unchanged files take no extra space. `latest` then points at it, and `.last-success` records its time. Snapshots older than 14 days are pruned, always keeping at least 7.
+6. Start every recorded stack independently, even when a previous step failed.
+7. Ping Healthchecks (`HEALTHCHECKS_APPDATA_PING_URL`) with success or failure, and fail the Action on any error.
+
+The `appdata-backup` stack is never deployed. Both services use the `manual` Compose profile, so an accidental deploy fails with `no service selected` instead of starting a copy while applications run. `backup.sh` also writes `/volume1/backups/.metrics/atlas_backups.prom` for monitoring.
+
+Create the sentinel only after confirming that `/volume2/appdata` is complete:
+
+```sh
+touch /volume2/appdata/.atlas-backup-source
+```
+
+The sentinel is part of every snapshot, so restoring appdata from a snapshot restores it too.
+
+To run a backup immediately, run the `appdata-backup-now` Action in Komodo. The Komodo UI cannot pass arguments to an Action, so this wrapper calls `appdata-backup` with `FORCE=true`.
+
+### Restoring From The Local Snapshot
+
+Restore one application:
+
+```sh
+# 1. Stop the stack in Komodo.
+# 2. Copy the snapshot back, preserving ownership and modes:
+rsync -aH --numeric-ids --delete \
+  /volume1/backups/appdata/latest/appdata/<app>/ /volume2/appdata/<app>/
+# 3. Start the stack in Komodo.
+```
+
+Replace `latest` with `snapshots/<YYYY-MM-DD_HHMMSS>` to restore an older state. `--delete` makes the application directory match the snapshot exactly; leave it out to only add and overwrite files.
 
 ## Disaster Recovery: Rebuilding Volume 2
 
@@ -216,7 +268,7 @@ Volume 2 holds Docker, the Komodo bootstrap directory, Periphery's workspace, an
 
 1. Reinstall the UGOS Docker app on Volume 2 and confirm `docker info --format '{{.DockerRootDir}}'` reports `/volume2/@docker`.
 2. Keep a copy of the Komodo backups before Core starts pruning them: `cp -a /volume1/backups/komodo /volume1/backups/komodo-pre-rebuild-<date>`.
-3. Recreate `/volume2/komodo` and `/volume2/docker/komodo`, place `komodo/compose.yaml` there, and create a new `.env` as described in [Bootstrap Komodo Manually](#3-bootstrap-komodo-manually). New secrets are fine: the restore brings back the users with their existing passwords.
+3. Recreate `/volume2/komodo` and `/volume2/docker/komodo`, place `komodo/compose.yaml` there, and restore `.env` from `/volume1/backups/appdata/latest/komodo-bootstrap/.env` (or the password manager). Without either, create a new `.env` as described in [Bootstrap Komodo Manually](#3-bootstrap-komodo-manually); new secrets are fine because the restore brings back the users with their existing passwords.
 4. Start only Mongo. Do not start Core yet: a fresh Core creates an admin user, the `atlas` server, and default procedures that collide with the restored ones.
 
    ```sh
@@ -237,11 +289,28 @@ Volume 2 holds Docker, the Komodo bootstrap directory, Periphery's workspace, an
      -e KOMODO_CLI_DATABASE_TARGET_DB_NAME=komodo \
      ghcr.io/moghtech/komodo-cli:<core-version> \
      km database restore -y --restore-folder <YYYY-MM-DD_HH-MM-SS>
+   ```
+
+   Then pause the nightly appdata backup until application state is restored:
+
+   ```sh
+   docker exec komodo-mongo mongosh --quiet -u "$DB_USER" -p "$DB_PASS" --authenticationDatabase admin komodo \
+     --eval 'db.Action.updateOne({ name: "appdata-backup" }, { $set: { "config.schedule_enabled": false } })'
    unset DB_USER DB_PASS
    ```
 
-6. Start Core and Periphery with `docker compose --env-file .env -f compose.yaml up -d` and log in with the restored admin password. The restored `atlas` server still expects the old Periphery public key. Open `Servers > atlas > Confirm Public Key` and accept the new key only after checking that it matches the `Public Key` line in `docker logs komodo-periphery`.
-7. Do not execute the `atlas` Resource Sync yet. With `deploy = true`, it deploys every stack that is not running at once, before first-run steps such as the AdGuard wizard (port `3000`), the Plex claim token, and the SABnzbd host whitelist can be handled. Deploy stacks manually instead, one wave at a time:
+   The sentinel check already refuses an empty source, so this is a second guard.
+
+6. Restore application state before deploying any stack, so first-run setup is not needed:
+
+   ```sh
+   rsync -aH --numeric-ids /volume1/backups/appdata/latest/appdata/ /volume2/appdata/
+   ```
+
+   Re-enable the `appdata-backup` Action schedule in Komodo afterwards (`Actions > appdata-backup > Config`). If no appdata snapshot exists, continue without it and create the sentinel once the applications are configured again.
+
+7. Start Core and Periphery with `docker compose --env-file .env -f compose.yaml up -d` and log in with the restored admin password. The restored `atlas` server still expects the old Periphery public key. Open `Servers > atlas > Confirm Public Key` and accept the new key only after checking that it matches the `Public Key` line in `docker logs komodo-periphery`.
+8. Do not execute the `atlas` Resource Sync yet. With `deploy = true`, it deploys every stack that is not running at once, before first-run steps such as the AdGuard wizard (port `3000`), the Plex claim token, and the SABnzbd host whitelist can be handled. Deploy stacks manually instead, one wave at a time:
 
    ```text
    caddy, adguard
@@ -257,8 +326,8 @@ Volume 2 holds Docker, the Komodo bootstrap directory, Periphery's workspace, an
 
    Execute the Resource Sync only once every stack that should run is running; it should then find nothing to deploy.
 
-8. Restored secrets that Atlas passes to an application stay valid, for example the Proton VPN key, the Gluetun control key, slskd and Spottarr credentials, the Cloudflare tunnel token, the Speedtest Tracker app key, and the Homepage Komodo API key. Keys that an application generates itself do not: after each first-run setup, copy the new Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, SABnzbd, qBittorrent, Seerr, Plex server, and Speedtest Tracker API keys or tokens into their Komodo variables before deploying the stacks that consume them.
-9. For Roon, choose `Restore a backup` on the first start of the new core, select `/RoonBackups`, and unauthorize the old core when prompted.
+9. If application state could not be restored, note that restored secrets that Atlas passes to an application stay valid, for example the Proton VPN key, the Gluetun control key, slskd and Spottarr credentials, the Cloudflare tunnel token, the Speedtest Tracker app key, and the Homepage Komodo API key. Keys that an application generates itself do not: after each first-run setup, copy the new Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, SABnzbd, qBittorrent, Seerr, Plex server, and Speedtest Tracker API keys or tokens into their Komodo variables before deploying the stacks that consume them.
+10. For Roon, choose `Restore a backup` on the first start of the new core, select `/RoonBackups`, and unauthorize the old core when prompted.
 
 ## Host Filesystem Provisioning
 
@@ -385,6 +454,7 @@ CLOUDFLARE_ACCOUNT_ID
 CLOUDFLARE_TUNNEL_ID
 CLOUDFLARE_TUNNEL_TOKEN
 GLUETUN_CONTROL_API_KEY
+HEALTHCHECKS_APPDATA_PING_URL
 HOMEPAGE_ADGUARD_PASSWORD
 HOMEPAGE_ADGUARD_USERNAME
 HOMEPAGE_CLOUDFLARE_API_TOKEN
