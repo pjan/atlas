@@ -120,10 +120,10 @@ sh ../../scripts/wait-for-container-health.sh gluetun 180
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/sonarr" [[PUID]] [[PGID]] 0750
 sh ../../scripts/atlas-hostfs.sh ensure-shared-dir \
-  "[[DATA_DIR]]/media/tv" [[PUID]] [[PGID]] 2775
+  "[[DATA_DIR]]/media/series" [[PUID]] [[PGID]] 2775
 for path in \
-  "[[DATA_DIR]]/downloads/torrents/completed/tv" \
-  "[[DATA_DIR]]/downloads/usenet/completed/tv"; do
+  "[[DATA_DIR]]/downloads/torrents/completed/series" \
+  "[[DATA_DIR]]/downloads/usenet/completed/series"; do
   sh ../../scripts/atlas-hostfs.sh ensure-dir \
     "$path" [[PUID]] [[PGID]] 2775
 done
@@ -514,7 +514,7 @@ sh ../../scripts/wait-for-container-health.sh gluetun 180
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/bazarr" [[PUID]] [[PGID]] 0750
 for path in \
-  "[[DATA_DIR]]/media/tv" \
+  "[[DATA_DIR]]/media/series" \
   "[[DATA_DIR]]/media/movies"; do
   sh ../../scripts/atlas-hostfs.sh assert-writable \
     "$path" [[PUID]] [[PGID]]
@@ -609,7 +609,8 @@ CONF_DIR = [[APPDATA_DIR]]/adguard/conf
 [[stack]]
 name = "uptime-kuma"
 description = "Uptime Kuma monitoring"
-deploy = true
+# Deploy manually; Resource Sync must not start it until its future is decided.
+deploy = false
 tags = ["infra", "monitoring"]
 
 [stack.config]
@@ -883,7 +884,7 @@ for path in \
   "[[DATA_DIR]]/downloads/torrents" \
   "[[DATA_DIR]]/downloads/torrents/incomplete" \
   "[[DATA_DIR]]/downloads/torrents/completed" \
-  "[[DATA_DIR]]/downloads/torrents/completed/tv" \
+  "[[DATA_DIR]]/downloads/torrents/completed/series" \
   "[[DATA_DIR]]/downloads/torrents/completed/movies" \
   "[[DATA_DIR]]/downloads/torrents/completed/music"; do
   sh ../../scripts/atlas-hostfs.sh ensure-dir \
@@ -930,7 +931,7 @@ for path in \
   "[[DATA_DIR]]/downloads/usenet" \
   "[[DATA_DIR]]/downloads/usenet/incomplete" \
   "[[DATA_DIR]]/downloads/usenet/completed" \
-  "[[DATA_DIR]]/downloads/usenet/completed/tv" \
+  "[[DATA_DIR]]/downloads/usenet/completed/series" \
   "[[DATA_DIR]]/downloads/usenet/completed/movies" \
   "[[DATA_DIR]]/downloads/usenet/completed/music"; do
   sh ../../scripts/atlas-hostfs.sh ensure-dir \
@@ -987,7 +988,8 @@ TORRENTS_DIR = [[DATA_DIR]]/downloads/torrents
 [[stack]]
 name = "rclone"
 description = "Rclone web UI and remote-control stack"
-deploy = true
+# Deploy manually; Resource Sync must not start it until its future is decided.
+deploy = false
 tags = ["infra", "storage"]
 
 [stack.config]
@@ -1061,7 +1063,8 @@ CONFIG_DIR = [[APPDATA_DIR]]/speedtest-tracker
 [[stack]]
 name = "homepage"
 description = "Homepage dashboard"
-deploy = true
+# Deploy manually; Resource Sync must not start it until its future is decided.
+deploy = false
 tags = ["infra", "dashboard"]
 
 [stack.config]

@@ -852,7 +852,7 @@ On first startup, LinuxServer qBittorrent prints the temporary admin password in
 ```text
 Incomplete torrents: /data/downloads/torrents/incomplete
 Completed torrents: /data/downloads/torrents/completed
-TV category: /data/downloads/torrents/completed/tv
+Series category: /data/downloads/torrents/completed/series
 Movies category: /data/downloads/torrents/completed/movies
 Music category: /data/downloads/torrents/completed/music
 ```
@@ -900,7 +900,7 @@ On first startup, configure SABnzbd through Caddy and keep `External internet ac
 ```text
 Incomplete downloads: /data/downloads/usenet/incomplete
 Completed downloads: /data/downloads/usenet/completed
-TV category: /data/downloads/usenet/completed/tv
+Series category: /data/downloads/usenet/completed/series
 Movies category: /data/downloads/usenet/completed/movies
 Music category: /data/downloads/usenet/completed/music
 ```
@@ -913,6 +913,8 @@ Port: 8085
 ```
 
 Keep `/volume2/appdata/sabnzbd` private because it contains SABnzbd API keys and Usenet provider credentials. The stack provisions it as `0700`; download directories remain group-writable with mode `2775` for media imports. Never recursively change ownership across `/volume1/data` during SABnzbd recovery.
+
+For Sonarr, use category `series` and root folder `/data/media/series`. For Radarr, use category `movies` and root folder `/data/media/movies`.
 
 For Lidarr, use category `music`, completed downloads `/data/downloads/torrents/completed/music`, and root folder `/data/media/music`.
 
