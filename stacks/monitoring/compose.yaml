@@ -217,6 +217,11 @@ services:
       - GF_LOG_MODE=console
       - GF_DATABASE_TYPE=sqlite3
       - GF_DATABASE_WAL=true
+      # Plugin versions come only from the pinned image. Grafana would otherwise
+      # try to update bundled plugins at startup, which fails on the read-only
+      # root filesystem and leaves the Prometheus plugin unregistered.
+      - GF_PLUGINS_PREINSTALL_DISABLED=true
+      - GF_PLUGINS_PREINSTALL_AUTO_UPDATE=false
     volumes:
       - type: bind
         source: ${GRAFANA_DATA_DIR:?GRAFANA_DATA_DIR is required}
