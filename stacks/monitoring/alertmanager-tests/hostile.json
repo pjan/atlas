@@ -1,0 +1,35 @@
+{
+  "receiver": "discord",
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "HostileText",
+        "check": "meta.test",
+        "severity": "warning",
+        "source": "prometheus",
+        "instance": "<b>host</b>"
+      },
+      "annotations": {
+        "title": "\"Quoted\" 'title' with `code` @everyone <script>alert(1)</script> 🚨🔥",
+        "description": "@everyone @here <@123456789012345678> <#123> ```not a block``` \\ back\\slash \"quotes\" & <html> 😀\nsecond line\ttab",
+        "target": "</div>{{ .Labels }} ${HOME} $(id) 🧨",
+        "details": "```\nclose the block early\n```\n@everyone ` `` ```` \\u0000 \"json\": {\"a\": [1]}\n🦄",
+        "link": "http://sonarr.atlas.local/?a=1&b=<2>",
+        "dashboard": "https://grafana.atlas.vandaele.io/d/atlas-critical-health",
+        "runbook": "https://github.com/pjan/atlas#test-alert"
+      },
+      "startsAt": "2026-09-28T10:00:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus:9090/graph",
+      "fingerprint": "00000000000000ff"
+    }
+  ],
+  "groupLabels": {
+    "alertname": "HostileText"
+  },
+  "commonLabels": {},
+  "commonAnnotations": {},
+  "externalURL": "http://alertmanager:9093"
+}

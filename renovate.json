@@ -38,7 +38,9 @@
         "lscr.io/linuxserver/sonarr",
         "lscr.io/linuxserver/speedtest-tracker",
         "mongo",
+        "mikefarah/yq",
         "mrusse08/soularr",
+        "prom/alertmanager",
         "prom/blackbox-exporter",
         "prom/node-exporter",
         "prom/prometheus",
@@ -95,6 +97,12 @@
       "automerge": true
     },
     {
+      "description": "Review every Alertmanager update: webhook payload templating is experimental, and a regression makes Discord reject every alert.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["prom/alertmanager"],
+      "automerge": false
+    },
+    {
       "description": "Group Komodo control-plane image updates together.",
       "matchDatasources": ["docker"],
       "matchPackageNames": [
@@ -111,6 +119,15 @@
       "managerFilePatterns": ["/^scripts\\/atlas-hostfs\\.sh$/"],
       "matchStrings": [
         "ATLAS_INIT_IMAGE='(?<depName>[^:']+):(?<currentValue>[^@']+)@(?<currentDigest>sha256:[a-f0-9]+)'"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Update the pinned yq image the repository validator reads YAML with.",
+      "managerFilePatterns": ["/^scripts\\/validate-repository\\.py$/"],
+      "matchStrings": [
+        "YQ_IMAGE = \"(?<depName>[^:\"]+):(?<currentValue>[^@\"]+)@(?<currentDigest>sha256:[a-f0-9]+)\""
       ],
       "datasourceTemplate": "docker"
     }

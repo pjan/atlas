@@ -27,6 +27,19 @@ docker run --rm --entrypoint promtool \
   -v "$repo_root/stacks/monitoring/prometheus:/etc/prometheus:ro" \
   "$prometheus_image" check config /etc/prometheus/prometheus.yml
 
+# Alert rules and their unit tests, which live outside the mounted directory.
+docker run --rm --entrypoint sh \
+  -v "$repo_root/stacks/monitoring:/monitoring:ro" \
+  "$prometheus_image" -c \
+  'promtool check rules /monitoring/prometheus/rules/*.yml &&
+   promtool test rules /monitoring/prometheus-tests/*.yml'
+
+# validate-repository.py renders the Discord message fixtures with amtool.
+alertmanager_image=$(compose_image stacks/monitoring/compose.yaml 'prom/alertmanager:[^ ]*')
+docker run --rm --entrypoint amtool \
+  -v "$repo_root/stacks/monitoring/alertmanager:/etc/alertmanager:ro" \
+  "$alertmanager_image" check-config /etc/alertmanager/alertmanager.yml
+
 blackbox_image=$(compose_image stacks/monitoring/compose.yaml 'prom/blackbox-exporter:[^ ]*')
 docker run --rm \
   -v "$repo_root/stacks/monitoring/blackbox:/etc/blackbox_exporter:ro" \

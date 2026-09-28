@@ -25,6 +25,61 @@ README_VARIABLE_BLOCK_PATTERN = re.compile(
     re.DOTALL,
 )
 SAFE_AUTOMERGE_UPDATE_TYPES = {"digest", "patch", "pin"}
+MONITORING_ROOT = STACKS_ROOT / "monitoring"
+ALERT_RULES_DIRECTORY = MONITORING_ROOT / "prometheus" / "rules"
+# Outside the directories the monitoring containers mount.
+ALERT_RULE_TESTS_DIRECTORY = MONITORING_ROOT / "prometheus-tests"
+ALERTMANAGER_DIRECTORY = MONITORING_ROOT / "alertmanager"
+ALERT_MESSAGE_FIXTURES_DIRECTORY = MONITORING_ROOT / "alertmanager-tests"
+# Reads the alerting YAML files (the standard library has no YAML parser).
+# renovate: datasource=docker depName=mikefarah/yq
+YQ_IMAGE = "mikefarah/yq:4.53.6@sha256:cfc4eee658595834ef304eadb0c3ea721f3b7cb6404ad8b7cb909cc5b5145b23"
+# The alert contract (README "Alerts").
+ALERT_NAME_PATTERN = re.compile(r"[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]*)*")
+ALERT_CHECK_PATTERN = re.compile(r"[a-z]+\.[a-z0-9]+(?:-[a-z0-9]+)*")
+ALERT_SEVERITIES = {"critical", "warning"}
+ALERT_SOURCES = {"prometheus", "backrest", "komodo"}
+# Alerts without a check: no RAG tile, never sent to Discord.
+CHECKLESS_ALERTS = {"Watchdog"}
+REQUIRED_ALERT_ANNOTATIONS = {"title", "description"}
+OPTIONAL_ALERT_ANNOTATIONS = {"target", "details", "link", "dashboard", "runbook"}
+# Longer values are cut by atlas.tmpl; title 85 keeps the embed title at 100.
+ALERT_ANNOTATION_LIMITS = {
+    "title": 85,
+    "description": 250,
+    "target": 80,
+    "details": 350,
+}
+ALERT_DASHBOARD_PREFIX = "https://grafana.atlas.vandaele.io/"
+ALERT_RUNBOOK_PREFIX = "https://github.com/pjan/atlas#"
+CHECK_STATUS_TEST_PATTERN = re.compile(r'atlas:check_status\{check="([^"]+)"\}')
+# The Discord payload in alertmanager.yml, whose embeds the fixtures render.
+DISCORD_EMBEDS_TEMPLATE = '{{ template "atlas.embeds" . }}'
+ALERTMANAGER_TEMPLATES = "/etc/alertmanager/*.tmpl"
+# Links: whole Markdown links joined by " · ", never a cut one.
+DISCORD_LINKS_PATTERN = re.compile(
+    r"\[[A-Za-z]+\]\([^()\s]+\)(?: · \[[A-Za-z]+\]\([^()\s]+\))*"
+)
+# Discord's limits for one webhook message (characters, not bytes).
+DISCORD_MAX_EMBEDS = 10
+DISCORD_MAX_FIELDS = 25
+DISCORD_MAX_TITLE = 256
+DISCORD_MAX_DESCRIPTION = 4096
+DISCORD_MAX_FIELD_NAME = 256
+DISCORD_MAX_FIELD_VALUE = 1024
+DISCORD_MAX_FOOTER = 2048
+DISCORD_MAX_TOTAL = 6000
+# atlas.tmpl's budget, which keeps every message under DISCORD_MAX_TOTAL.
+ATLAS_MAX_EMBEDS = 4
+ATLAS_MAX_TITLE = 100
+ATLAS_MAX_DESCRIPTION = 250
+ATLAS_MAX_FIELD_VALUES = {
+    "Severity": 20,
+    "Source": 20,
+    "Target": 80,
+    "Details": 358,
+    "Links": 300,
+}
 # Routes that must stay LAN-only: they expose every backup secret.
 LOCAL_ONLY_CADDY_ROUTES = {"backrest"}
 ALLOWED_DIRECT_INPUT_ALIASES = {
@@ -90,6 +145,7 @@ HOMEPAGE_REQUIRED_INPUTS = (
 )
 
 VALIDATION_VALUES = {
+    "ALERTMANAGER_DATA_DIR": "/volume2/appdata/alertmanager",
     "APPDATA_DIR": "/volume2/appdata",
     "APP_URL": "http://speedtest.atlas.local",
     "BACKREST_CACHE_DIR": "/volume2/tmp/backrest/cache",
@@ -899,6 +955,342 @@ def validate_required_compose_inputs(
             )
 
 
+def load_alerting_yaml(validation: Validation) -> dict[Path, dict]:
+    """Parse the alerting YAML files in one yq container run.
+
+    yq prints one compact JSON line per document, tagged with its file and
+    document index, so a file with a second document is rejected.
+    """
+    paths = [
+        *sorted(ALERT_RULES_DIRECTORY.glob("*.yml")),
+        *sorted(ALERT_RULE_TESTS_DIRECTORY.glob("*.yml")),
+        ALERTMANAGER_DIRECTORY / "alertmanager.yml",
+    ]
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "-v",
+            f"{MONITORING_ROOT}:/monitoring:ro",
+            YQ_IMAGE,
+            "-o=json",
+            "-I=0",
+            '{"file": filename, "index": document_index, "document": .}',
+            *(
+                f"/monitoring/{path.relative_to(MONITORING_ROOT).as_posix()}"
+                for path in paths
+            ),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        validation.errors.append(
+            f"alerting YAML is not valid (yq): {result.stderr.strip()}"
+        )
+        return {}
+
+    documents: dict[Path, dict] = {}
+    for line in result.stdout.splitlines():
+        entry = json.loads(line)
+        path = MONITORING_ROOT / entry["file"].removeprefix("/monitoring/")
+        if entry["index"] != 0:
+            validation.errors.append(f"{relative(path)} must be a single YAML document")
+        elif not isinstance(entry["document"], dict):
+            validation.errors.append(f"{relative(path)} must be a YAML mapping")
+        else:
+            documents[path] = entry["document"]
+    return documents
+
+
+def github_heading_anchors(markdown: str) -> set[str]:
+    """Anchors GitHub generates for Markdown headings outside code fences."""
+    anchors = set()
+    seen: dict[str, int] = {}
+    in_fence = False
+    for line in markdown.splitlines():
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        match = re.fullmatch(r"#{1,6} +(.+?)[ #]*", line)
+        if in_fence or match is None:
+            continue
+        anchor = re.sub(r"[^\w\- ]", "", match.group(1).lower()).replace(" ", "-")
+        if anchor in seen:
+            seen[anchor] += 1
+            anchor = f"{anchor}-{seen[anchor]}"
+        else:
+            seen[anchor] = 0
+        anchors.add(anchor)
+    return anchors
+
+
+def validate_alert_rule(
+    rule_file: Path,
+    rule: dict,
+    readme_anchors: set[str],
+    validation: Validation,
+) -> str | None:
+    """Check one alerting rule against the alert contract; return its check."""
+    name = rule.get("alert")
+    context = f"{relative(rule_file)} alert {name}"
+    labels = rule.get("labels", {})
+    annotations = rule.get("annotations", {})
+    validation.require(
+        isinstance(name, str) and bool(ALERT_NAME_PATTERN.fullmatch(name)),
+        f"{context} must have a CamelCase name",
+    )
+
+    if name in CHECKLESS_ALERTS:
+        expected_labels = {"source"}
+    else:
+        expected_labels = {"check", "severity", "source"}
+    validation.require(
+        set(labels) == expected_labels,
+        f"{context} must have exactly the labels {sorted(expected_labels)}",
+    )
+    validation.require(
+        labels.get("source") in ALERT_SOURCES,
+        f"{context} source must be one of {sorted(ALERT_SOURCES)}",
+    )
+    check = labels.get("check")
+    if name not in CHECKLESS_ALERTS:
+        validation.require(
+            labels.get("severity") in ALERT_SEVERITIES,
+            f"{context} severity must be one of {sorted(ALERT_SEVERITIES)}",
+        )
+        validation.require(
+            isinstance(check, str) and bool(ALERT_CHECK_PATTERN.fullmatch(check)),
+            f"{context} check must look like <area>.<name>",
+        )
+
+    for key in sorted(REQUIRED_ALERT_ANNOTATIONS - set(annotations)):
+        validation.errors.append(f"{context} lacks the annotation {key}")
+    known_annotations = REQUIRED_ALERT_ANNOTATIONS | OPTIONAL_ALERT_ANNOTATIONS
+    for key in sorted(set(annotations) - known_annotations):
+        validation.errors.append(f"{context} has an unknown annotation {key}")
+    for key, value in annotations.items():
+        validation.require(
+            isinstance(value, str) and bool(value.strip()),
+            f"{context} annotation {key} must be a non-empty string",
+        )
+    for key, limit in ALERT_ANNOTATION_LIMITS.items():
+        value = annotations.get(key, "")
+        validation.require(
+            len(value) <= limit,
+            f"{context} annotation {key} is longer than {limit} characters",
+        )
+
+    dashboard = annotations.get("dashboard")
+    if dashboard is not None:
+        validation.require(
+            dashboard.startswith(ALERT_DASHBOARD_PREFIX),
+            f"{context} dashboard must start with {ALERT_DASHBOARD_PREFIX}",
+        )
+    runbook = annotations.get("runbook")
+    if runbook is not None:
+        anchor = runbook.removeprefix(ALERT_RUNBOOK_PREFIX)
+        validation.require(
+            runbook.startswith(ALERT_RUNBOOK_PREFIX) and anchor in readme_anchors,
+            f"{context} runbook must be {ALERT_RUNBOOK_PREFIX}<README heading "
+            f"anchor>: {runbook}",
+        )
+    return check
+
+
+def validate_alert_rules(
+    documents: dict[Path, dict], validation: Validation
+) -> None:
+    readme_anchors = github_heading_anchors(
+        (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    )
+    rule_files = sorted(ALERT_RULES_DIRECTORY.glob("*.yml"))
+    validation.require(bool(rule_files), "no Prometheus rule files found")
+
+    # (check, severity) -> number of alerting rules
+    severity_rules: dict[tuple[str, str], int] = {}
+    catalogue: set[str] = set()
+    for rule_file in rule_files:
+        document = documents.get(rule_file, {})
+        for group in document.get("groups", []):
+            for rule in group.get("rules", []):
+                if "alert" in rule:
+                    check = validate_alert_rule(
+                        rule_file, rule, readme_anchors, validation
+                    )
+                    if check:
+                        key = (check, rule.get("labels", {}).get("severity"))
+                        severity_rules[key] = severity_rules.get(key, 0) + 1
+                elif rule.get("record") == "atlas:check_catalogue":
+                    catalogue.add(rule.get("labels", {}).get("check"))
+
+    # A tile maps to one cause per severity.
+    for (check, severity), count in sorted(severity_rules.items()):
+        validation.require(
+            count == 1,
+            f"check {check} has {count} {severity} alerting rules; at most one "
+            "warning and one critical rule per check",
+        )
+    checks = {check for check, _ in severity_rules}
+
+    validation.require(
+        catalogue == checks,
+        "atlas:check_catalogue must list exactly the checks of the alert rules: "
+        f"{sorted(map(str, catalogue ^ checks))}",
+    )
+
+    # Every check needs a promtool case in which it turns amber or red.
+    covered: set[str] = set()
+    for test_file in sorted(ALERT_RULE_TESTS_DIRECTORY.glob("*.yml")):
+        document = documents.get(test_file, {})
+        for test in document.get("tests", []):
+            for case in test.get("promql_expr_test", []):
+                match = CHECK_STATUS_TEST_PATTERN.fullmatch(case.get("expr", "").strip())
+                samples = case.get("exp_samples", [])
+                values = {sample.get("value") for sample in samples}
+                if match is not None and values & {1, 2}:
+                    covered.add(match.group(1))
+    for check in sorted(checks - covered):
+        validation.errors.append(
+            f"check {check} has no promtool test in which "
+            "atlas:check_status turns 1 or 2"
+        )
+
+
+def render_discord_embeds(image: str, fixture: Path, validation: Validation) -> object:
+    """Render the Discord embeds for one fixture (template.Data JSON) with amtool."""
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--entrypoint",
+            "amtool",
+            "-v",
+            f"{ALERTMANAGER_DIRECTORY}:/etc/alertmanager:ro",
+            "-v",
+            f"{fixture.parent}:/fixtures:ro",
+            image,
+            "template",
+            "render",
+            f"--template.glob={ALERTMANAGER_TEMPLATES}",
+            f"--template.text={DISCORD_EMBEDS_TEMPLATE}",
+            f"--template.data=/fixtures/{fixture.name}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        validation.errors.append(
+            f"{relative(fixture)} does not render: {result.stderr.strip()}"
+        )
+        return None
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        validation.errors.append(f"{relative(fixture)} renders invalid JSON: {error}")
+        return None
+
+
+def discord_message_problems(embeds: object, alert_count: int) -> list[str]:
+    """Discord's webhook limits and atlas.tmpl's budget for one message."""
+    if not isinstance(embeds, list) or not embeds:
+        return ["embeds that are not a non-empty list"]
+    problems = []
+    expected_embeds = min(alert_count, ATLAS_MAX_EMBEDS, DISCORD_MAX_EMBEDS)
+    if len(embeds) != expected_embeds:
+        problems.append(f"{len(embeds)} embeds for {alert_count} alerts")
+    title_limit = min(DISCORD_MAX_TITLE, ATLAS_MAX_TITLE)
+    description_limit = min(DISCORD_MAX_DESCRIPTION, ATLAS_MAX_DESCRIPTION)
+
+    total = 0
+    for index, embed in enumerate(embeds, start=1):
+        context = f"embed {index}"
+        title = embed.get("title", "")
+        description = embed.get("description", "")
+        footer = embed.get("footer", {}).get("text", "")
+        fields = embed.get("fields", [])
+        total += len(title) + len(description) + len(footer)
+        if not 0 < len(title) <= title_limit:
+            problems.append(f"{context} title of {len(title)} characters")
+        if not 0 < len(description) <= description_limit:
+            problems.append(f"{context} description of {len(description)} characters")
+        if len(footer) > DISCORD_MAX_FOOTER or not footer.endswith(
+            f" alert {index}/{alert_count}"
+        ):
+            problems.append(f"{context} footer {footer!r}")
+        if len(fields) > DISCORD_MAX_FIELDS:
+            problems.append(f"{context} with {len(fields)} fields")
+        for field in fields:
+            name = field.get("name", "")
+            value = field.get("value", "")
+            total += len(name) + len(value)
+            value_limit = min(
+                DISCORD_MAX_FIELD_VALUE,
+                ATLAS_MAX_FIELD_VALUES.get(name, DISCORD_MAX_FIELD_VALUE),
+            )
+            if not 0 < len(name) <= DISCORD_MAX_FIELD_NAME:
+                problems.append(f"{context} field name of {len(name)} characters")
+            if not 0 < len(value) <= value_limit:
+                problems.append(f"{context} field {name} of {len(value)} characters")
+            if name == "Details" and "```" in value[3:-3]:
+                problems.append(f"{context} Details that close their code block early")
+            if name == "Links" and not DISCORD_LINKS_PATTERN.fullmatch(value):
+                problems.append(f"{context} Links that are not whole Markdown links")
+    if total > DISCORD_MAX_TOTAL:
+        problems.append(f"{total} characters in total")
+    return problems
+
+
+def validate_alert_messages(
+    documents: dict[Path, dict], validation: Validation
+) -> None:
+    compose_text = (MONITORING_ROOT / "compose.yaml").read_text(encoding="utf-8")
+    image_match = re.search(r"(?m)^ +image: (prom/alertmanager:\S+)$", compose_text)
+    validation.require(
+        image_match is not None, "monitoring has no prom/alertmanager image"
+    )
+
+    # The fixtures render only the embeds; the rest of the payload is fixed.
+    config = documents.get(ALERTMANAGER_DIRECTORY / "alertmanager.yml", {})
+    receivers = {
+        receiver.get("name"): receiver for receiver in config.get("receivers", [])
+    }
+    webhooks = receivers.get("discord", {}).get("webhook_configs", [])
+    payload = webhooks[0].get("payload", {}) if len(webhooks) == 1 else {}
+    validation.require(
+        payload == {
+            "allowed_mentions": {"parse": []},
+            "embeds": DISCORD_EMBEDS_TEMPLATE,
+        },
+        "Alertmanager receiver discord must have one webhook whose payload is "
+        f"allowed_mentions.parse [] and embeds {DISCORD_EMBEDS_TEMPLATE!r}",
+    )
+    validation.require(
+        ALERTMANAGER_TEMPLATES in config.get("templates", []),
+        f"Alertmanager templates must include {ALERTMANAGER_TEMPLATES}",
+    )
+    if image_match is None:
+        return
+
+    fixtures = sorted(ALERT_MESSAGE_FIXTURES_DIRECTORY.glob("*.json"))
+    validation.require(bool(fixtures), "no Alertmanager message fixtures found")
+    for fixture in fixtures:
+        alert_count = len(json.loads(fixture.read_text(encoding="utf-8"))["alerts"])
+        embeds = render_discord_embeds(image_match.group(1), fixture, validation)
+        if embeds is None:
+            continue
+        for problem in discord_message_problems(embeds, alert_count):
+            validation.errors.append(
+                f"{relative(fixture)} renders a Discord message with {problem}"
+            )
+
+
 def main() -> None:
     os.chdir(REPO_ROOT)
     validation = Validation()
@@ -926,6 +1318,9 @@ def main() -> None:
     validate_hooks(stacks_by_name, validation)
     validate_variable_contract(stacks_data, validation)
     validate_renovate_config(renovate_data, validation)
+    alerting_documents = load_alerting_yaml(validation)
+    validate_alert_rules(alerting_documents, validation)
+    validate_alert_messages(alerting_documents, validation)
     validate_tracked_files(tracked, validation)
     validate_komodo_compose(validation)
     validate_required_compose_inputs(

@@ -1,0 +1,61 @@
+# RAG status for the Atlas Critical Health dashboard, the backup maintenance
+# gate, and the Discord delivery signal (see README "Alerts"). Reloaded
+# automatically with prometheus.yml. Tests: stacks/monitoring/prometheus-tests/.
+
+groups:
+  - name: rag
+    rules:
+      # One entry per check (the check label of the alert rules), so a
+      # healthy check shows green instead of no data. The validator requires
+      # the catalogue to equal the set of check labels.
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: meta.delivery
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: meta.reloads
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: meta.targets
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: meta.test
+
+      # 0 green, 1 amber, 2 red per check. ALERTS counts only firing alerts,
+      # never pending ones, so a tile and a Discord message agree.
+      - record: atlas:check_status
+        expr: |
+          max by (check) (
+              (ALERTS{alertstate="firing", severity="critical"} * 2)
+            or
+              ALERTS{alertstate="firing", severity="warning"}
+          )
+          or on (check)
+            max by (check) (atlas:check_catalogue)
+
+      # 1 while the appdata backup has stacks stopped. `backup check` runs
+      # before any stack stops and `backup run` after the snapshot; backup.sh
+      # keeps only the latest mode. On from check until run (at most 60
+      # minutes, so a failed backup cannot mute alerts for longer), then 15
+      # minutes more while the stacks restart. Gated rules append
+      # `unless on () atlas:maintenance == 1`.
+      - record: atlas:maintenance
+        expr: |
+          (
+              (max(time() - atlas_backup_last_run_timestamp_seconds{set="appdata", mode="check"}) < bool 3600)
+            or
+              (max(time() - atlas_backup_last_run_timestamp_seconds{set="appdata", mode="run"}) < bool 900)
+          )
+          or vector(0)
+
+      # 1 while a Discord notification failed in the last 15 minutes.
+      # Alertmanager does not retry 400 or 429, so that message is lost.
+      # Stops the Watchdog, so Healthchecks.io alerts by email as well.
+      - record: atlas:delivery_failing
+        expr: |
+          (sum(increase(alertmanager_notifications_failed_total{receiver_name="discord"}[15m])) > bool 0)
+          or vector(0)

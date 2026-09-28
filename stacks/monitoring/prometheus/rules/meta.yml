@@ -1,0 +1,79 @@
+# Alerts about alerting and monitoring itself (see README "Alerts"). Every
+# alert follows the alert contract in the README, which the validator
+# enforces. Tests: stacks/monitoring/prometheus-tests/.
+
+groups:
+  - name: meta
+    rules:
+      # Always firing while Prometheus and Alertmanager work. Routed only to
+      # Healthchecks.io, every 5 minutes; stops while Discord delivery fails,
+      # so Healthchecks.io then alerts by email. Not a check (no RAG tile).
+      - alert: Watchdog
+        expr: vector(1) unless on () atlas:delivery_failing == 1
+        labels:
+          source: prometheus
+        annotations:
+          title: Watchdog
+          description: Heartbeat for the Healthchecks.io check "Atlas alerting". It never reaches Discord.
+          target: Healthchecks.io
+          runbook: https://github.com/pjan/atlas#healthchecks-watchdog
+
+      - alert: AlertDeliveryFailing
+        expr: atlas:delivery_failing == 1
+        labels:
+          check: meta.delivery
+          severity: critical
+          source: prometheus
+        annotations:
+          title: Alert delivery failing · Discord
+          description: Alertmanager could not deliver a Discord notification in the last 15 minutes, and that message is lost. Check the alertmanager logs for the status code and the webhook URL.
+          target: "Discord #atlas-alerts"
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-critical-health
+          runbook: https://github.com/pjan/atlas#alert-delivery
+
+      - alert: MonitoringTargetDown
+        expr: up{job=~"node|smartctl|blackbox|json_exporter|cadvisor|alertmanager|grafana"} == 0
+        for: 10m
+        labels:
+          check: meta.targets
+          severity: warning
+          source: prometheus
+        annotations:
+          title: Monitoring target down · {{ $labels.job }}
+          description: Prometheus has not scraped {{ $labels.job }} for 10 minutes, so its metrics and the alerts built on them are missing. Check the container in the monitoring stack.
+          target: "{{ $labels.instance }}"
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-critical-health
+          runbook: https://github.com/pjan/atlas#monitoring-targets
+
+      - alert: ConfigReloadFailed
+        expr: |
+          prometheus_config_last_reload_successful == 0
+          or alertmanager_config_last_reload_successful == 0
+          or blackbox_exporter_config_last_reload_successful == 0
+          or caddy_config_last_reload_successful == 0
+        for: 5m
+        labels:
+          check: meta.reloads
+          severity: warning
+          source: prometheus
+        annotations:
+          title: Config reload failed · {{ $labels.job }}
+          description: "{{ $labels.job }} rejected its new configuration and still runs the previous one. Find the error in its logs, fix the file, and deploy again."
+          target: "{{ $labels.instance }}"
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-critical-health
+          runbook: https://github.com/pjan/atlas#config-reloads
+
+      # Raised by hand from a textfile; see README "Test Alert".
+      - alert: AtlasTestAlert
+        expr: atlas_test_alert == 1
+        labels:
+          check: meta.test
+          severity: warning
+          source: prometheus
+        annotations:
+          title: Test alert
+          description: Raised by hand with /volume1/backups/.metrics/atlas_test.prom to test alerting end to end. Delete that file to resolve it.
+          target: "{{ $labels.instance }}"
+          details: atlas_test_alert = {{ $value }}
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-critical-health
+          runbook: https://github.com/pjan/atlas#test-alert

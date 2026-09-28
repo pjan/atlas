@@ -1,0 +1,166 @@
+{
+  "receiver": "discord",
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "MonitoringTargetDown",
+        "check": "meta.targets",
+        "severity": "warning",
+        "source": "prometheus",
+        "job": "alertmanager",
+        "instance": "alertmanager:9093"
+      },
+      "annotations": {
+        "title": "Monitoring target down · alertmanager",
+        "description": "Prometheus has not scraped alertmanager for 10 minutes, so its metrics and the alerts built on them are missing. Check the container in the monitoring stack.",
+        "target": "alertmanager:9093",
+        "dashboard": "https://grafana.atlas.vandaele.io/d/atlas-critical-health",
+        "runbook": "https://github.com/pjan/atlas#monitoring-targets"
+      },
+      "startsAt": "2026-09-28T10:00:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus:9090/graph",
+      "fingerprint": "0000000000000001"
+    },
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "MonitoringTargetDown",
+        "check": "meta.targets",
+        "severity": "warning",
+        "source": "prometheus",
+        "job": "blackbox",
+        "instance": "blackbox-exporter:9115"
+      },
+      "annotations": {
+        "title": "Monitoring target down · blackbox",
+        "description": "Prometheus has not scraped blackbox for 10 minutes, so its metrics and the alerts built on them are missing. Check the container in the monitoring stack.",
+        "target": "blackbox-exporter:9115",
+        "dashboard": "https://grafana.atlas.vandaele.io/d/atlas-critical-health",
+        "runbook": "https://github.com/pjan/atlas#monitoring-targets"
+      },
+      "startsAt": "2026-09-28T10:00:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus:9090/graph",
+      "fingerprint": "0000000000000002"
+    },
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "MonitoringTargetDown",
+        "check": "meta.targets",
+        "severity": "warning",
+        "source": "prometheus",
+        "job": "cadvisor",
+        "instance": "atlas"
+      },
+      "annotations": {
+        "title": "Monitoring target down · cadvisor",
+        "description": "Prometheus has not scraped cadvisor for 10 minutes, so its metrics and the alerts built on them are missing. Check the container in the monitoring stack.",
+        "target": "atlas",
+        "dashboard": "https://grafana.atlas.vandaele.io/d/atlas-critical-health",
+        "runbook": "https://github.com/pjan/atlas#monitoring-targets"
+      },
+      "startsAt": "2026-09-28T10:00:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus:9090/graph",
+      "fingerprint": "0000000000000003"
+    },
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "MonitoringTargetDown",
+        "check": "meta.targets",
+        "severity": "warning",
+        "source": "prometheus",
+        "job": "grafana",
+        "instance": "grafana:3000"
+      },
+      "annotations": {
+        "title": "Monitoring target down · grafana",
+        "description": "Prometheus has not scraped grafana for 10 minutes, so its metrics and the alerts built on them are missing. Check the container in the monitoring stack.",
+        "target": "grafana:3000",
+        "dashboard": "https://grafana.atlas.vandaele.io/d/atlas-critical-health",
+        "runbook": "https://github.com/pjan/atlas#monitoring-targets"
+      },
+      "startsAt": "2026-09-28T10:00:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus:9090/graph",
+      "fingerprint": "0000000000000004"
+    },
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "MonitoringTargetDown",
+        "check": "meta.targets",
+        "severity": "warning",
+        "source": "prometheus",
+        "job": "json_exporter",
+        "instance": "json-exporter:7979"
+      },
+      "annotations": {
+        "title": "Monitoring target down · json_exporter",
+        "description": "Prometheus has not scraped json_exporter for 10 minutes, so its metrics and the alerts built on them are missing. Check the container in the monitoring stack.",
+        "target": "json-exporter:7979",
+        "dashboard": "https://grafana.atlas.vandaele.io/d/atlas-critical-health",
+        "runbook": "https://github.com/pjan/atlas#monitoring-targets"
+      },
+      "startsAt": "2026-09-28T10:00:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus:9090/graph",
+      "fingerprint": "0000000000000005"
+    },
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "MonitoringTargetDown",
+        "check": "meta.targets",
+        "severity": "warning",
+        "source": "prometheus",
+        "job": "node",
+        "instance": "atlas"
+      },
+      "annotations": {
+        "title": "Monitoring target down · node",
+        "description": "Prometheus has not scraped node for 10 minutes, so its metrics and the alerts built on them are missing. Check the container in the monitoring stack.",
+        "target": "atlas",
+        "dashboard": "https://grafana.atlas.vandaele.io/d/atlas-critical-health",
+        "runbook": "https://github.com/pjan/atlas#monitoring-targets"
+      },
+      "startsAt": "2026-09-28T10:00:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus:9090/graph",
+      "fingerprint": "0000000000000006"
+    },
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "MonitoringTargetDown",
+        "check": "meta.targets",
+        "severity": "warning",
+        "source": "prometheus",
+        "job": "smartctl",
+        "instance": "atlas"
+      },
+      "annotations": {
+        "title": "Monitoring target down · smartctl",
+        "description": "Prometheus has not scraped smartctl for 10 minutes, so its metrics and the alerts built on them are missing. Check the container in the monitoring stack.",
+        "target": "atlas",
+        "dashboard": "https://grafana.atlas.vandaele.io/d/atlas-critical-health",
+        "runbook": "https://github.com/pjan/atlas#monitoring-targets"
+      },
+      "startsAt": "2026-09-28T10:00:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus:9090/graph",
+      "fingerprint": "0000000000000007"
+    }
+  ],
+  "groupLabels": {
+    "alertname": "MonitoringTargetDown"
+  },
+  "commonLabels": {},
+  "commonAnnotations": {},
+  "externalURL": "http://alertmanager:9093"
+}

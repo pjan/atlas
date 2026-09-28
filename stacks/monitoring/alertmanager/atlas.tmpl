@@ -1,0 +1,83 @@
+{{/*
+  Atlas Discord messages, rendered by Alertmanager's webhook payload
+  templating (webhook_configs.payload in alertmanager.yml). One embed per
+  alert, at most 4 per message; the footer shows "alert i/N", so alerts
+  beyond the fourth are visible.
+
+  Alert contract (README "Alerts"; the validator enforces it for every rule):
+    labels:      alertname, check, severity (critical|warning), source
+    annotations: title       short name, e.g. "Probe failed · sonarr"
+                 description what is wrong and the first action
+                 target      what is affected (optional; falls back to instance)
+                 details     text shown in a code block (optional)
+                 link        application URL (optional, usually LAN only)
+                 dashboard   Grafana URL, also the title link (optional)
+                 runbook     README section URL (optional)
+
+  Budget: Discord rejects a message with more than 6000 characters (titles,
+  descriptions, field names and values, footers) or a field value over 1024,
+  and Alertmanager does not retry that 400, so the message is lost. Every
+  value is capped here, whatever an alert contains, which keeps four embeds
+  under 6000: title 100 (name 85), description 250, severity and source 20,
+  target 80, details 350 plus the code fence; a capped value ends in "…".
+  Links (at most 300) keep only the whole links that fit, so no Markdown link
+  is cut. scripts/validate-repository.py renders the fixtures in
+  stacks/monitoring/alertmanager-tests/ with amtool and checks these limits.
+*/}}
+
+{{ define "atlas.embeds" -}}
+{{- $root := . -}}
+{{- $embeds := list -}}
+{{- range $a := .Alerts -}}
+{{- if lt (len $embeds) 4 -}}
+  {{- $firing := eq $a.Status "firing" -}}
+  {{- $name := or $a.Annotations.title $a.Labels.alertname | reReplaceAll "(?s)^(.{84}).{2,}$" "${1}…" -}}
+  {{- $description := or $a.Annotations.description "(no description)" | reReplaceAll "(?s)^(.{249}).{2,}$" "${1}…" -}}
+  {{- $severity := or $a.Labels.severity "none" | reReplaceAll "(?s)^(.{19}).{2,}$" "${1}…" -}}
+  {{- $source := or $a.Labels.source "prometheus" | reReplaceAll "(?s)^(.{19}).{2,}$" "${1}…" -}}
+  {{- $target := or $a.Annotations.target $a.Labels.instance "Atlas" | reReplaceAll "(?s)^(.{79}).{2,}$" "${1}…" -}}
+  {{- $fields := list
+        (dict "name" "Severity" "value" $severity "inline" true)
+        (dict "name" "Since" "value" (print "<t:" $a.StartsAt.Unix ":f>") "inline" true)
+        (dict "name" "Source" "value" $source "inline" true) -}}
+  {{- if not $firing -}}
+    {{- $fields = append $fields (dict "name" "Resolved" "value" (print "<t:" $a.EndsAt.Unix ":f>") "inline" true) -}}
+    {{- $fields = append $fields (dict "name" "Duration" "value" ((($a.EndsAt.Sub $a.StartsAt).Round 60000000000).String | reReplaceAll "0s$" "" | reReplaceAll "^$" "<1m") "inline" true) -}}
+  {{- end -}}
+  {{- $fields = append $fields (dict "name" "Target" "value" $target "inline" true) -}}
+  {{- with $a.Annotations.details -}}
+    {{- $details := reReplaceAll "```" "'''" . | reReplaceAll "(?s)^(.{349}).{2,}$" "${1}…" -}}
+    {{- $fields = append $fields (dict "name" "Details" "value" (print "```\n" $details "\n```") "inline" false) -}}
+  {{- end -}}
+  {{- /* Whole links only, in this order, while they fit: len counts bytes, so 300 bytes is at most 300 characters. */ -}}
+  {{- $links := "" -}}
+  {{- range $link := list (list "Open" $a.Annotations.link) (list "Dashboard" $a.Annotations.dashboard) (list "Runbook" $a.Annotations.runbook) -}}
+    {{- if index $link 1 -}}
+      {{- $candidate := print $links (and $links " · ") "[" (index $link 0) "](" (index $link 1) ")" -}}
+      {{- if le (len $candidate) 300 -}}{{- $links = $candidate -}}{{- end -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if $links -}}
+    {{- $fields = append $fields (dict "name" "Links" "value" $links "inline" false) -}}
+  {{- end -}}
+  {{- $title := print "“" $name "” is RESOLVED." -}}
+  {{- $color := 3066993 -}}
+  {{- $timestamp := $a.EndsAt -}}
+  {{- if $firing -}}
+    {{- $title = print "“" $name "” is FIRING." -}}
+    {{- $color = 15158332 -}}
+    {{- $timestamp = $a.StartsAt -}}
+  {{- end -}}
+  {{- $embed := dict
+        "title" $title
+        "url" (or $a.Annotations.dashboard "https://grafana.atlas.vandaele.io/d/atlas-critical-health")
+        "description" $description
+        "color" $color
+        "fields" $fields
+        "footer" (dict "text" (print "Atlas · " $source " · alert " (len (append $embeds $a)) "/" (len $root.Alerts)))
+        "timestamp" ($timestamp.Format "2006-01-02T15:04:05Z07:00") -}}
+  {{- $embeds = append $embeds $embed -}}
+{{- end -}}
+{{- end -}}
+{{- toJson $embeds -}}
+{{- end }}

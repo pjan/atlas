@@ -1,0 +1,227 @@
+# promtool tests for rules/meta.yml: every alert fires and turns its check
+# amber or red, and stays quiet (green) otherwise. Run by scripts/validate.sh.
+# Outside prometheus/, so Prometheus never loads these files.
+
+rule_files:
+  - ../prometheus/rules/rag.yml
+  - ../prometheus/rules/meta.yml
+
+evaluation_interval: 30s
+
+tests:
+  # Watchdog fires while delivery works and stops while Discord deliveries
+  # fail; AlertDeliveryFailing then turns meta.delivery red. Failures of the
+  # Watchdog's own receiver do not count.
+  - name: delivery
+    interval: 1m
+    input_series:
+      - series: 'alertmanager_notifications_failed_total{job="alertmanager", instance="alertmanager:9093", integration="webhook", receiver_name="discord", reason="clientError"}'
+        values: '0x5 1x40'
+      - series: 'alertmanager_notifications_failed_total{job="alertmanager", instance="alertmanager:9093", integration="webhook", receiver_name="healthchecks-watchdog", reason="serverError"}'
+        values: '0+1x45'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: Watchdog
+        exp_alerts:
+          - exp_labels:
+              alertname: Watchdog
+              source: prometheus
+            exp_annotations:
+              title: Watchdog
+              description: Heartbeat for the Healthchecks.io check "Atlas alerting". It never reaches Discord.
+              target: Healthchecks.io
+              runbook: https://github.com/pjan/atlas#healthchecks-watchdog
+      - eval_time: 3m
+        alertname: AlertDeliveryFailing
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: Watchdog
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: AlertDeliveryFailing
+        exp_alerts:
+          - exp_labels:
+              alertname: AlertDeliveryFailing
+              check: meta.delivery
+              severity: critical
+              source: prometheus
+            exp_annotations:
+              title: Alert delivery failing · Discord
+              description: Alertmanager could not deliver a Discord notification in the last 15 minutes, and that message is lost. Check the alertmanager logs for the status code and the webhook URL.
+              target: "Discord #atlas-alerts"
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-critical-health
+              runbook: https://github.com/pjan/atlas#alert-delivery
+      # The failure left the 15-minute window: delivery recovered.
+      - eval_time: 25m
+        alertname: AlertDeliveryFailing
+        exp_alerts: []
+    promql_expr_test:
+      - expr: atlas:delivery_failing
+        eval_time: 3m
+        exp_samples:
+          - labels: 'atlas:delivery_failing'
+            value: 0
+      - expr: atlas:check_status{check="meta.delivery"}
+        eval_time: 3m
+        exp_samples:
+          - labels: 'atlas:check_status{check="meta.delivery"}'
+            value: 0
+      - expr: atlas:delivery_failing
+        eval_time: 8m
+        exp_samples:
+          - labels: 'atlas:delivery_failing'
+            value: 1
+      - expr: atlas:check_status{check="meta.delivery"}
+        eval_time: 8m
+        exp_samples:
+          - labels: 'atlas:check_status{check="meta.delivery"}'
+            value: 2
+      - expr: atlas:check_status{check="meta.delivery"}
+        eval_time: 25m
+        exp_samples:
+          - labels: 'atlas:check_status{check="meta.delivery"}'
+            value: 0
+
+  # A monitored target down for 10 minutes turns meta.targets amber; the
+  # prometheus job is not monitored by this rule, and a pending alert keeps
+  # the tile green.
+  - name: monitoring target down
+    interval: 1m
+    input_series:
+      - series: 'up{job="grafana", instance="grafana:3000"}'
+        values: '1 0x15 1x5'
+      - series: 'up{job="node", instance="atlas"}'
+        values: '1x21'
+      - series: 'up{job="prometheus", instance="prometheus:9090"}'
+        values: '0x21'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: MonitoringTargetDown
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: MonitoringTargetDown
+        exp_alerts:
+          - exp_labels:
+              alertname: MonitoringTargetDown
+              check: meta.targets
+              severity: warning
+              source: prometheus
+              job: grafana
+              instance: grafana:3000
+            exp_annotations:
+              title: Monitoring target down · grafana
+              description: Prometheus has not scraped grafana for 10 minutes, so its metrics and the alerts built on them are missing. Check the container in the monitoring stack.
+              target: grafana:3000
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-critical-health
+              runbook: https://github.com/pjan/atlas#monitoring-targets
+      - eval_time: 20m
+        alertname: MonitoringTargetDown
+        exp_alerts: []
+    promql_expr_test:
+      - expr: atlas:check_status{check="meta.targets"}
+        eval_time: 6m
+        exp_samples:
+          - labels: 'atlas:check_status{check="meta.targets"}'
+            value: 0
+      - expr: atlas:check_status{check="meta.targets"}
+        eval_time: 12m
+        exp_samples:
+          - labels: 'atlas:check_status{check="meta.targets"}'
+            value: 1
+      - expr: atlas:check_status{check="meta.targets"}
+        eval_time: 20m
+        exp_samples:
+          - labels: 'atlas:check_status{check="meta.targets"}'
+            value: 0
+
+  # A rejected configuration for 5 minutes turns meta.reloads amber.
+  - name: config reload failed
+    interval: 1m
+    input_series:
+      - series: 'alertmanager_config_last_reload_successful{job="alertmanager", instance="alertmanager:9093"}'
+        values: '1 0x10'
+      - series: 'prometheus_config_last_reload_successful{job="prometheus", instance="prometheus:9090"}'
+        values: '1x10'
+      - series: 'blackbox_exporter_config_last_reload_successful{job="blackbox", instance="blackbox-exporter:9115"}'
+        values: '1x10'
+      - series: 'caddy_config_last_reload_successful{job="caddy", instance="caddy:2020"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: ConfigReloadFailed
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: ConfigReloadFailed
+        exp_alerts:
+          - exp_labels:
+              alertname: ConfigReloadFailed
+              check: meta.reloads
+              severity: warning
+              source: prometheus
+              job: alertmanager
+              instance: alertmanager:9093
+            exp_annotations:
+              title: Config reload failed · alertmanager
+              description: alertmanager rejected its new configuration and still runs the previous one. Find the error in its logs, fix the file, and deploy again.
+              target: alertmanager:9093
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-critical-health
+              runbook: https://github.com/pjan/atlas#config-reloads
+    promql_expr_test:
+      - expr: atlas:check_status{check="meta.reloads"}
+        eval_time: 4m
+        exp_samples:
+          - labels: 'atlas:check_status{check="meta.reloads"}'
+            value: 0
+      - expr: atlas:check_status{check="meta.reloads"}
+        eval_time: 8m
+        exp_samples:
+          - labels: 'atlas:check_status{check="meta.reloads"}'
+            value: 1
+
+  # The test textfile turns meta.test amber at once; deleting it (the series
+  # goes stale) turns it green again.
+  - name: test alert
+    interval: 1m
+    input_series:
+      - series: 'atlas_test_alert{job="node", instance="atlas"}'
+        values: '_ _ 1x4 stale'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: AtlasTestAlert
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: AtlasTestAlert
+        exp_alerts:
+          - exp_labels:
+              alertname: AtlasTestAlert
+              check: meta.test
+              severity: warning
+              source: prometheus
+              job: node
+              instance: atlas
+            exp_annotations:
+              title: Test alert
+              description: Raised by hand with /volume1/backups/.metrics/atlas_test.prom to test alerting end to end. Delete that file to resolve it.
+              target: atlas
+              details: atlas_test_alert = 1
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-critical-health
+              runbook: https://github.com/pjan/atlas#test-alert
+      - eval_time: 9m
+        alertname: AtlasTestAlert
+        exp_alerts: []
+    promql_expr_test:
+      - expr: atlas:check_status{check="meta.test"}
+        eval_time: 1m
+        exp_samples:
+          - labels: 'atlas:check_status{check="meta.test"}'
+            value: 0
+      - expr: atlas:check_status{check="meta.test"}
+        eval_time: 4m
+        exp_samples:
+          - labels: 'atlas:check_status{check="meta.test"}'
+            value: 1
+      - expr: atlas:check_status{check="meta.test"}
+        eval_time: 9m
+        exp_samples:
+          - labels: 'atlas:check_status{check="meta.test"}'
+            value: 0

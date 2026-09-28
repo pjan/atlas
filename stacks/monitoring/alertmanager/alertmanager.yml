@@ -1,0 +1,44 @@
+# Alertmanager configuration for Atlas (see README "Alerts"). The monitoring
+# post_deploy reloads it with SIGHUP; an invalid file keeps the previous
+# configuration (alertmanager_config_last_reload_successful = 0).
+# Never put secrets in this file: webhook URLs come from Compose secrets
+# under /run/secrets through url_file.
+
+route:
+  receiver: discord
+  group_by: [alertname]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 12h
+  routes:
+    # Heartbeat to Healthchecks.io, repeated every 5 minutes.
+    - matchers: ['alertname="Watchdog"']
+      receiver: healthchecks-watchdog
+      group_wait: 0s
+      group_interval: 1m
+      repeat_interval: 5m
+    - matchers: ['severity="critical"']
+      receiver: discord
+      repeat_interval: 4h
+
+receivers:
+  # Rich embeds rendered by atlas.tmpl, at most 4 per message.
+  - name: discord
+    webhook_configs:
+      - url_file: /run/secrets/discord_webhook_url
+        send_resolved: true
+        timeout: 10s
+        payload:
+          allowed_mentions:
+            parse: []
+          embeds: '{{ template "atlas.embeds" . }}'
+
+  # A resolved Watchdog must not count as a heartbeat.
+  - name: healthchecks-watchdog
+    webhook_configs:
+      - url_file: /run/secrets/healthchecks_watchdog_url
+        send_resolved: false
+        timeout: 10s
+
+templates:
+  - /etc/alertmanager/*.tmpl

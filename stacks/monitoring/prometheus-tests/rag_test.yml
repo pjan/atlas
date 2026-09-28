@@ -1,0 +1,128 @@
+# promtool tests for rules/rag.yml: the catalogue keeps healthy checks green,
+# check_status takes the worst firing alert, and the maintenance gate follows
+# the appdata backup's check and run timestamps. Run by scripts/validate.sh.
+# Outside prometheus/, so Prometheus never loads these files.
+
+rule_files:
+  - ../prometheus/rules/rag.yml
+  - ../prometheus/rules/meta.yml
+
+evaluation_interval: 30s
+
+tests:
+  # Nothing firing: every catalogued check is green, and nothing else appears.
+  - name: catalogue green
+    interval: 1m
+    input_series:
+      - series: 'up{job="node", instance="atlas"}'
+        values: '1x10'
+    promql_expr_test:
+      - expr: atlas:check_status
+        eval_time: 5m
+        exp_samples:
+          - labels: 'atlas:check_status{check="meta.delivery"}'
+            value: 0
+          - labels: 'atlas:check_status{check="meta.reloads"}'
+            value: 0
+          - labels: 'atlas:check_status{check="meta.targets"}'
+            value: 0
+          - labels: 'atlas:check_status{check="meta.test"}'
+            value: 0
+
+  # Critical beats warning within one check; pending alerts never count.
+  # Synthetic ALERTS for checks outside the catalogue, so these cases do not
+  # count as coverage of real checks.
+  - name: check status precedence
+    interval: 1m
+    input_series:
+      - series: 'ALERTS{alertname="SomeWarning", alertstate="firing", check="test.precedence", severity="warning"}'
+        values: '1x10'
+      - series: 'ALERTS{alertname="SomeCritical", alertstate="firing", check="test.precedence", severity="critical"}'
+        values: '_x4 1x6'
+      - series: 'ALERTS{alertname="SomePending", alertstate="pending", check="test.pending", severity="critical"}'
+        values: '1x10'
+    promql_expr_test:
+      - expr: atlas:check_status{check="test.precedence"}
+        eval_time: 2m
+        exp_samples:
+          - labels: 'atlas:check_status{check="test.precedence"}'
+            value: 1
+      - expr: atlas:check_status{check="test.precedence"}
+        eval_time: 6m
+        exp_samples:
+          - labels: 'atlas:check_status{check="test.precedence"}'
+            value: 2
+      - expr: atlas:check_status{check="test.pending"}
+        eval_time: 6m
+        exp_samples: []
+
+  # No backup metrics (a fresh install): the gate is off.
+  - name: gate without backup metrics
+    interval: 1m
+    input_series:
+      - series: 'up{job="node", instance="atlas"}'
+        values: '1x10'
+    promql_expr_test:
+      - expr: atlas:maintenance
+        eval_time: 5m
+        exp_samples:
+          - labels: 'atlas:maintenance'
+            value: 0
+
+  # A normal night: `backup check` at 0m, `backup run` finishes at 20m and
+  # replaces the check series. On from check until 15 minutes after run.
+  - name: gate during a backup
+    interval: 1m
+    input_series:
+      - series: 'atlas_backup_last_run_timestamp_seconds{job="node", instance="atlas", set="appdata", mode="check"}'
+        values: '0x19 stale'
+      - series: 'atlas_backup_last_run_timestamp_seconds{job="node", instance="atlas", set="appdata", mode="run"}'
+        values: '_x20 1200x40'
+    promql_expr_test:
+      - expr: atlas:maintenance
+        eval_time: 10m
+        exp_samples:
+          - labels: 'atlas:maintenance'
+            value: 1
+      - expr: atlas:maintenance
+        eval_time: 30m
+        exp_samples:
+          - labels: 'atlas:maintenance'
+            value: 1
+      - expr: atlas:maintenance
+        eval_time: 36m
+        exp_samples:
+          - labels: 'atlas:maintenance'
+            value: 0
+
+  # A backup that fails after `backup check` (no run): the gate closes after
+  # 60 minutes.
+  - name: gate cap after a failed backup
+    interval: 1m
+    input_series:
+      - series: 'atlas_backup_last_run_timestamp_seconds{job="node", instance="atlas", set="appdata", mode="check"}'
+        values: '0x90'
+    promql_expr_test:
+      - expr: atlas:maintenance
+        eval_time: 59m
+        exp_samples:
+          - labels: 'atlas:maintenance'
+            value: 1
+      - expr: atlas:maintenance
+        eval_time: 61m
+        exp_samples:
+          - labels: 'atlas:maintenance'
+            value: 0
+
+  # Yesterday's run: the gate is off.
+  - name: gate after an old run
+    interval: 1m
+    input_series:
+      - series: 'atlas_backup_last_run_timestamp_seconds{job="node", instance="atlas", set="appdata", mode="run"}'
+        values: '-86400x10'
+    promql_expr_test:
+      - expr: atlas:maintenance
+        eval_time: 5m
+        exp_samples:
+          - labels: 'atlas:maintenance'
+            value: 0

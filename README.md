@@ -226,7 +226,7 @@ Keep new scheduled work out of the 04:30–06:30 window, which is reserved for t
 
 Off-site, Backrest copies all of `/volume1/backups` to the Google Shared Drive `Atlas` every day at 06:00 (see [Off-Site Backups With Backrest](#off-site-backups-with-backrest)).
 
-The appdata copy excludes `roonserver` (covered by Roon's own backups), monitoring data (`prometheus` and `grafana`, see [Monitoring](#monitoring)), Plex caches, codecs, drivers, logs, and crash reports, and AdGuard query logs. The rules live in `stacks/appdata-backup/filters.txt`.
+The appdata copy excludes `roonserver` (covered by Roon's own backups), monitoring data (`prometheus`, `alertmanager`, and `grafana`, see [Monitoring](#monitoring)), Plex caches, codecs, drivers, logs, and crash reports, and AdGuard query logs. The rules live in `stacks/appdata-backup/filters.txt`.
 
 ### Nightly Appdata Snapshot
 
@@ -529,11 +529,13 @@ BAZARR_API_KEY
 CLOUDFLARE_ACCOUNT_ID
 CLOUDFLARE_TUNNEL_ID
 CLOUDFLARE_TUNNEL_TOKEN
+DISCORD_ALERTS_WEBHOOK_URL
 GLUETUN_CONTROL_API_KEY
 GRAFANA_ADMIN_PASSWORD
 GRAFANA_SECRETS_MANAGER_KEY
 GRAFANA_SECRET_KEY
 HEALTHCHECKS_APPDATA_PING_URL
+HEALTHCHECKS_WATCHDOG_PING_URL
 HOMEPAGE_ADGUARD_PASSWORD
 HOMEPAGE_ADGUARD_USERNAME
 HOMEPAGE_CLOUDFLARE_API_TOKEN
@@ -1452,11 +1454,11 @@ Operational notes:
 
 ## Monitoring
 
-The `monitoring` stack runs Prometheus, node-exporter, blackbox-exporter, smartctl-exporter, cAdvisor, the application exporters, and Grafana on the private `monitoring_network`. Only Grafana also joins `proxy_network`, and it is reachable at `http://grafana.atlas.local` and at `https://grafana.atlas.vandaele.io`, which must be protected by Cloudflare Access; Grafana also requires its own login. Prometheus has no host port and no web route; query it through Grafana.
+The `monitoring` stack runs Prometheus, Alertmanager (see [Alerts](#alerts)), node-exporter, blackbox-exporter, smartctl-exporter, cAdvisor, the application exporters, and Grafana on the private `monitoring_network`. Only Grafana also joins `proxy_network`, and it is reachable at `http://grafana.atlas.local` and at `https://grafana.atlas.vandaele.io`, which must be protected by Cloudflare Access; Grafana also requires its own login. Prometheus and Alertmanager have no host port and no web route; query Prometheus through Grafana.
 
-The nightly `appdata-backup` Action never stops the `monitoring` stack, and its data is not backed up: `/volume2/appdata/prometheus` (90 days, at most 20 GB) and `/volume2/appdata/grafana` (Grafana's SQLite database) are excluded. Only configuration is kept, in git: Prometheus, blackbox, and Grafana provisioning in this repository, and dashboards in `pjan/atlas-dashboards`. After losing Volume 2, Grafana starts with an empty database: the admin login comes from `GRAFANA_ADMIN_PASSWORD`, the datasource (and alerting) from provisioning, and the dashboards return once Git Sync is reconnected with the token from the password manager. Extra users, service accounts, and alert history are lost. Scrapes run every 30 seconds and probes every 60 seconds.
+The nightly `appdata-backup` Action never stops the `monitoring` stack, and its data is not backed up: `/volume2/appdata/prometheus` (90 days, at most 20 GB), `/volume2/appdata/alertmanager` (silences and the notification log), and `/volume2/appdata/grafana` (Grafana's SQLite database) are excluded. Only configuration is kept, in git: Prometheus, its rules, Alertmanager, blackbox, and Grafana provisioning in this repository, and dashboards in `pjan/atlas-dashboards`. After losing Volume 2, Grafana starts with an empty database: the admin login comes from `GRAFANA_ADMIN_PASSWORD`, the datasource (and alerting) from provisioning, and the dashboards return once Git Sync is reconnected with the token from the password manager. Extra users, service accounts, and alert history are lost. Scrapes run every 30 seconds and probes every 60 seconds.
 
-Resource Sync only runs `compose up -d` when a tracked config file changes, which does not recreate an unchanged container. Prometheus and blackbox therefore reload `stacks/monitoring/prometheus/prometheus.yml` and `stacks/monitoring/blackbox/blackbox.yml` automatically, and the stack restarts Grafana in `post_deploy` so provisioning changes apply. `scripts/validate.sh` checks both configurations with the pinned images (`promtool check config`, `blackbox_exporter --config.check`).
+Resource Sync only runs `compose up -d` when a tracked config file changes, which does not recreate an unchanged container. Prometheus and blackbox therefore reload `stacks/monitoring/prometheus/prometheus.yml` (with the rule files in `stacks/monitoring/prometheus/rules/`) and `stacks/monitoring/blackbox/blackbox.yml` automatically, and the stack restarts Grafana and sends Alertmanager `SIGHUP` in `post_deploy` so provisioning and alerting changes apply. `scripts/validate.sh` checks these configurations with the pinned images (`promtool check config`, `promtool check rules` and `test rules`, `amtool check-config`, `blackbox_exporter --config.check`).
 
 Current signals:
 
@@ -1488,11 +1490,136 @@ Caddy, cloudflared, and Unpackerr join `monitoring_network` for scraping; their 
 
 Grafana provisions the Prometheus datasource (uid `prometheus`) from `stacks/monitoring/grafana/provisioning/`. Grafana runs with a read-only root filesystem, so plugin preinstallation and automatic plugin updates are disabled (`GF_PLUGINS_PREINSTALL_DISABLED`, `GF_PLUGINS_PREINSTALL_AUTO_UPDATE`): plugin versions come only from the pinned image. The app plugins Grafana installed on its first start (Advisor, Explore Traces, Logs Drilldown, Metrics Drilldown, Pyroscope) remain in `/volume2/appdata/grafana/plugins`, are no longer updated, and do not return after a Volume 2 loss. Grafana 13 ships Prometheus as a bundled plugin, and a failed startup update would otherwise leave it unregistered. Dashboards are kept in the private `pjan/atlas-dashboards` repository with Grafana Git Sync, using a fine-grained token scoped to that repository only (Contents read and write, Metadata read, Administration read; Webhooks read and write only while running the setup wizard, which registers a webhook before its "Disable webhook integration" option applies). Git Sync reads only `dashboards/`, targets the folder "Atlas dashboards", polls every 60 seconds with webhooks disabled (Grafana is behind Cloudflare Access), and commits UI saves directly to `main`; the exact wizard settings are in that repository's README. Do not create dashboards outside synced folders: anything else exists only in `grafana.db`. Never edit the vendored community dashboards in the UI; `scripts/vendor.sh` in that repository regenerates them. The Git Sync connection itself lives in `grafana.db`, so after a Volume 2 loss reconnect it in **Administration → General → Provisioning** with the same settings and the token from the password manager.
 
-Secrets never go into Prometheus, blackbox, or exporter configuration files. Exporters that accept an API key in their environment (exportarr) receive it from the existing Komodo variables. qBittorrent is read through `json-exporter` with its API key rather than a dedicated exporter: the released prometheus-qbittorrent-exporter `1.7.0` ignores the API key and logs in with an empty password, which makes qBittorrent ban the exporter's address. `json-exporter` reads its keys from Compose secrets fed by Komodo variables (`secrets.<name>.environment` in `stacks/monitoring/compose.yaml`), mounted under `/run/secrets`, and uses them only through `*_file` or header `files` settings in `stacks/monitoring/json/json.yml`; because of those secrets it runs without a read-only root filesystem. The validator counts secret environment variables as Compose inputs.
+Secrets never go into Prometheus, Alertmanager, blackbox, or exporter configuration files. Exporters that accept an API key in their environment (exportarr) receive it from the existing Komodo variables. qBittorrent is read through `json-exporter` with its API key rather than a dedicated exporter: the released prometheus-qbittorrent-exporter `1.7.0` ignores the API key and logs in with an empty password, which makes qBittorrent ban the exporter's address. `json-exporter` reads its keys from Compose secrets fed by Komodo variables (`secrets.<name>.environment` in `stacks/monitoring/compose.yaml`), mounted under `/run/secrets`, and uses them only through `*_file` or header `files` settings in `stacks/monitoring/json/json.yml`; because of those secrets it runs without a read-only root filesystem. The validator counts secret environment variables as Compose inputs.
 
 `KOMODO_MONITORING_API_KEY` and `KOMODO_MONITORING_API_SECRET` belong to a dedicated Komodo service user (User level, not admin) with only Read on stacks; they let `json-exporter` report every stack's and container's state without the Docker socket. Read on a stack includes its deployed `docker compose config`, in which Komodo redacts only values from variables marked secret, so every secret-bearing variable must be marked secret (see Required Non-Default Variables). Never grant this user Inspect or Logs: container inspect returns the environment. The Gluetun control key used for the VPN metrics is the shared `GLUETUN_CONTROL_API_KEY`, whose default role can also change the VPN state; a GET-only role for monitoring is optional hardening. Exporters that accept environment variables receive keys from Komodo variables; services that read secret files use `/run/secrets`.
 
 `GRAFANA_SECRET_KEY` (`[security] secret_key`) encrypts Grafana's legacy secrets, such as contact point settings. `GRAFANA_SECRETS_MANAGER_KEY` (`[secrets_manager.encryption.secret_key.v1]`) encrypts secrets stored through Grafana's secrets manager, including the Git Sync token; its built-in default is public. Set both before storing any secret, keep them in the password manager, and never change them afterwards. `GRAFANA_ADMIN_PASSWORD` only applies on first start; change the password in Grafana later.
+
+## Alerts
+
+Prometheus evaluates the alert rules in `stacks/monitoring/prometheus/rules/`, and Alertmanager (`prom/alertmanager`, in the `monitoring` stack) sends them to the Discord channel `#atlas-alerts` as rich embeds. A Watchdog heartbeat to Healthchecks.io proves that the whole path works. Every check also has a red, amber, or green tile on the Grafana dashboard **Atlas Critical Health** (`pjan/atlas-dashboards`).
+
+### How Alerting Works
+
+```text
+exporters, textfiles ─► Prometheus ─► rules (label check=…) ─► Alertmanager ─► templated webhook ─► Discord #atlas-alerts
+                              │                                      └──────► Watchdog webhook ─► Healthchecks.io ─► Discord + email
+                              └─► recording rules: atlas:check_status, atlas:maintenance ─► Grafana "Atlas Critical Health"
+```
+
+| Failure | Detected by |
+|---|---|
+| A check turns bad | its rule, then a Discord message and a red or amber tile |
+| Prometheus, Alertmanager, the NAS, or the internet down | the Watchdog stops, then Healthchecks.io sends Discord and email |
+| Discord delivery failing (bad webhook URL, rejected message, rate limit) | `AlertDeliveryFailing` (red tile), and the Watchdog stops, so Healthchecks.io sends email |
+
+- Prometheus reloads the rule files together with `prometheus.yml`. Alertmanager's `stacks/monitoring/alertmanager/alertmanager.yml` and `atlas.tmpl` apply on the next `monitoring` deploy, whose `post_deploy` sends `SIGHUP`. An invalid file keeps the previous configuration and raises `ConfigReloadFailed`.
+- Alerts are grouped by `alertname`: a group is sent 30 seconds after its first alert and at most every 5 minutes after that. Resolutions are sent too. Warnings repeat every 12 hours and criticals every 4 hours. Both go to the same channel, without mentions.
+- The Discord webhook URL (`DISCORD_ALERTS_WEBHOOK_URL`) and the Healthchecks.io ping URL (`HEALTHCHECKS_WATCHDOG_PING_URL`) reach Alertmanager as Compose secrets (`url_file`), so Alertmanager runs without a read-only root filesystem, like `json-exporter`. Alertmanager has no host port and no route; its API is unauthenticated inside `monitoring_network`. Silences and the notification log live in `/volume2/appdata/alertmanager`, which is not backed up.
+- Silence an alert from the NAS (the Atlas Critical Health header counts active silences):
+
+  ```sh
+  docker exec alertmanager amtool --alertmanager.url=http://127.0.0.1:9093 \
+    silence add alertname=MonitoringTargetDown --duration=2h --comment="Grafana upgrade"
+  docker exec alertmanager amtool --alertmanager.url=http://127.0.0.1:9093 silence query
+  docker exec alertmanager amtool --alertmanager.url=http://127.0.0.1:9093 silence expire <id>
+  ```
+
+### Discord Messages
+
+Every alert is one embed: the title `“<title>” is FIRING.` (red) or `… is RESOLVED.` (green) links to its dashboard, followed by the description, the fields Severity, Since, Source, and Target (and Resolved and Duration when resolved), Details as a code block, Links, and the footer `Atlas · <source> · alert i/N`. The webhook's own name and avatar are used, and `allowed_mentions` is empty, so `@everyone` in alert text never pings.
+
+Discord rejects a message over 6,000 characters, and Alertmanager does not retry a rejected (400) or rate-limited (429) notification, so it would be lost. `atlas.tmpl` therefore sends at most 4 embeds per message (the footer's `N` shows any others) and caps every value: title 100 characters, description 250, severity and source 20, target 80, details 350 plus the code fence; a capped value ends in `…`. Links are added in the order Open, Dashboard, Runbook while they fit in 300 characters, so a link is left out whole rather than cut. The validator renders every fixture in `stacks/monitoring/alertmanager-tests/` (firing, resolved, 7 grouped alerts, maximum length, hostile text) with the pinned `amtool` and checks Discord's limits and this budget.
+
+### Alert Contract
+
+Every alert rule carries these labels and annotations; `scripts/validate-repository.py` enforces them.
+
+| Key | Kind | Content |
+|---|---|---|
+| `alertname` | name | CamelCase |
+| `check` | label | the RAG unit, `<area>.<name>`, for example `meta.test` |
+| `severity` | label | `critical` (data at risk, or a core service down) or `warning` (degraded) |
+| `source` | label | `prometheus`, `backrest`, or `komodo` |
+| `title` | annotation | short name, for example `Monitoring target down · grafana` (at most 85 characters) |
+| `description` | annotation | what is wrong and the first action (at most 250 characters) |
+| `target` | annotation | optional: what is affected (at most 80 characters; falls back to `instance`) |
+| `details` | annotation | optional: a value, error text, or labels, shown as a code block (at most 350 characters) |
+| `link`, `dashboard`, `runbook` | annotations | optional: the application (LAN); Grafana on `https://grafana.atlas.vandaele.io/` (also the title link); a heading of this README on `https://github.com/pjan/atlas#…` |
+
+The Watchdog is the only alert without `check` and `severity`. Rules must not produce series labels named `check`, `severity`, `source`, or `title`; rename them in the expression first, for example `label_replace(..., "issue_source", "$1", "source", "(.*)")`.
+
+Each check has at most one warning rule and at most one critical rule (the validator counts rules), so a tile maps to one cause per severity. To add an alert: add the rule, add its check to the `atlas:check_catalogue` list in `rules/rag.yml` (the validator requires the catalogue to equal the set of checks), add promtool cases in `stacks/monitoring/prometheus-tests/` in which it fires and in which it stays quiet, including one where `atlas:check_status{check="…"}` turns 1 or 2, and add or extend its runbook below. Rules affected by stopped stacks (probes, stack health, the port forward, qBittorrent) are gated: append `unless on () atlas:maintenance == 1` to the expression.
+
+### Atlas Critical Health
+
+`atlas:check_status` is `0` (green), `1` (amber: a warning fires), or `2` (red: a critical alert fires) per check, derived from Prometheus' `ALERTS` series; `atlas:check_catalogue` keeps healthy checks at `0`. The dashboard shows a status grid with one tile per check (no data is grey UNKNOWN), a RAG timeline over the selected time range, the firing alerts, and a header with "Backup running", active silences, the delivery status, and the number of firing alerts. The appdata backup appears as a region, and firing alerts as annotations.
+
+- A tile is the Prometheus alert state. Pending alerts (still within their `for`) do not count, so a tile and a Discord message agree.
+- Inhibited alerts still show red, because their root cause is red too.
+- Silenced alerts still show red; the header counts active silences.
+- During the appdata backup the maintenance gate keeps both the gated tiles and Discord quiet, and the header shows "Backup running".
+
+### Maintenance Gate
+
+The nightly appdata backup stops most stacks, which would otherwise fire every probe. `atlas:maintenance` in `rules/rag.yml` is `1` while that happens, derived from the backup's own metrics: `backup.sh check` runs before any stack is stopped and writes `atlas_backup_last_run_timestamp_seconds{set="appdata", mode="check"}`, and `backup.sh run` writes the same metric with `mode="run"` after the snapshot; only the latest mode is in the file.
+
+- The gate is on from `check` until `run`, for at most 60 minutes, and for 15 minutes after `run` while the stacks start again.
+- A backup that fails after `check` is gated for at most 60 minutes. The backup's own alerts are never gated, so the failure still alerts.
+- The gate follows the real backup, including `appdata-backup-now`, so it cannot drift from `APPDATA_BACKUP_HOUR` or `TZ`. The hourly no-op runs of the `appdata-backup` Action return before `prepare` and never call `backup.sh`.
+
+### Healthchecks Watchdog
+
+The `Watchdog` alert always fires while Prometheus and Alertmanager work, and Alertmanager sends it to Healthchecks.io every 5 minutes (never its resolution). It stops while Discord delivery fails. Healthchecks.io then alerts when Atlas, its internet connection, Prometheus, Alertmanager, or Discord delivery is broken, which no local rule can report.
+
+Set it up once in Healthchecks.io:
+
+1. Create the check "Atlas alerting" with period 5 minutes and grace 10 minutes, so 15 minutes without a ping raises it, the same window as `atlas:delivery_failing`.
+2. Description: "Watchdog from Atlas Alertmanager. Down means Atlas, its internet connection, Prometheus, Alertmanager, or Discord delivery is broken."
+3. Enable the Discord integration **and** email for this check: email still arrives when Discord is the problem.
+4. Store the check's ping URL in the secret Komodo variable `HEALTHCHECKS_WATCHDOG_PING_URL`, then deploy `monitoring` (a changed variable value alone does not redeploy the stack).
+
+To test it, stop the `alertmanager` container for 20 minutes: Healthchecks.io sends Discord and email after about 15 minutes, and starting it again recovers the check.
+
+### Runbooks
+
+#### Alert Delivery
+
+`AlertDeliveryFailing` (`meta.delivery`, critical): Alertmanager could not deliver at least one Discord notification in the last 15 minutes (`atlas:delivery_failing`, from `alertmanager_notifications_failed_total{receiver_name="discord"}`). A notification rejected with 400 or 429 is not retried, so that message is lost; check Atlas Critical Health for what fired.
+
+1. Read the reason in `docker logs alertmanager` (status code and response).
+2. 401 or 404: the webhook was deleted or `DISCORD_ALERTS_WEBHOOK_URL` is wrong. Create a new webhook in `#atlas-alerts`, update the variable, and deploy `monitoring`.
+3. 400: Discord rejected the message; render the fixtures with `./scripts/validate.sh` and check the template or the alert text that broke it.
+4. 429: rate limited; it clears by itself.
+
+The alert clears 15 minutes after the last failure. To test it, set `DISCORD_ALERTS_WEBHOOK_URL` to a wrong webhook URL, deploy `monitoring`, and raise the [test alert](#test-alert): `meta.delivery` turns red within a few minutes, the Watchdog stops, and Healthchecks.io emails about 15 minutes after the last ping. Restore the variable and deploy again.
+
+#### Monitoring Targets
+
+`MonitoringTargetDown` (`meta.targets`, warning): Prometheus has not scraped a monitoring target (`node`, `smartctl`, `blackbox`, `json_exporter`, `cadvisor`, `alertmanager`, or `grafana`) for 10 minutes, so the alerts built on it cannot fire. Check the container in the `monitoring` stack in Komodo and its logs, and redeploy the stack if it does not recover.
+
+#### Config Reloads
+
+`ConfigReloadFailed` (`meta.reloads`, warning): Prometheus, Alertmanager, blackbox-exporter, or Caddy rejected a new configuration for 5 minutes and still runs the previous one. Find the error in the container's logs, fix the file in this repository (`./scripts/validate.sh` checks all of them), push, and deploy; the next successful reload clears the alert.
+
+#### Test Alert
+
+`AtlasTestAlert` (`meta.test`, warning) fires while `/volume1/backups/.metrics/atlas_test.prom` contains `atlas_test_alert 1`. Use it to test alerting end to end. Raise it as root on the NAS (write a temporary file, make it readable for node-exporter, which runs as `65534`, and rename it, so node-exporter never reads a partial file):
+
+```sh
+printf '%s\n' '# HELP atlas_test_alert Set to 1 by hand to test alerting.' '# TYPE atlas_test_alert gauge' 'atlas_test_alert 1' > /volume1/backups/.metrics/atlas_test.prom.tmp
+chmod 0644 /volume1/backups/.metrics/atlas_test.prom.tmp
+mv /volume1/backups/.metrics/atlas_test.prom.tmp /volume1/backups/.metrics/atlas_test.prom
+```
+
+Within about 2 minutes `meta.test` turns amber and a FIRING message arrives in `#atlas-alerts`. Clear it, also as root:
+
+```sh
+rm /volume1/backups/.metrics/atlas_test.prom
+```
+
+The tile turns green within 2 minutes, and the RESOLVED message follows within 5 more minutes. The RAG timeline on Atlas Critical Health shows the episode.
 
 ## Caddy Configuration
 
@@ -1560,6 +1687,6 @@ Run the complete local validation suite from the repository root:
 ./scripts/validate.sh
 ```
 
-The suite renders every managed stack and the manual Komodo bootstrap with deterministic validation values, validates Caddy with the pinned image, exercises the host-filesystem and network helpers, and checks repository policy. Policy checks cover stack/run-directory consistency, declared files, Caddy site registration, relative bind configuration, fail-closed bind mounts, pinned image tags, security/resource/logging controls, shell syntax, Komodo interpolation tags, and tracked runtime secrets or OS metadata.
+The suite renders every managed stack and the manual Komodo bootstrap with deterministic validation values, validates Caddy with the pinned image, exercises the host-filesystem and network helpers, and checks repository policy. Policy checks cover stack/run-directory consistency, declared files, Caddy site registration, relative bind configuration, fail-closed bind mounts, pinned image tags, security/resource/logging controls, shell syntax, Komodo interpolation tags, tracked runtime secrets or OS metadata, and the alerting rules: the alert contract, the check catalogue, promtool coverage of every check, runbook anchors, and the Discord message fixtures rendered with the pinned `amtool` (see [Alerts](#alerts)). The alerting YAML files are read with the pinned `mikefarah/yq` image (`YQ_IMAGE` in the validator).
 
 GitHub Actions runs the same command for pull requests and pushes to `main`. Workflow actions are pinned by commit SHA, and CI receives read-only repository permissions.

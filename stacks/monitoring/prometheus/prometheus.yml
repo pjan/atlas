@@ -1,4 +1,5 @@
-# Prometheus configuration for Atlas. Reloaded automatically (--config.auto-reload).
+# Prometheus configuration for Atlas. Reloaded automatically (--config.auto-reload),
+# together with the rule files in rules/ (see README "Alerts").
 # Never put secrets in this file; use *_file settings with /run/secrets instead.
 
 global:
@@ -8,10 +9,22 @@ global:
   external_labels:
     instance_group: atlas
 
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
 scrape_configs:
   - job_name: prometheus
     static_configs:
       - targets: ["prometheus:9090"]
+
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["alertmanager:9093"]
 
   - job_name: node
     static_configs:

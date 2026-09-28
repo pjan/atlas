@@ -4,6 +4,7 @@
 # Monitoring data is not backed up; its configuration lives in git
 # (this repository and pjan/atlas-dashboards).
 - /appdata/prometheus/
+- /appdata/alertmanager/
 - /appdata/grafana/
 # Regenerable Plex caches, logs, codecs, and drivers.
 - /appdata/plex/Library/Application Support/Plex Media Server/Cache/

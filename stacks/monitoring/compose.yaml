@@ -1,10 +1,10 @@
-# Prometheus, exporters, and Grafana. Never stopped by the nightly backup
-# Action, and its data (Prometheus TSDB, Grafana SQLite) is not backed up:
-# configuration lives in this repository and dashboards in the
-# pjan/atlas-dashboards repository (Grafana Git Sync).
+# Prometheus, Alertmanager, exporters, and Grafana. Never stopped by the
+# nightly backup Action, and its data (Prometheus TSDB, Alertmanager silences,
+# Grafana SQLite) is not backed up: configuration lives in this repository and
+# dashboards in the pjan/atlas-dashboards repository (Grafana Git Sync).
 # Prometheus and blackbox reload their configuration automatically, and the
-# stack restarts Grafana after deploy, because Resource Sync only runs
-# `compose up -d` when a config file changes.
+# stack restarts Grafana and reloads Alertmanager after deploy, because
+# Resource Sync only runs `compose up -d` when a config file changes.
 
 services:
   prometheus:
@@ -56,6 +56,61 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
+
+  # Routes Prometheus alerts to Discord and the Watchdog to Healthchecks.io.
+  # Both webhook URLs are Compose secrets fed by Komodo variables, which is
+  # why this service cannot use a read-only root filesystem. post_deploy
+  # reloads it with SIGHUP, which keeps the previous configuration if the new
+  # one is invalid (a restart would crash-loop instead).
+  alertmanager:
+    image: prom/alertmanager:v0.34.1
+    container_name: alertmanager
+    restart: unless-stopped
+    user: "65534:65534"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --cluster.listen-address=
+      - --enable-feature=receiver-name-in-metrics
+      - --web.listen-address=:9093
+    environment:
+      - TZ=${TZ}
+    secrets:
+      - discord_webhook_url
+      - healthchecks_watchdog_url
+    volumes:
+      - type: bind
+        source: ./alertmanager
+        target: /etc/alertmanager
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${ALERTMANAGER_DATA_DIR:?ALERTMANAGER_DATA_DIR is required}
+        target: /alertmanager
+        bind:
+          create_host_path: false
+    expose:
+      - "9093"
+    networks:
+      - monitoring_network
+    mem_limit: 64m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:9093/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   node-exporter:
     image: prom/node-exporter:v1.12.1
@@ -544,3 +599,7 @@ secrets:
     environment: KOMODO_MONITORING_API_KEY
   komodo_api_secret:
     environment: KOMODO_MONITORING_API_SECRET
+  discord_webhook_url:
+    environment: DISCORD_ALERTS_WEBHOOK_URL
+  healthchecks_watchdog_url:
+    environment: HEALTHCHECKS_WATCHDOG_PING_URL

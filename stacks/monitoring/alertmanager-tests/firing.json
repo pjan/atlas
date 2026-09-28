@@ -1,0 +1,35 @@
+{
+  "receiver": "discord",
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "AtlasTestAlert",
+        "check": "meta.test",
+        "severity": "warning",
+        "source": "prometheus",
+        "job": "node",
+        "instance": "atlas"
+      },
+      "annotations": {
+        "title": "Test alert",
+        "description": "Raised by hand with /volume1/backups/.metrics/atlas_test.prom to test alerting end to end. Delete that file to resolve it.",
+        "target": "atlas",
+        "details": "atlas_test_alert = 1",
+        "dashboard": "https://grafana.atlas.vandaele.io/d/atlas-critical-health",
+        "runbook": "https://github.com/pjan/atlas#test-alert"
+      },
+      "startsAt": "2026-09-28T10:00:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus:9090/graph",
+      "fingerprint": "0000000000000001"
+    }
+  ],
+  "groupLabels": {
+    "alertname": "AtlasTestAlert"
+  },
+  "commonLabels": {},
+  "commonAnnotations": {},
+  "externalURL": "http://alertmanager:9093"
+}

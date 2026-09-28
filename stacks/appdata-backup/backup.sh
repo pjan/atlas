@@ -101,7 +101,7 @@ on_exit() {
 count_source_files() {
   find "$appdata" \
     \( -path "$appdata/roonserver" -o -path "$appdata/prometheus" \
-    -o -path "$appdata/grafana" \) -prune \
+    -o -path "$appdata/alertmanager" -o -path "$appdata/grafana" \) -prune \
     -o -type f -print | wc -l | tr -d ' '
 }
 
