@@ -29,7 +29,7 @@
       "labels": {
         "alertname": "MonitoringTargetDown",
         "check": "meta.targets",
-        "severity": "warning",
+        "severity": "critical",
         "source": "prometheus",
         "job": "blackbox",
         "instance": "blackbox-exporter:9115"

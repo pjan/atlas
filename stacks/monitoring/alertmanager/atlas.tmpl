@@ -65,7 +65,9 @@
   {{- $timestamp := $a.EndsAt -}}
   {{- if $firing -}}
     {{- $title = print "“" $name "” is FIRING." -}}
-    {{- $color = 15158332 -}}
+    {{- /* Red for critical, orange for warning (the dashboard's CRIT and WARN). */ -}}
+    {{- $color = 15105570 -}}
+    {{- if eq $a.Labels.severity "critical" -}}{{- $color = 15158332 -}}{{- end -}}
     {{- $timestamp = $a.StartsAt -}}
   {{- end -}}
   {{- $embed := dict

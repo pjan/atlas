@@ -69,6 +69,10 @@ DISCORD_MAX_FIELD_NAME = 256
 DISCORD_MAX_FIELD_VALUE = 1024
 DISCORD_MAX_FOOTER = 2048
 DISCORD_MAX_TOTAL = 6000
+# atlas.tmpl's embed colours: resolved, firing warning, firing critical.
+ATLAS_COLOR_RESOLVED = 3066993
+ATLAS_COLOR_WARNING = 15105570
+ATLAS_COLOR_CRITICAL = 15158332
 # atlas.tmpl's budget, which keeps every message under DISCORD_MAX_TOTAL.
 ATLAS_MAX_EMBEDS = 4
 ATLAS_MAX_TITLE = 100
@@ -1197,10 +1201,20 @@ def render_discord_embeds(image: str, fixture: Path, validation: Validation) -> 
         return None
 
 
-def discord_message_problems(embeds: object, alert_count: int) -> list[str]:
+def expected_embed_color(alert: dict) -> int:
+    """Green when resolved; red for a firing critical alert, orange otherwise."""
+    if alert.get("status") != "firing":
+        return ATLAS_COLOR_RESOLVED
+    if alert.get("labels", {}).get("severity") == "critical":
+        return ATLAS_COLOR_CRITICAL
+    return ATLAS_COLOR_WARNING
+
+
+def discord_message_problems(embeds: object, alerts: list[dict]) -> list[str]:
     """Discord's webhook limits and atlas.tmpl's budget for one message."""
     if not isinstance(embeds, list) or not embeds:
         return ["embeds that are not a non-empty list"]
+    alert_count = len(alerts)
     problems = []
     expected_embeds = min(alert_count, ATLAS_MAX_EMBEDS, DISCORD_MAX_EMBEDS)
     if len(embeds) != expected_embeds:
@@ -1211,6 +1225,9 @@ def discord_message_problems(embeds: object, alert_count: int) -> list[str]:
     total = 0
     for index, embed in enumerate(embeds, start=1):
         context = f"embed {index}"
+        color = embed.get("color")
+        if index <= alert_count and color != expected_embed_color(alerts[index - 1]):
+            problems.append(f"{context} colour {color}")
         title = embed.get("title", "")
         description = embed.get("description", "")
         footer = embed.get("footer", {}).get("text", "")
@@ -1281,11 +1298,11 @@ def validate_alert_messages(
     fixtures = sorted(ALERT_MESSAGE_FIXTURES_DIRECTORY.glob("*.json"))
     validation.require(bool(fixtures), "no Alertmanager message fixtures found")
     for fixture in fixtures:
-        alert_count = len(json.loads(fixture.read_text(encoding="utf-8"))["alerts"])
+        alerts = json.loads(fixture.read_text(encoding="utf-8"))["alerts"]
         embeds = render_discord_embeds(image_match.group(1), fixture, validation)
         if embeds is None:
             continue
-        for problem in discord_message_problems(embeds, alert_count):
+        for problem in discord_message_problems(embeds, alerts):
             validation.errors.append(
                 f"{relative(fixture)} renders a Discord message with {problem}"
             )
