@@ -1,0 +1,50 @@
+# Download path alerts: the Gluetun VPN and qBittorrent's forwarded port,
+# read through json-exporter (job json_apis). VpnDown inhibits ProbeFailed
+# for the VPN-bound applications and PortForwardMismatch (alertmanager.yml).
+# Tests: stacks/monitoring/prometheus-tests/.
+
+groups:
+  - name: downloads
+    rules:
+      # Not gated: gluetun is never stopped. Also fires when the Gluetun
+      # control server or json-exporter cannot be read, which leaves the
+      # VPN state unknown.
+      - alert: VpnDown
+        expr: absent(gluetun_vpn_status_info{status="running"})
+        for: 5m
+        labels:
+          check: downloads.vpn
+          severity: critical
+          source: prometheus
+        annotations:
+          title: VPN down · gluetun
+          description: Gluetun has not reported its VPN as running for 5 minutes, so every VPN-bound application is offline. Check the gluetun stack and its logs in Komodo.
+          target: gluetun
+          details: '{{ with query "gluetun_vpn_status_info" }}status = {{ . | first | label "status" }}{{ else }}no gluetun_vpn_status_info (control server unreachable){{ end }}'
+          link: http://komodo.atlas.local
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+          runbook: https://github.com/pjan/atlas#vpn
+
+      # qBittorrent must listen on the port the VPN provider forwards;
+      # Gluetun updates it when the forward changes.
+      - alert: PortForwardMismatch
+        expr: |
+          (
+              max(qbittorrent_listen_port) != max(gluetun_forwarded_port)
+            or
+              max(gluetun_forwarded_port) == 0
+          )
+          unless on () atlas:maintenance == 1
+        for: 15m
+        labels:
+          check: downloads.port-forward
+          severity: warning
+          source: prometheus
+        annotations:
+          title: Port forward mismatch · qbittorrent
+          description: qBittorrent does not listen on the port Gluetun forwards, or Gluetun has no forwarded port, so torrents are firewalled. Check the port forwarding lines in the gluetun logs, then set the forwarded port in qBittorrent.
+          target: qbittorrent
+          details: 'listen_port = {{ with query "max(qbittorrent_listen_port)" }}{{ . | first | value }}{{ else }}none{{ end }}, forwarded_port = {{ with query "max(gluetun_forwarded_port)" }}{{ . | first | value }}{{ else }}none{{ end }}'
+          link: http://qbittorrent.atlas.local
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+          runbook: https://github.com/pjan/atlas#port-forward

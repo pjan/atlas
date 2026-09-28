@@ -1,0 +1,92 @@
+# Disk and volume alerts (smartctl-exporter and node-exporter). Both data
+# volumes are single-member RAID 1, so a failing disk is data at risk. Never
+# gated. Tests: stacks/monitoring/prometheus-tests/.
+
+groups:
+  - name: storage
+    rules:
+      # One alert per disk and reason. The disk names are the ones on the
+      # dashboards; an unknown disk keeps its by-id name. The error counters
+      # persist on the device, so only an increase alerts (for 1 day or 1
+      # hour); the dashboards show the totals.
+      - alert: DiskFailing
+        expr: |
+          label_replace(label_replace(label_replace(label_replace(
+            max by (device, reason) (
+                label_replace(smartctl_device_smart_status == 0, "reason", "SMART health check failed", "", "")
+              or
+                label_replace(smartctl_device_critical_warning > 0, "reason", "NVMe critical warning", "", "")
+              or
+                label_replace(smartctl_device_available_spare <= smartctl_device_available_spare_threshold, "reason", "NVMe spare at or below threshold", "", "")
+              or
+                label_replace(increase(smartctl_device_media_errors[1d]) > 0, "reason", "new NVMe media errors", "", "")
+              or
+                label_replace(increase(node_btrfs_device_errors_total[1h]) > 0, "reason", "new btrfs $1 errors", "type", "(.*)")
+            ),
+          "disk", "$1", "device", "(.*)"),
+          "disk", "Volume 1 · HDD 12 TB", "device", "wwn-0x5000c500c81fb81d"),
+          "disk", "Volume 2 · NVMe 512 GB", "device", "nvme-eui[.]0000000626012893caf25b0b330000ca"),
+          "disk", "System · NVMe 128 GB", "device", "nvme-eui[.]00000000000000000c82d52610042585")
+        labels:
+          check: disk.health
+          severity: critical
+          source: prometheus
+        annotations:
+          title: Disk failing · {{ $labels.disk }}
+          description: "{{ $labels.disk }}: {{ $labels.reason }}. The volumes have no redundancy: make sure the backups are current, then plan a replacement."
+          target: "{{ $labels.disk }}"
+          details: "{{ $labels.reason }} = {{ printf \"%.0f\" $value }} (device {{ $labels.device }})"
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+          runbook: https://github.com/pjan/atlas#disk-health
+
+      # Three disks: Volume 1, Volume 2, and the system NVMe.
+      - alert: SmartDataMissing
+        expr: (count(smartctl_device_smart_status) or vector(0)) < 3
+        for: 30m
+        labels:
+          check: disk.health
+          severity: warning
+          source: prometheus
+        annotations:
+          title: SMART data missing
+          description: smartctl-exporter reports fewer than 3 disks, so DiskFailing cannot see every disk. Check the smartctl-exporter logs in the monitoring stack.
+          target: smartctl-exporter
+          details: "{{ $value }} of 3 disks reported"
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+          runbook: https://github.com/pjan/atlas#disk-health
+
+      # VolumeSpaceCritical inhibits VolumeSpaceLow for the same mountpoint
+      # (alertmanager.yml).
+      - alert: VolumeSpaceLow
+        expr: |
+          node_filesystem_avail_bytes{mountpoint=~"/volume1|/volume2"}
+            / node_filesystem_size_bytes{mountpoint=~"/volume1|/volume2"} < 0.10
+        for: 30m
+        labels:
+          check: storage.space
+          severity: warning
+          source: prometheus
+        annotations:
+          title: Volume space low · {{ $labels.mountpoint }}
+          description: "{{ $labels.mountpoint }} has less than 10 % free space. Find what grew on Atlas Health and clean up before it drops below 5 %."
+          target: "{{ $labels.mountpoint }}"
+          details: "{{ $value | humanizePercentage }} free"
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+          runbook: https://github.com/pjan/atlas#volume-space
+
+      - alert: VolumeSpaceCritical
+        expr: |
+          node_filesystem_avail_bytes{mountpoint=~"/volume1|/volume2"}
+            / node_filesystem_size_bytes{mountpoint=~"/volume1|/volume2"} < 0.05
+        for: 5m
+        labels:
+          check: storage.space
+          severity: critical
+          source: prometheus
+        annotations:
+          title: Volume space critical · {{ $labels.mountpoint }}
+          description: "{{ $labels.mountpoint }} has less than 5 % free space, and writes, downloads, or backups will soon fail. Free space now."
+          target: "{{ $labels.mountpoint }}"
+          details: "{{ $value | humanizePercentage }} free"
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+          runbook: https://github.com/pjan/atlas#volume-space

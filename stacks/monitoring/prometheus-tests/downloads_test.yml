@@ -1,0 +1,157 @@
+# promtool tests for rules/downloads.yml: VpnDown and PortForwardMismatch
+# fire and turn their checks red or amber, stay quiet otherwise, and the port
+# forward is gated during the appdata backup. Run by scripts/validate.sh.
+# Outside prometheus/, so Prometheus never loads these files.
+
+rule_files:
+  - ../prometheus/rules/rag.yml
+  - ../prometheus/rules/downloads.yml
+
+evaluation_interval: 30s
+
+tests:
+  # Gluetun reports its VPN as stopped from 2m; the control server stops
+  # answering at 12m.
+  - name: vpn down
+    interval: 1m
+    input_series:
+      - series: 'gluetun_vpn_status_info{job="json_apis", instance="http://downloaders-vpn:8000/v1/vpn/status", module="gluetun_vpn_status", service="gluetun", status="running"}'
+        values: '1 1 stale'
+      - series: 'gluetun_vpn_status_info{job="json_apis", instance="http://downloaders-vpn:8000/v1/vpn/status", module="gluetun_vpn_status", service="gluetun", status="stopped"}'
+        values: '_ _ 1x9 stale'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: VpnDown
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: VpnDown
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: VpnDown
+        exp_alerts:
+          - exp_labels:
+              alertname: VpnDown
+              check: downloads.vpn
+              severity: critical
+              source: prometheus
+              status: running
+            exp_annotations:
+              title: VPN down · gluetun
+              description: Gluetun has not reported its VPN as running for 5 minutes, so every VPN-bound application is offline. Check the gluetun stack and its logs in Komodo.
+              target: gluetun
+              details: status = stopped
+              link: http://komodo.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#vpn
+      - eval_time: 20m
+        alertname: VpnDown
+        exp_alerts:
+          - exp_labels:
+              alertname: VpnDown
+              check: downloads.vpn
+              severity: critical
+              source: prometheus
+              status: running
+            exp_annotations:
+              title: VPN down · gluetun
+              description: Gluetun has not reported its VPN as running for 5 minutes, so every VPN-bound application is offline. Check the gluetun stack and its logs in Komodo.
+              target: gluetun
+              details: no gluetun_vpn_status_info (control server unreachable)
+              link: http://komodo.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#vpn
+    promql_expr_test:
+      - expr: atlas:check_status{check="downloads.vpn"}
+        eval_time: 5m
+        exp_samples:
+          - labels: 'atlas:check_status{check="downloads.vpn"}'
+            value: 0
+      - expr: atlas:check_status{check="downloads.vpn"}
+        eval_time: 8m
+        exp_samples:
+          - labels: 'atlas:check_status{check="downloads.vpn"}'
+            value: 2
+
+  # The forward moves to 51000 at 2m and qBittorrent keeps 49000; then the
+  # forward is lost (0) from 30m.
+  - name: port forward mismatch
+    interval: 1m
+    input_series:
+      - series: 'gluetun_forwarded_port{job="json_apis", instance="http://downloaders-vpn:8000/v1/portforward", module="gluetun_port_forward", service="gluetun"}'
+        values: '49000 49000 51000x27 0x20'
+      - series: 'qbittorrent_listen_port{job="json_apis", instance="http://downloaders-vpn:8080/api/v2/app/preferences", module="qbittorrent_preferences", service="qbittorrent"}'
+        values: '49000x50'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: PortForwardMismatch
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: PortForwardMismatch
+        exp_alerts:
+          - exp_labels:
+              alertname: PortForwardMismatch
+              check: downloads.port-forward
+              severity: warning
+              source: prometheus
+            exp_annotations:
+              title: Port forward mismatch · qbittorrent
+              description: qBittorrent does not listen on the port Gluetun forwards, or Gluetun has no forwarded port, so torrents are firewalled. Check the port forwarding lines in the gluetun logs, then set the forwarded port in qBittorrent.
+              target: qbittorrent
+              details: listen_port = 49000, forwarded_port = 51000
+              link: http://qbittorrent.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#port-forward
+      - eval_time: 40m
+        alertname: PortForwardMismatch
+        exp_alerts:
+          - exp_labels:
+              alertname: PortForwardMismatch
+              check: downloads.port-forward
+              severity: warning
+              source: prometheus
+            exp_annotations:
+              title: Port forward mismatch · qbittorrent
+              description: qBittorrent does not listen on the port Gluetun forwards, or Gluetun has no forwarded port, so torrents are firewalled. Check the port forwarding lines in the gluetun logs, then set the forwarded port in qBittorrent.
+              target: qbittorrent
+              details: listen_port = 49000, forwarded_port = 0
+              link: http://qbittorrent.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#port-forward
+    promql_expr_test:
+      - expr: atlas:check_status{check="downloads.port-forward"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'atlas:check_status{check="downloads.port-forward"}'
+            value: 0
+      - expr: atlas:check_status{check="downloads.port-forward"}
+        eval_time: 20m
+        exp_samples:
+          - labels: 'atlas:check_status{check="downloads.port-forward"}'
+            value: 1
+
+  # Matching ports are quiet; during the backup (check at 0m, run at 20m)
+  # a mismatch is gated.
+  - name: port forward gated during the backup
+    interval: 1m
+    input_series:
+      - series: 'atlas_backup_last_run_timestamp_seconds{job="node", instance="atlas", set="appdata", mode="check"}'
+        values: '0x19 stale'
+      - series: 'atlas_backup_last_run_timestamp_seconds{job="node", instance="atlas", set="appdata", mode="run"}'
+        values: '_x20 1200x20'
+      - series: 'gluetun_forwarded_port{job="json_apis", instance="http://downloaders-vpn:8000/v1/portforward", module="gluetun_port_forward", service="gluetun"}'
+        values: '51000x40'
+      - series: 'qbittorrent_listen_port{job="json_apis", instance="http://downloaders-vpn:8080/api/v2/app/preferences", module="qbittorrent_preferences", service="qbittorrent"}'
+        values: '0x34 51000x5'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: PortForwardMismatch
+        exp_alerts: []
+      - eval_time: 39m
+        alertname: PortForwardMismatch
+        exp_alerts: []
+    promql_expr_test:
+      - expr: atlas:check_status{check="downloads.port-forward"}
+        eval_time: 30m
+        exp_samples:
+          - labels: 'atlas:check_status{check="downloads.port-forward"}'
+            value: 0

@@ -20,6 +20,20 @@ tests:
       - expr: atlas:check_status
         eval_time: 5m
         exp_samples:
+          - labels: 'atlas:check_status{check="backup.appdata"}'
+            value: 0
+          - labels: 'atlas:check_status{check="backup.appdata-age"}'
+            value: 0
+          - labels: 'atlas:check_status{check="backup.offsite"}'
+            value: 0
+          - labels: 'atlas:check_status{check="backup.offsite-age"}'
+            value: 0
+          - labels: 'atlas:check_status{check="disk.health"}'
+            value: 0
+          - labels: 'atlas:check_status{check="downloads.port-forward"}'
+            value: 0
+          - labels: 'atlas:check_status{check="downloads.vpn"}'
+            value: 0
           - labels: 'atlas:check_status{check="meta.delivery"}'
             value: 0
           - labels: 'atlas:check_status{check="meta.reloads"}'
@@ -27,6 +41,16 @@ tests:
           - labels: 'atlas:check_status{check="meta.targets"}'
             value: 0
           - labels: 'atlas:check_status{check="meta.test"}'
+            value: 0
+          - labels: 'atlas:check_status{check="services.apps"}'
+            value: 0
+          - labels: 'atlas:check_status{check="services.caddy"}'
+            value: 0
+          - labels: 'atlas:check_status{check="services.tunnel"}'
+            value: 0
+          - labels: 'atlas:check_status{check="stacks.health"}'
+            value: 0
+          - labels: 'atlas:check_status{check="storage.space"}'
             value: 0
 
   # Critical beats warning within one check; pending alerts never count.

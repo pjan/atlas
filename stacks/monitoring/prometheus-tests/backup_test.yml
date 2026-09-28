@@ -1,0 +1,289 @@
+# promtool tests for rules/backup.yml: each backup alert fires and turns its
+# check red or amber, stays quiet otherwise, and is not gated. Run by
+# scripts/validate.sh. Outside prometheus/, so Prometheus never loads these.
+
+rule_files:
+  - ../prometheus/rules/rag.yml
+  - ../prometheus/rules/backup.yml
+
+evaluation_interval: 30s
+
+tests:
+  # `backup check` fails at 5m. The gate is on (check written at 0m), and
+  # the alert fires anyway.
+  - name: appdata backup failed
+    interval: 1m
+    input_series:
+      - series: 'atlas_backup_last_exit_code{job="node", instance="atlas", set="appdata", mode="check"}'
+        values: '0x4 1x10'
+      - series: 'atlas_backup_last_run_timestamp_seconds{job="node", instance="atlas", set="appdata", mode="check"}'
+        values: '0x14'
+      - series: 'atlas_backup_last_success_timestamp_seconds{job="node", instance="atlas", set="appdata"}'
+        values: '0x14'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: AppdataBackupFailed
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: AppdataBackupFailed
+        exp_alerts:
+          - exp_labels:
+              alertname: AppdataBackupFailed
+              check: backup.appdata
+              severity: critical
+              source: prometheus
+              job: node
+              instance: atlas
+              set: appdata
+              mode: check
+            exp_annotations:
+              title: Appdata backup failed · backup check
+              description: The nightly appdata snapshot failed in backup check. Read the appdata-backup Action log in Komodo, fix the cause, and run appdata-backup-now.
+              target: /volume1/backups/appdata
+              details: backup.sh check exited with 1
+              link: http://komodo.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+              runbook: https://github.com/pjan/atlas#appdata-backup
+    promql_expr_test:
+      - expr: atlas:maintenance
+        eval_time: 6m
+        exp_samples:
+          - labels: 'atlas:maintenance'
+            value: 1
+      - expr: atlas:check_status{check="backup.appdata"}
+        eval_time: 3m
+        exp_samples:
+          - labels: 'atlas:check_status{check="backup.appdata"}'
+            value: 0
+      - expr: atlas:check_status{check="backup.appdata"}
+        eval_time: 6m
+        exp_samples:
+          - labels: 'atlas:check_status{check="backup.appdata"}'
+            value: 2
+
+  # The last success was at 0; it turns stale after 26 hours plus the 15
+  # minutes of `for`.
+  - name: appdata backup stale
+    interval: 1m
+    input_series:
+      - series: 'atlas_backup_last_success_timestamp_seconds{job="node", instance="atlas", set="appdata"}'
+        values: '0x1600'
+    alert_rule_test:
+      - eval_time: 26h
+        alertname: AppdataBackupStale
+        exp_alerts: []
+      - eval_time: 26h20m
+        alertname: AppdataBackupStale
+        exp_alerts:
+          - exp_labels:
+              alertname: AppdataBackupStale
+              check: backup.appdata-age
+              severity: critical
+              source: prometheus
+              job: node
+              instance: atlas
+              set: appdata
+            exp_annotations:
+              title: Appdata backup stale
+              description: No appdata snapshot has succeeded for more than 26 hours, or the backup metrics are missing. Check that the appdata-backup Action runs every hour in Komodo, then run appdata-backup-now.
+              target: /volume1/backups/appdata
+              details: last success 1d 2h 20m 0s ago
+              link: http://komodo.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+              runbook: https://github.com/pjan/atlas#appdata-backup
+    promql_expr_test:
+      - expr: atlas:check_status{check="backup.appdata-age"}
+        eval_time: 26h
+        exp_samples:
+          - labels: 'atlas:check_status{check="backup.appdata-age"}'
+            value: 0
+      - expr: atlas:check_status{check="backup.appdata-age"}
+        eval_time: 26h20m
+        exp_samples:
+          - labels: 'atlas:check_status{check="backup.appdata-age"}'
+            value: 2
+
+  # No backup metrics at all: both stale alerts fire after 15 minutes.
+  - name: backup metrics missing
+    interval: 1m
+    input_series:
+      - series: 'up{job="node", instance="atlas"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: AppdataBackupStale
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: AppdataBackupStale
+        exp_alerts:
+          - exp_labels:
+              alertname: AppdataBackupStale
+              check: backup.appdata-age
+              severity: critical
+              source: prometheus
+              set: appdata
+            exp_annotations:
+              title: Appdata backup stale
+              description: No appdata snapshot has succeeded for more than 26 hours, or the backup metrics are missing. Check that the appdata-backup Action runs every hour in Komodo, then run appdata-backup-now.
+              target: /volume1/backups/appdata
+              details: no atlas_backup_last_success_timestamp_seconds in /volume1/backups/.metrics
+              link: http://komodo.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+              runbook: https://github.com/pjan/atlas#appdata-backup
+      - eval_time: 20m
+        alertname: OffsiteBackupStale
+        exp_alerts:
+          - exp_labels:
+              alertname: OffsiteBackupStale
+              check: backup.offsite-age
+              severity: critical
+              source: backrest
+            exp_annotations:
+              title: Off-site backup stale · atlas-volume1-backups
+              description: No off-site snapshot has succeeded for more than 30 hours, or the Backrest hook metrics are missing. Check the plan's schedule and hooks in Backrest, then run the plan.
+              target: atlas-volume1-backups → gdrive-atlas-backups
+              details: no atlas_offsite_last_success_timestamp_seconds in /volume1/backups/.metrics
+              link: http://backrest.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+              runbook: https://github.com/pjan/atlas#off-site-backup
+      - eval_time: 20m
+        alertname: OffsiteBackupFailed
+        exp_alerts: []
+
+  # A successful run, then a failed one at 5m (the hook replaces the empty
+  # error with the error text), then a successful one at 15m.
+  - name: offsite backup failed
+    interval: 1m
+    input_series:
+      - series: 'atlas_offsite_last_exit_code{job="node", instance="atlas"}'
+        values: '0x4 1x10 0x5'
+      - series: 'atlas_offsite_last_error_info{job="node", instance="atlas", error=""}'
+        values: '1x4 stale _x9 1x5'
+      - series: 'atlas_offsite_last_error_info{job="node", instance="atlas", error="snapshot start hook: run hook command hook plan/atlas-volume1-backups/hook/0: fatal: exit status 1"}'
+        values: '_x5 1x9 stale'
+      - series: 'atlas_offsite_last_success_timestamp_seconds{job="node", instance="atlas"}'
+        values: '0x20'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: OffsiteBackupFailed
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: OffsiteBackupFailed
+        exp_alerts:
+          - exp_labels:
+              alertname: OffsiteBackupFailed
+              check: backup.offsite
+              severity: critical
+              source: backrest
+              job: node
+              instance: atlas
+            exp_annotations:
+              title: Off-site backup failed · atlas-volume1-backups
+              description: Backrest could not back up /volume1/backups to Google Drive; the previous off-site snapshots are intact. Fix the cause and run the plan again in Backrest.
+              target: atlas-volume1-backups → gdrive-atlas-backups
+              details: 'snapshot start hook: run hook command hook plan/atlas-volume1-backups/hook/0: fatal: exit status 1'
+              link: http://backrest.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+              runbook: https://github.com/pjan/atlas#off-site-backup
+      - eval_time: 7m
+        alertname: OffsiteBackupPartial
+        exp_alerts: []
+      - eval_time: 17m
+        alertname: OffsiteBackupFailed
+        exp_alerts: []
+    promql_expr_test:
+      - expr: atlas:check_status{check="backup.offsite"}
+        eval_time: 3m
+        exp_samples:
+          - labels: 'atlas:check_status{check="backup.offsite"}'
+            value: 0
+      - expr: atlas:check_status{check="backup.offsite"}
+        eval_time: 7m
+        exp_samples:
+          - labels: 'atlas:check_status{check="backup.offsite"}'
+            value: 2
+      - expr: atlas:check_status{check="backup.offsite"}
+        eval_time: 17m
+        exp_samples:
+          - labels: 'atlas:check_status{check="backup.offsite"}'
+            value: 0
+
+  # A snapshot warning (exit code 3) is amber, not red.
+  - name: offsite backup partial
+    interval: 1m
+    input_series:
+      - series: 'atlas_offsite_last_exit_code{job="node", instance="atlas"}'
+        values: '3x10'
+      - series: 'atlas_offsite_last_error_info{job="node", instance="atlas", error="partial backup, 2 files may not have been read completely."}'
+        values: '1x10'
+      - series: 'atlas_offsite_last_success_timestamp_seconds{job="node", instance="atlas"}'
+        values: '0x10'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: OffsiteBackupFailed
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: OffsiteBackupPartial
+        exp_alerts:
+          - exp_labels:
+              alertname: OffsiteBackupPartial
+              check: backup.offsite
+              severity: warning
+              source: backrest
+              job: node
+              instance: atlas
+            exp_annotations:
+              title: Off-site backup partial · atlas-volume1-backups
+              description: Backrest wrote a snapshot, but some files could not be read and are missing off-site. Find them in the plan's last operation in Backrest, fix their permissions, and run the plan again.
+              target: atlas-volume1-backups → gdrive-atlas-backups
+              details: partial backup, 2 files may not have been read completely.
+              link: http://backrest.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+              runbook: https://github.com/pjan/atlas#off-site-backup
+    promql_expr_test:
+      - expr: atlas:check_status{check="backup.offsite"}
+        eval_time: 2m
+        exp_samples:
+          - labels: 'atlas:check_status{check="backup.offsite"}'
+            value: 1
+
+  # The last success was at 0 (a failed run keeps it): stale after 30
+  # hours plus the 15 minutes of `for`.
+  - name: offsite backup stale
+    interval: 1m
+    input_series:
+      - series: 'atlas_offsite_last_success_timestamp_seconds{job="node", instance="atlas"}'
+        values: '0x1840'
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: OffsiteBackupStale
+        exp_alerts: []
+      - eval_time: 30h20m
+        alertname: OffsiteBackupStale
+        exp_alerts:
+          - exp_labels:
+              alertname: OffsiteBackupStale
+              check: backup.offsite-age
+              severity: critical
+              source: backrest
+              job: node
+              instance: atlas
+            exp_annotations:
+              title: Off-site backup stale · atlas-volume1-backups
+              description: No off-site snapshot has succeeded for more than 30 hours, or the Backrest hook metrics are missing. Check the plan's schedule and hooks in Backrest, then run the plan.
+              target: atlas-volume1-backups → gdrive-atlas-backups
+              details: last success 1d 6h 20m 0s ago
+              link: http://backrest.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+              runbook: https://github.com/pjan/atlas#off-site-backup
+    promql_expr_test:
+      - expr: atlas:check_status{check="backup.offsite-age"}
+        eval_time: 30h
+        exp_samples:
+          - labels: 'atlas:check_status{check="backup.offsite-age"}'
+            value: 0
+      - expr: atlas:check_status{check="backup.offsite-age"}
+        eval_time: 30h20m
+        exp_samples:
+          - labels: 'atlas:check_status{check="backup.offsite-age"}'
+            value: 2

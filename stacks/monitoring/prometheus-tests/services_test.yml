@@ -1,0 +1,291 @@
+# promtool tests for rules/services.yml: each service alert fires and turns
+# its check red or amber, stays quiet otherwise, and (where gated) stays
+# quiet during the appdata backup. Run by scripts/validate.sh. Outside
+# prometheus/, so Prometheus never loads these files.
+
+rule_files:
+  - ../prometheus/rules/rag.yml
+  - ../prometheus/rules/services.yml
+
+evaluation_interval: 30s
+
+tests:
+  # Caddy's metrics endpoint stops answering at 5m; its LAN port stays up.
+  - name: caddy down
+    interval: 1m
+    input_series:
+      - series: 'up{job="caddy", instance="caddy:2020"}'
+        values: '1x4 0x10'
+      - series: 'probe_success{job="probe_tcp", instance="192.168.2.200:80", service="caddy"}'
+        values: '1x14'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: CaddyDown
+        exp_alerts: []
+      - eval_time: 9m
+        alertname: CaddyDown
+        exp_alerts:
+          - exp_labels:
+              alertname: CaddyDown
+              check: services.caddy
+              severity: critical
+              source: prometheus
+              job: caddy
+              instance: caddy:2020
+            exp_annotations:
+              title: Caddy down
+              description: Caddy is not answering, so every *.atlas.local route and the tunnel's public hostnames are down. Check the caddy stack and its logs in Komodo and redeploy it.
+              target: caddy:2020
+              details: caddy = 0
+              link: http://komodo.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#caddy
+    promql_expr_test:
+      - expr: atlas:check_status{check="services.caddy"}
+        eval_time: 7m
+        exp_samples:
+          - labels: 'atlas:check_status{check="services.caddy"}'
+            value: 0
+      - expr: atlas:check_status{check="services.caddy"}
+        eval_time: 9m
+        exp_samples:
+          - labels: 'atlas:check_status{check="services.caddy"}'
+            value: 2
+
+  # sonarr and Caddy's own health probe fail from 2m, Plex's direct probe
+  # from 4m. Caddy's probe is left to CaddyDown; Plex is critical.
+  - name: probe failed
+    interval: 1m
+    input_series:
+      - series: 'probe_success{job="probe_health", instance="http://sonarr.atlas.local/ping", module="http_servarr_ping", service="sonarr"}'
+        values: '1 1 0x12'
+      - series: 'probe_success{job="probe_health", instance="http://caddy.atlas.local/", module="http_caddy_ok", service="caddy"}'
+        values: '1 1 0x12'
+      - series: 'probe_success{job="probe_health", instance="http://radarr.atlas.local/ping", module="http_servarr_ping", service="radarr"}'
+        values: '1x13'
+      - series: 'probe_success{job="probe_health", instance="http://192.168.2.200:32400/identity", module="http_plex_identity", service="plex-direct"}'
+        values: '1x3 0x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: ProbeFailed
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: ProbeFailed
+        exp_alerts:
+          - exp_labels:
+              alertname: ProbeFailed
+              check: services.apps
+              severity: warning
+              source: prometheus
+              job: probe_health
+              instance: http://sonarr.atlas.local/ping
+              module: http_servarr_ping
+              service: sonarr
+            exp_annotations:
+              title: Probe failed · sonarr
+              description: sonarr has not answered its health check for 5 minutes. Check the stack and its logs in Komodo and redeploy it if it does not recover.
+              target: sonarr
+              details: http://sonarr.atlas.local/ping (http_servarr_ping)
+              link: http://sonarr.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#application-probes
+      - eval_time: 10m
+        alertname: ProbeFailed
+        exp_alerts:
+          - exp_labels:
+              alertname: ProbeFailed
+              check: services.apps
+              severity: warning
+              source: prometheus
+              job: probe_health
+              instance: http://sonarr.atlas.local/ping
+              module: http_servarr_ping
+              service: sonarr
+            exp_annotations:
+              title: Probe failed · sonarr
+              description: sonarr has not answered its health check for 5 minutes. Check the stack and its logs in Komodo and redeploy it if it does not recover.
+              target: sonarr
+              details: http://sonarr.atlas.local/ping (http_servarr_ping)
+              link: http://sonarr.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#application-probes
+          - exp_labels:
+              alertname: ProbeFailed
+              check: services.apps
+              severity: critical
+              source: prometheus
+              job: probe_health
+              instance: http://192.168.2.200:32400/identity
+              module: http_plex_identity
+              service: plex-direct
+            exp_annotations:
+              title: Probe failed · plex-direct
+              description: Plex has not answered its health check (plex-direct) for 5 minutes, so streaming is down. Check the plex stack and its logs in Komodo and redeploy it if it does not recover.
+              target: plex-direct
+              details: http://192.168.2.200:32400/identity (http_plex_identity)
+              link: http://192.168.2.200:32400
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#application-probes
+    promql_expr_test:
+      - expr: atlas:check_status{check="services.apps"}
+        eval_time: 5m
+        exp_samples:
+          - labels: 'atlas:check_status{check="services.apps"}'
+            value: 0
+      - expr: atlas:check_status{check="services.apps"}
+        eval_time: 8m
+        exp_samples:
+          - labels: 'atlas:check_status{check="services.apps"}'
+            value: 1
+      - expr: atlas:check_status{check="services.apps"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'atlas:check_status{check="services.apps"}'
+            value: 2
+
+  # The nightly backup: `backup check` at 0m, `backup run` at 30m. The
+  # stopped stacks fail their probes and report `stopped` until 40m, and
+  # nothing fires. Caddy is gated too.
+  - name: services gated during the backup
+    interval: 1m
+    input_series:
+      - series: 'atlas_backup_last_run_timestamp_seconds{job="node", instance="atlas", set="appdata", mode="check"}'
+        values: '0x29 stale'
+      - series: 'atlas_backup_last_run_timestamp_seconds{job="node", instance="atlas", set="appdata", mode="run"}'
+        values: '_x30 1800x30'
+      - series: 'probe_success{job="probe_health", instance="http://sonarr.atlas.local/ping", module="http_servarr_ping", service="sonarr"}'
+        values: '1 0x39 1x20'
+      - series: 'probe_success{job="probe_health", instance="http://plex.atlas.local/identity", module="http_plex_identity", service="plex"}'
+        values: '1 0x39 1x20'
+      - series: 'komodo_stack_info{job="json_apis", instance="http://192.168.2.200:9120/read/ListStacks", module="komodo_stacks", service="komodo", stack="sonarr", state="stopped"}'
+        values: '_ 1x39 stale'
+      - series: 'komodo_stack_info{job="json_apis", instance="http://192.168.2.200:9120/read/ListStacks", module="komodo_stacks", service="komodo", stack="sonarr", state="running"}'
+        values: '1 stale _x38 1x20'
+      - series: 'up{job="caddy", instance="caddy:2020"}'
+        values: '1 0x10 1x49'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ProbeFailed
+        exp_alerts: []
+      - eval_time: 38m
+        alertname: StackUnhealthy
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: CaddyDown
+        exp_alerts: []
+      - eval_time: 55m
+        alertname: ProbeFailed
+        exp_alerts: []
+    promql_expr_test:
+      - expr: atlas:check_status{check="services.apps"}
+        eval_time: 38m
+        exp_samples:
+          - labels: 'atlas:check_status{check="services.apps"}'
+            value: 0
+      - expr: atlas:check_status{check="stacks.health"}
+        eval_time: 38m
+        exp_samples:
+          - labels: 'atlas:check_status{check="stacks.health"}'
+            value: 0
+
+  # cloudflared loses its connections at 2m; its metrics disappear at 12m.
+  - name: tunnel down
+    interval: 1m
+    input_series:
+      - series: 'cloudflared_tunnel_ha_connections{job="cloudflared", instance="cloudflared:2000"}'
+        values: '4 4 0x9 stale'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: TunnelDown
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: TunnelDown
+        exp_alerts:
+          - exp_labels:
+              alertname: TunnelDown
+              check: services.tunnel
+              severity: critical
+              source: prometheus
+            exp_annotations:
+              title: Cloudflare tunnel down
+              description: cloudflared has no connection to Cloudflare, or its metrics are missing, so the public *.atlas.vandaele.io hostnames are down. Check the cloudflared stack and its logs in Komodo.
+              target: cloudflared
+              details: ha_connections = 0
+              link: http://komodo.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#cloudflare-tunnel
+      - eval_time: 20m
+        alertname: TunnelDown
+        exp_alerts:
+          - exp_labels:
+              alertname: TunnelDown
+              check: services.tunnel
+              severity: critical
+              source: prometheus
+            exp_annotations:
+              title: Cloudflare tunnel down
+              description: cloudflared has no connection to Cloudflare, or its metrics are missing, so the public *.atlas.vandaele.io hostnames are down. Check the cloudflared stack and its logs in Komodo.
+              target: cloudflared
+              details: no cloudflared_tunnel_ha_connections
+              link: http://komodo.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#cloudflare-tunnel
+    promql_expr_test:
+      - expr: atlas:check_status{check="services.tunnel"}
+        eval_time: 5m
+        exp_samples:
+          - labels: 'atlas:check_status{check="services.tunnel"}'
+            value: 0
+      - expr: atlas:check_status{check="services.tunnel"}
+        eval_time: 8m
+        exp_samples:
+          - labels: 'atlas:check_status{check="services.tunnel"}'
+            value: 2
+
+  # seerr turns unhealthy at 2m; appdata-backup is down (never deployed).
+  - name: stack unhealthy
+    interval: 1m
+    input_series:
+      - series: 'komodo_stack_info{job="json_apis", instance="http://192.168.2.200:9120/read/ListStacks", module="komodo_stacks", service="komodo", stack="seerr", state="running"}'
+        values: '1 1 stale'
+      - series: 'komodo_stack_info{job="json_apis", instance="http://192.168.2.200:9120/read/ListStacks", module="komodo_stacks", service="komodo", stack="seerr", state="unhealthy"}'
+        values: '_ _ 1x20'
+      - series: 'komodo_stack_info{job="json_apis", instance="http://192.168.2.200:9120/read/ListStacks", module="komodo_stacks", service="komodo", stack="appdata-backup", state="down"}'
+        values: '1x22'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: StackUnhealthy
+        exp_alerts: []
+      - eval_time: 18m
+        alertname: StackUnhealthy
+        exp_alerts:
+          - exp_labels:
+              alertname: StackUnhealthy
+              check: stacks.health
+              severity: warning
+              source: komodo
+              job: json_apis
+              instance: http://192.168.2.200:9120/read/ListStacks
+              module: komodo_stacks
+              service: komodo
+              stack: seerr
+              state: unhealthy
+            exp_annotations:
+              title: Stack unhealthy · seerr
+              description: Komodo has reported the seerr stack as unhealthy for 15 minutes. Open it in Komodo, check its containers and logs, and deploy it again.
+              target: seerr
+              details: state = unhealthy
+              link: http://komodo.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#stack-health
+    promql_expr_test:
+      - expr: atlas:check_status{check="stacks.health"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'atlas:check_status{check="stacks.health"}'
+            value: 0
+      - expr: atlas:check_status{check="stacks.health"}
+        eval_time: 18m
+        exp_samples:
+          - labels: 'atlas:check_status{check="stacks.health"}'
+            value: 1

@@ -1,0 +1,98 @@
+# Backup alerts: the nightly appdata snapshot (backup.sh textfile) and the
+# off-site Backrest plan (plan hook textfile, see README "Off-Site Backups
+# With Backrest"). Never gated: a backup that fails while the gate is on must
+# still alert. Failure and staleness are separate checks, so each check has
+# at most one critical rule. Tests: stacks/monitoring/prometheus-tests/.
+
+groups:
+  - name: backup
+    rules:
+      # backup.sh keeps only the latest mode (check or run), so this latches
+      # until the next nightly run; the hourly no-op runs never touch it.
+      - alert: AppdataBackupFailed
+        expr: atlas_backup_last_exit_code{set="appdata"} != 0
+        labels:
+          check: backup.appdata
+          severity: critical
+          source: prometheus
+        annotations:
+          title: Appdata backup failed · backup {{ $labels.mode }}
+          description: The nightly appdata snapshot failed in backup {{ $labels.mode }}. Read the appdata-backup Action log in Komodo, fix the cause, and run appdata-backup-now.
+          target: /volume1/backups/appdata
+          details: backup.sh {{ $labels.mode }} exited with {{ $value }}
+          link: http://komodo.atlas.local
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+          runbook: https://github.com/pjan/atlas#appdata-backup
+
+      # 26 hours: one missed night. Also fires without the metric at all.
+      - alert: AppdataBackupStale
+        expr: |
+          time() - atlas_backup_last_success_timestamp_seconds{set="appdata"} > 93600
+          or absent(atlas_backup_last_success_timestamp_seconds{set="appdata"})
+        for: 15m
+        labels:
+          check: backup.appdata-age
+          severity: critical
+          source: prometheus
+        annotations:
+          title: Appdata backup stale
+          description: No appdata snapshot has succeeded for more than 26 hours, or the backup metrics are missing. Check that the appdata-backup Action runs every hour in Komodo, then run appdata-backup-now.
+          target: /volume1/backups/appdata
+          details: '{{ if $labels.job }}last success {{ $value | humanizeDuration }} ago{{ else }}no atlas_backup_last_success_timestamp_seconds in /volume1/backups/.metrics{{ end }}'
+          link: http://komodo.atlas.local
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+          runbook: https://github.com/pjan/atlas#appdata-backup
+
+      # Exit code 1: the snapshot failed, including the pre-check on snapshot
+      # start. The error text comes from atlas_offsite_last_error_info.
+      - alert: OffsiteBackupFailed
+        expr: atlas_offsite_last_exit_code != 0 and atlas_offsite_last_exit_code != 3
+        labels:
+          check: backup.offsite
+          severity: critical
+          source: backrest
+        annotations:
+          title: Off-site backup failed · atlas-volume1-backups
+          description: Backrest could not back up /volume1/backups to Google Drive; the previous off-site snapshots are intact. Fix the cause and run the plan again in Backrest.
+          target: atlas-volume1-backups → gdrive-atlas-backups
+          details: '{{ with query `atlas_offsite_last_error_info{error!=""}` }}{{ . | first | label "error" }}{{ else }}exit code {{ $value }}{{ end }}'
+          link: http://backrest.atlas.local
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+          runbook: https://github.com/pjan/atlas#off-site-backup
+
+      # Exit code 3: a snapshot was written, but restic could not read some
+      # files, so they are missing off-site.
+      - alert: OffsiteBackupPartial
+        expr: atlas_offsite_last_exit_code == 3
+        labels:
+          check: backup.offsite
+          severity: warning
+          source: backrest
+        annotations:
+          title: Off-site backup partial · atlas-volume1-backups
+          description: Backrest wrote a snapshot, but some files could not be read and are missing off-site. Find them in the plan's last operation in Backrest, fix their permissions, and run the plan again.
+          target: atlas-volume1-backups → gdrive-atlas-backups
+          details: '{{ with query `atlas_offsite_last_error_info{error!=""}` }}{{ . | first | label "error" }}{{ else }}exit code {{ $value }}{{ end }}'
+          link: http://backrest.atlas.local
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+          runbook: https://github.com/pjan/atlas#off-site-backup
+
+      # 30 hours: the plan runs daily at 06:00. The hook keeps the previous
+      # success time on errors. Also fires without the metric at all.
+      - alert: OffsiteBackupStale
+        expr: |
+          time() - atlas_offsite_last_success_timestamp_seconds > 108000
+          or absent(atlas_offsite_last_success_timestamp_seconds)
+        for: 15m
+        labels:
+          check: backup.offsite-age
+          severity: critical
+          source: backrest
+        annotations:
+          title: Off-site backup stale · atlas-volume1-backups
+          description: No off-site snapshot has succeeded for more than 30 hours, or the Backrest hook metrics are missing. Check the plan's schedule and hooks in Backrest, then run the plan.
+          target: atlas-volume1-backups → gdrive-atlas-backups
+          details: '{{ if $labels.job }}last success {{ $value | humanizeDuration }} ago{{ else }}no atlas_offsite_last_success_timestamp_seconds in /volume1/backups/.metrics{{ end }}'
+          link: http://backrest.atlas.local
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+          runbook: https://github.com/pjan/atlas#off-site-backup

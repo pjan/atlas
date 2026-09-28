@@ -21,6 +21,23 @@ route:
       receiver: discord
       repeat_interval: 4h
 
+# A root cause suppresses the alerts it causes, in Discord only: inhibited
+# alerts still turn their tiles red or amber on Atlas Critical Health.
+inhibit_rules:
+  # Every probe_health target except plex-direct goes through Caddy.
+  - source_matchers: ['alertname="CaddyDown"']
+    target_matchers: ['alertname="ProbeFailed"', 'service!="plex-direct"']
+  # Applications in Gluetun's network namespace (network_mode container:gluetun).
+  - source_matchers: ['alertname="VpnDown"']
+    target_matchers:
+      - alertname="ProbeFailed"
+      - service=~"autobrr|bazarr|flaresolverr|lidarr|prowlarr|qbittorrent|radarr|sabnzbd|slskd|sonarr|spottarr"
+  - source_matchers: ['alertname="VpnDown"']
+    target_matchers: ['alertname="PortForwardMismatch"']
+  - source_matchers: ['alertname="VolumeSpaceCritical"']
+    target_matchers: ['alertname="VolumeSpaceLow"']
+    equal: [mountpoint]
+
 receivers:
   # Rich embeds rendered by atlas.tmpl, at most 4 per message.
   - name: discord

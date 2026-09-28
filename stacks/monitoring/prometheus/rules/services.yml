@@ -1,0 +1,107 @@
+# Service alerts: Caddy, the application health probes, the Cloudflare
+# tunnel, and the Komodo stack states. Rules affected by stacks the appdata
+# backup stops are gated with `unless on () atlas:maintenance == 1`.
+# Inhibitions are in alertmanager.yml. Tests: stacks/monitoring/prometheus-tests/.
+
+groups:
+  - name: services
+    rules:
+      # Caddy's own metrics endpoint on the Docker network and its LAN port,
+      # neither through DNS. Inhibits ProbeFailed except plex-direct.
+      - alert: CaddyDown
+        expr: |
+          (
+              up{job="caddy"} == 0
+            or
+              probe_success{job="probe_tcp", service="caddy"} == 0
+          )
+          unless on () atlas:maintenance == 1
+        for: 3m
+        labels:
+          check: services.caddy
+          severity: critical
+          source: prometheus
+        annotations:
+          title: Caddy down
+          description: Caddy is not answering, so every *.atlas.local route and the tunnel's public hostnames are down. Check the caddy stack and its logs in Komodo and redeploy it.
+          target: "{{ $labels.instance }}"
+          details: "{{ $labels.job }} = 0"
+          link: http://komodo.atlas.local
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+          runbook: https://github.com/pjan/atlas#caddy
+
+      # Application health endpoints (job probe_health). Caddy's own probe is
+      # left to CaddyDown; Plex has the critical rule below.
+      - alert: ProbeFailed
+        expr: |
+          probe_success{job="probe_health", service!~"caddy|plex|plex-direct"} == 0
+          unless on () atlas:maintenance == 1
+        for: 5m
+        labels:
+          check: services.apps
+          severity: warning
+          source: prometheus
+        annotations:
+          title: Probe failed · {{ $labels.service }}
+          description: "{{ $labels.service }} has not answered its health check for 5 minutes. Check the stack and its logs in Komodo and redeploy it if it does not recover."
+          target: "{{ $labels.service }}"
+          details: "{{ $labels.instance }} ({{ $labels.module }})"
+          link: '{{ reReplaceAll "^(https?://[^/]+).*$" "$1" $labels.instance }}'
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+          runbook: https://github.com/pjan/atlas#application-probes
+
+      - alert: ProbeFailed
+        expr: |
+          probe_success{job="probe_health", service=~"plex|plex-direct"} == 0
+          unless on () atlas:maintenance == 1
+        for: 5m
+        labels:
+          check: services.apps
+          severity: critical
+          source: prometheus
+        annotations:
+          title: Probe failed · {{ $labels.service }}
+          description: "Plex has not answered its health check ({{ $labels.service }}) for 5 minutes, so streaming is down. Check the plex stack and its logs in Komodo and redeploy it if it does not recover."
+          target: "{{ $labels.service }}"
+          details: "{{ $labels.instance }} ({{ $labels.module }})"
+          link: '{{ reReplaceAll "^(https?://[^/]+).*$" "$1" $labels.instance }}'
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+          runbook: https://github.com/pjan/atlas#application-probes
+
+      # Not gated: cloudflared is never stopped. Also fires when its metrics
+      # are missing (cloudflared is not in MonitoringTargetDown).
+      - alert: TunnelDown
+        expr: (max(cloudflared_tunnel_ha_connections) or vector(0)) == 0
+        for: 5m
+        labels:
+          check: services.tunnel
+          severity: critical
+          source: prometheus
+        annotations:
+          title: Cloudflare tunnel down
+          description: cloudflared has no connection to Cloudflare, or its metrics are missing, so the public *.atlas.vandaele.io hostnames are down. Check the cloudflared stack and its logs in Komodo.
+          target: cloudflared
+          details: '{{ with query "cloudflared_tunnel_ha_connections" }}ha_connections = 0{{ else }}no cloudflared_tunnel_ha_connections{{ end }}'
+          link: http://komodo.atlas.local
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+          runbook: https://github.com/pjan/atlas#cloudflare-tunnel
+
+      # Komodo stack states (json_apis). down means not deployed (for example
+      # appdata-backup); stopped during the backup is gated.
+      - alert: StackUnhealthy
+        expr: |
+          komodo_stack_info{state!~"running|down"}
+          unless on () atlas:maintenance == 1
+        for: 15m
+        labels:
+          check: stacks.health
+          severity: warning
+          source: komodo
+        annotations:
+          title: Stack unhealthy · {{ $labels.stack }}
+          description: Komodo has reported the {{ $labels.stack }} stack as {{ $labels.state }} for 15 minutes. Open it in Komodo, check its containers and logs, and deploy it again.
+          target: "{{ $labels.stack }}"
+          details: "state = {{ $labels.state }}"
+          link: http://komodo.atlas.local
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+          runbook: https://github.com/pjan/atlas#stack-health

@@ -1,0 +1,216 @@
+# promtool tests for rules/storage.yml: disk and volume alerts fire and turn
+# their check red or amber, and stay quiet on healthy disks and volumes. Run
+# by scripts/validate.sh. Outside prometheus/, so Prometheus never loads these.
+
+rule_files:
+  - ../prometheus/rules/rag.yml
+  - ../prometheus/rules/storage.yml
+
+evaluation_interval: 30s
+
+tests:
+  # Three healthy disks with old error counts; then the Volume 2 NVMe's spare
+  # drops to its threshold at 5m, and a btrfs write error at 10m.
+  - name: disk failing
+    interval: 1m
+    input_series:
+      - series: 'smartctl_device_smart_status{job="smartctl", instance="atlas", device="wwn-0x5000c500c81fb81d"}'
+        values: '1x20'
+      - series: 'smartctl_device_smart_status{job="smartctl", instance="atlas", device="nvme-eui.0000000626012893caf25b0b330000ca"}'
+        values: '1x20'
+      - series: 'smartctl_device_smart_status{job="smartctl", instance="atlas", device="nvme-eui.00000000000000000c82d52610042585"}'
+        values: '1x20'
+      - series: 'smartctl_device_critical_warning{job="smartctl", instance="atlas", device="nvme-eui.0000000626012893caf25b0b330000ca"}'
+        values: '0x20'
+      - series: 'smartctl_device_available_spare{job="smartctl", instance="atlas", device="nvme-eui.0000000626012893caf25b0b330000ca"}'
+        values: '100x4 5x16'
+      - series: 'smartctl_device_available_spare_threshold{job="smartctl", instance="atlas", device="nvme-eui.0000000626012893caf25b0b330000ca"}'
+        values: '5x20'
+      - series: 'smartctl_device_media_errors{job="smartctl", instance="atlas", device="nvme-eui.00000000000000000c82d52610042585"}'
+        values: '4x20'
+      - series: 'node_btrfs_device_errors_total{job="node", instance="atlas", device="md1", type="write", uuid="0f1e"}'
+        values: '2x9 3x11'
+      - series: 'node_btrfs_device_errors_total{job="node", instance="atlas", device="md1", type="read", uuid="0f1e"}'
+        values: '7x20'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DiskFailing
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: DiskFailing
+        exp_alerts:
+          - exp_labels:
+              alertname: DiskFailing
+              check: disk.health
+              severity: critical
+              source: prometheus
+              device: nvme-eui.0000000626012893caf25b0b330000ca
+              disk: Volume 2 · NVMe 512 GB
+              reason: NVMe spare at or below threshold
+            exp_annotations:
+              title: Disk failing · Volume 2 · NVMe 512 GB
+              description: "Volume 2 · NVMe 512 GB: NVMe spare at or below threshold. The volumes have no redundancy: make sure the backups are current, then plan a replacement."
+              target: Volume 2 · NVMe 512 GB
+              details: NVMe spare at or below threshold = 5 (device nvme-eui.0000000626012893caf25b0b330000ca)
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#disk-health
+          - exp_labels:
+              alertname: DiskFailing
+              check: disk.health
+              severity: critical
+              source: prometheus
+              device: md1
+              disk: md1
+              reason: new btrfs write errors
+            exp_annotations:
+              title: Disk failing · md1
+              description: "md1: new btrfs write errors. The volumes have no redundancy: make sure the backups are current, then plan a replacement."
+              target: md1
+              details: new btrfs write errors = 1 (device md1)
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#disk-health
+      - eval_time: 12m
+        alertname: SmartDataMissing
+        exp_alerts: []
+    promql_expr_test:
+      - expr: atlas:check_status{check="disk.health"}
+        eval_time: 3m
+        exp_samples:
+          - labels: 'atlas:check_status{check="disk.health"}'
+            value: 0
+      - expr: atlas:check_status{check="disk.health"}
+        eval_time: 12m
+        exp_samples:
+          - labels: 'atlas:check_status{check="disk.health"}'
+            value: 2
+
+  # smartctl-exporter reports only two disks from 0m, then none from 40m.
+  - name: smart data missing
+    interval: 1m
+    input_series:
+      - series: 'smartctl_device_smart_status{job="smartctl", instance="atlas", device="nvme-eui.0000000626012893caf25b0b330000ca"}'
+        values: '1x39 stale'
+      - series: 'smartctl_device_smart_status{job="smartctl", instance="atlas", device="nvme-eui.00000000000000000c82d52610042585"}'
+        values: '1x39 stale'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SmartDataMissing
+        exp_alerts: []
+      - eval_time: 35m
+        alertname: SmartDataMissing
+        exp_alerts:
+          - exp_labels:
+              alertname: SmartDataMissing
+              check: disk.health
+              severity: warning
+              source: prometheus
+            exp_annotations:
+              title: SMART data missing
+              description: smartctl-exporter reports fewer than 3 disks, so DiskFailing cannot see every disk. Check the smartctl-exporter logs in the monitoring stack.
+              target: smartctl-exporter
+              details: 2 of 3 disks reported
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#disk-health
+      - eval_time: 45m
+        alertname: SmartDataMissing
+        exp_alerts:
+          - exp_labels:
+              alertname: SmartDataMissing
+              check: disk.health
+              severity: warning
+              source: prometheus
+            exp_annotations:
+              title: SMART data missing
+              description: smartctl-exporter reports fewer than 3 disks, so DiskFailing cannot see every disk. Check the smartctl-exporter logs in the monitoring stack.
+              target: smartctl-exporter
+              details: 0 of 3 disks reported
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#disk-health
+    promql_expr_test:
+      - expr: atlas:check_status{check="disk.health"}
+        eval_time: 20m
+        exp_samples:
+          - labels: 'atlas:check_status{check="disk.health"}'
+            value: 0
+      - expr: atlas:check_status{check="disk.health"}
+        eval_time: 35m
+        exp_samples:
+          - labels: 'atlas:check_status{check="disk.health"}'
+            value: 1
+
+  # /volume1 fills from 20 % free to 8 % (at 5m) and 4 % (at 40m); /volume2
+  # stays at 50 %.
+  - name: volume space
+    interval: 1m
+    input_series:
+      - series: 'node_filesystem_size_bytes{job="node", instance="atlas", device="/dev/md1", fstype="btrfs", mountpoint="/volume1"}'
+        values: '100x60'
+      - series: 'node_filesystem_avail_bytes{job="node", instance="atlas", device="/dev/md1", fstype="btrfs", mountpoint="/volume1"}'
+        values: '20x4 8x35 4x20'
+      - series: 'node_filesystem_size_bytes{job="node", instance="atlas", device="/dev/md2", fstype="ext4", mountpoint="/volume2"}'
+        values: '100x60'
+      - series: 'node_filesystem_avail_bytes{job="node", instance="atlas", device="/dev/md2", fstype="ext4", mountpoint="/volume2"}'
+        values: '50x60'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: VolumeSpaceLow
+        exp_alerts: []
+      - eval_time: 38m
+        alertname: VolumeSpaceLow
+        exp_alerts:
+          - exp_labels:
+              alertname: VolumeSpaceLow
+              check: storage.space
+              severity: warning
+              source: prometheus
+              job: node
+              instance: atlas
+              device: /dev/md1
+              fstype: btrfs
+              mountpoint: /volume1
+            exp_annotations:
+              title: Volume space low · /volume1
+              description: "/volume1 has less than 10 % free space. Find what grew on Atlas Health and clean up before it drops below 5 %."
+              target: /volume1
+              details: 8% free
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#volume-space
+      - eval_time: 38m
+        alertname: VolumeSpaceCritical
+        exp_alerts: []
+      - eval_time: 47m
+        alertname: VolumeSpaceCritical
+        exp_alerts:
+          - exp_labels:
+              alertname: VolumeSpaceCritical
+              check: storage.space
+              severity: critical
+              source: prometheus
+              job: node
+              instance: atlas
+              device: /dev/md1
+              fstype: btrfs
+              mountpoint: /volume1
+            exp_annotations:
+              title: Volume space critical · /volume1
+              description: "/volume1 has less than 5 % free space, and writes, downloads, or backups will soon fail. Free space now."
+              target: /volume1
+              details: 4% free
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#volume-space
+    promql_expr_test:
+      - expr: atlas:check_status{check="storage.space"}
+        eval_time: 20m
+        exp_samples:
+          - labels: 'atlas:check_status{check="storage.space"}'
+            value: 0
+      - expr: atlas:check_status{check="storage.space"}
+        eval_time: 38m
+        exp_samples:
+          - labels: 'atlas:check_status{check="storage.space"}'
+            value: 1
+      - expr: atlas:check_status{check="storage.space"}
+        eval_time: 47m
+        exp_samples:
+          - labels: 'atlas:check_status{check="storage.space"}'
+            value: 2

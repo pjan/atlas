@@ -265,6 +265,7 @@ Layout inside the container:
 | `/data` | `/volume2/appdata/backrest/data` | Operation history and logs |
 | `/cache` | `/volume2/tmp/backrest/cache` | restic cache, one per repository, disposable |
 | `/restore` | `/volume2/tmp/backrest/restore` | Target for restores from the UI |
+| `/metrics` | `/volume1/backups/.metrics` (read-write) | `atlas_offsite.prom`, written by the plan's metrics hook for Prometheus |
 
 Naming conventions:
 
@@ -280,7 +281,60 @@ Current configuration:
 | rclone remote | `[gdrive-atlas]`: `type = drive`, `scope = drive`, `service_account_file = /config/rclone/io-vandaele-atlas-backrest.json`, `team_drive = <Atlas Shared Drive ID>` |
 | Repository | `gdrive-atlas-backups`, URI `rclone:gdrive-atlas:backups`, flag `--pack-size=64`, auto unlock, weekly prune and check (last-run clock), Discord hook on any error |
 | Plan | `atlas-volume1-backups`: source `/sources/volume1-backups`, excluding `#recycle`, `manual`, and `komodo-pre-rebuild-*`; daily at 06:00 (local clock); keep 7 daily, 4 weekly, 12 monthly |
-| Plan hooks | Pre-check on snapshot start with `ON_ERROR_FATAL` (fails unless the appdata snapshot is complete and younger than 26 hours); Healthchecks on snapshot start, success, warning, skipped, and error |
+| Plan hooks | Pre-check on snapshot start with `ON_ERROR_FATAL` (fails unless the appdata snapshot is complete and younger than 26 hours); the [metrics hook](#off-site-backup-metrics) on snapshot success, warning, and error; Healthchecks on snapshot start, success, warning, skipped, and error |
+
+#### Off-Site Backup Metrics
+
+The plan's metrics hook writes the result of every snapshot to `/metrics/atlas_offsite.prom` (`/volume1/backups/.metrics`), which node-exporter reads, so the [off-site backup alerts](#off-site-backup) and the dashboards see it. Hooks live in Backrest's `/config/config.json`, not in this repository, so the script is kept here. Add it in the Backrest UI: open the plan `atlas-volume1-backups`, add a hook of type **Command** with the conditions `CONDITION_SNAPSHOT_SUCCESS`, `CONDITION_SNAPSHOT_WARNING`, and `CONDITION_SNAPSHOT_ERROR`, error behaviour `ON_ERROR_IGNORE`, and this command:
+
+```sh
+#!/bin/sh
+# Atlas: off-site backup metrics for Prometheus (README "Off-Site Backups With Backrest").
+set -eu
+out=/metrics/atlas_offsite.prom
+tmp=/metrics/.atlas_offsite.tmp
+now={{ .CurTime.Unix }}
+{{ if eq .Event.String "CONDITION_SNAPSHOT_SUCCESS" }}code=0
+{{ else if eq .Event.String "CONDITION_SNAPSHOT_WARNING" }}code=3
+{{ else }}code=1
+{{ end -}}
+{{ with .SnapshotStats }}added={{ .DataAdded }}
+{{ else }}added=0
+{{ end -}}
+# Untrusted text: printable ASCII without quotes or backslashes, at most 200 characters.
+error=$(printf '%s' {{ .ShellEscape .Error }} | tr '\n\r\t' '   ' | tr -cd ' -~' | tr -d '"`\\'"'" | cut -c 1-200)
+last_success=$(awk '$1 == "atlas_offsite_last_success_timestamp_seconds" { print $2 }' "$out" 2>/dev/null || true)
+case $last_success in ''|*[!0-9]*) last_success=0 ;; esac
+if [ "$code" -ne 1 ]; then last_success=$now; fi
+cat > "$tmp" <<PROM
+# HELP atlas_offsite_last_run_timestamp_seconds Unix time the last off-site snapshot finished.
+# TYPE atlas_offsite_last_run_timestamp_seconds gauge
+atlas_offsite_last_run_timestamp_seconds $now
+# HELP atlas_offsite_last_success_timestamp_seconds Unix time of the last successful or partial off-site snapshot.
+# TYPE atlas_offsite_last_success_timestamp_seconds gauge
+atlas_offsite_last_success_timestamp_seconds $last_success
+# HELP atlas_offsite_last_exit_code Result of the last off-site snapshot: 0 success, 3 partial, 1 error.
+# TYPE atlas_offsite_last_exit_code gauge
+atlas_offsite_last_exit_code $code
+# HELP atlas_offsite_last_duration_seconds Duration of the last off-site snapshot.
+# TYPE atlas_offsite_last_duration_seconds gauge
+atlas_offsite_last_duration_seconds {{ printf "%.0f" .Duration.Seconds }}
+# HELP atlas_offsite_last_bytes_added Bytes the last off-site snapshot added to the repository.
+# TYPE atlas_offsite_last_bytes_added gauge
+atlas_offsite_last_bytes_added $added
+# HELP atlas_offsite_last_error_info Error of the last off-site snapshot (empty on success).
+# TYPE atlas_offsite_last_error_info gauge
+atlas_offsite_last_error_info{error="$error"} 1
+PROM
+chmod 0644 "$tmp"
+mv -f "$tmp" "$out"
+```
+
+- Backrest renders the command as a Go template before running it. `.SnapshotStats` is empty when the snapshot fails before restic runs (for example when the pre-check fails), hence the `with`. The error text is untrusted: it is shell-quoted by `ShellEscape`, then reduced to at most 200 printable ASCII characters without quotes or backslashes, so it is a valid label value.
+- The metrics are `atlas_offsite_last_run_timestamp_seconds`, `atlas_offsite_last_success_timestamp_seconds` (a failed snapshot keeps the previous value), `atlas_offsite_last_exit_code` (0 success, 3 partial, 1 error), `atlas_offsite_last_duration_seconds`, `atlas_offsite_last_bytes_added`, and `atlas_offsite_last_error_info{error}`. They must not reuse the `atlas_backup_*` names of `atlas_backups.prom`: node-exporter drops a metric whose HELP text differs between two files.
+- The file is written to a temporary name that node-exporter ignores and then renamed, so node-exporter never reads a partial file. Backrest runs as root with `DAC_OVERRIDE`, so it can write to the root-owned directory; the file is `0644` for node-exporter (`65534`).
+- The hook is for this plan only: another plan needs its own file name and metric labels.
+- To test it, run the plan with **Backup now** and check the file on the NAS: `cat /volume1/backups/.metrics/atlas_offsite.prom`.
 
 The restic password and the service-account key are also stored inside the backup itself (in the appdata snapshot of `/volume2/appdata/backrest`), so they must be kept in the password manager too; without them the off-site copy cannot be opened.
 
@@ -1517,6 +1571,7 @@ exporters, textfiles ─► Prometheus ─► rules (label check=…) ─► Ale
 - Prometheus reloads the rule files together with `prometheus.yml`. Alertmanager's `stacks/monitoring/alertmanager/alertmanager.yml` and `atlas.tmpl` apply on the next `monitoring` deploy, whose `post_deploy` sends `SIGHUP`. An invalid file keeps the previous configuration and raises `ConfigReloadFailed`.
 - Alerts are grouped by `alertname`: a group is sent 30 seconds after its first alert and at most every 5 minutes after that. Resolutions are sent too. Warnings repeat every 12 hours and criticals every 4 hours. Both go to the same channel, without mentions.
 - The Discord webhook URL (`DISCORD_ALERTS_WEBHOOK_URL`) and the Healthchecks.io ping URL (`HEALTHCHECKS_WATCHDOG_PING_URL`) reach Alertmanager as Compose secrets (`url_file`), so Alertmanager runs without a read-only root filesystem, like `json-exporter`. Alertmanager has no host port and no route; its API is unauthenticated inside `monitoring_network`. Silences and the notification log live in `/volume2/appdata/alertmanager`, which is not backed up.
+- A root cause suppresses the Discord messages of the alerts it causes (`inhibit_rules` in `alertmanager.yml`): `CaddyDown` suppresses `ProbeFailed` (except `plex-direct`, which does not go through Caddy); `VpnDown` suppresses `ProbeFailed` for the applications in Gluetun's network namespace and `PortForwardMismatch`; `VolumeSpaceCritical` suppresses `VolumeSpaceLow` for the same volume. The suppressed alerts' tiles still turn red or amber.
 - Silence an alert from the NAS (the Atlas Critical Health header counts active silences):
 
   ```sh
@@ -1582,6 +1637,12 @@ Set it up once in Healthchecks.io:
 
 To test it, stop the `alertmanager` container for 20 minutes: Healthchecks.io sends Discord and email after about 15 minutes, and starting it again recovers the check.
 
+The Healthchecks.io checks for the appdata and off-site backups, and Backrest's Discord hook, stay until the local backup alerts have proven themselves over two green nights (the Atlas Critical Health tiles `backup.*` stayed green and the metrics files were updated). Then retire them:
+
+1. In Backrest, delete the Healthchecks hooks of the plan `atlas-volume1-backups` and the Discord hook of the repository `gdrive-atlas-backups`; keep the pre-check and the metrics hook.
+2. Remove the Healthchecks ping (`HEALTHCHECK_URL`) from the `appdata-backup` Action in `stacks.toml`, and the variable `HEALTHCHECKS_APPDATA_PING_URL` from `stacks.toml`, the validator's inventory, and this README; then run Resource Sync and delete the variable in Komodo.
+3. Delete the appdata and off-site checks in Healthchecks.io. Only "Atlas alerting" remains.
+
 ### Runbooks
 
 #### Alert Delivery
@@ -1620,6 +1681,75 @@ rm /volume1/backups/.metrics/atlas_test.prom
 ```
 
 The tile turns green within 2 minutes, and the RESOLVED message follows within 5 more minutes. The RAG timeline on Atlas Critical Health shows the episode.
+
+#### Appdata Backup
+
+`AppdataBackupFailed` (`backup.appdata`, critical): the last `backup.sh` run exited non-zero (`atlas_backup_last_exit_code{set="appdata"}`), in `check` (the source looked incomplete; nothing was stopped) or in `run` (the snapshot failed). It stays until the next successful run. `AppdataBackupStale` (`backup.appdata-age`, critical): no snapshot has succeeded for 26 hours, or `atlas_backups.prom` is missing, for example because the Action no longer runs or failed before `backup.sh`. Failure and staleness are separate checks, so each tile has one critical cause.
+
+1. Read the last `appdata-backup` run in Komodo (Actions) and the `appdata-backup:` lines in its log.
+2. Make sure every stack it stopped runs again; `APPDATA_BACKUP_STOPPED_STACKS` lists the ones an interrupted run left stopped.
+3. Fix the cause, then run `appdata-backup-now`. The alerts resolve when `atlas_backups.prom` shows exit code 0 and a new success time.
+
+Neither alert is gated. To test `AppdataBackupStale` without touching the backup (the off-site pre-check reads `.last-success`), give the metrics file an old success time as root on the NAS, and restore it afterwards (the next backup rewrites it anyway):
+
+```sh
+cd /volume1/backups/.metrics
+cp atlas_backups.prom /tmp/atlas_backups.prom.saved
+sed 's/^\(atlas_backup_last_success_timestamp_seconds{set="appdata"}\) .*/\1 1/' atlas_backups.prom > atlas_backups.prom.tmp
+chmod 0644 atlas_backups.prom.tmp && mv atlas_backups.prom.tmp atlas_backups.prom
+# About 16 minutes later: backup.appdata-age is red and a FIRING message arrived.
+cp /tmp/atlas_backups.prom.saved atlas_backups.prom.tmp && mv atlas_backups.prom.tmp atlas_backups.prom
+```
+
+#### Off-Site Backup
+
+`OffsiteBackupFailed` (`backup.offsite`, critical): the last snapshot of the Backrest plan `atlas-volume1-backups` failed (exit code 1), including a failed pre-check; Details show Backrest's error text. `OffsiteBackupPartial` (`backup.offsite`, warning): the snapshot was written, but restic could not read some files (exit code 3). `OffsiteBackupStale` (`backup.offsite-age`, critical): no snapshot has succeeded for 30 hours (the plan runs daily at 06:00), or `atlas_offsite.prom` is missing (the [metrics hook](#off-site-backup-metrics) was removed or never ran). The values come from the plan's metrics hook.
+
+1. Open the plan's last operation in Backrest (`http://backrest.atlas.local`) and read its log.
+2. A pre-check failure means the appdata snapshot was not complete and recent: fix the [appdata backup](#appdata-backup) first.
+3. For unreadable files (partial), fix their permissions or exclude them in the plan.
+4. Run the plan with **Backup now**. The alerts resolve with the next successful snapshot.
+
+#### Disk Health
+
+`DiskFailing` (`disk.health`, critical), one alert per disk and reason: SMART health failed, an NVMe critical warning, NVMe spare at or below its threshold, new NVMe media errors (within a day), or new btrfs device errors (within an hour). Both data volumes are single-member RAID 1, so there is no redundancy. The disks are named as on Atlas Health; a btrfs device keeps its kernel name. `SmartDataMissing` (`disk.health`, warning): smartctl-exporter has reported fewer than 3 disks for 30 minutes, so a failing disk would go unnoticed.
+
+1. Check the Disks and Storage rows on Atlas Health and `smartctl -a` for the disk.
+2. Make sure the appdata and off-site backups are current, and plan the replacement.
+3. btrfs error counters persist on the device; after dealing with the cause, reset them with `btrfs device stats -z /volume1`. The alert resolves by itself after an hour (a day for media errors), so the dashboards keep the totals.
+
+#### Volume Space
+
+`VolumeSpaceLow` (`storage.space`, warning): `/volume1` or `/volume2` has had less than 10 % free space for 30 minutes. `VolumeSpaceCritical` (`storage.space`, critical): less than 5 % for 5 minutes; it suppresses the warning for the same volume. Find what grew on Atlas Health (Storage row: growth over 7 days, days to full) and clean up: downloads, old snapshots, the Docker build cache (`/volume2`).
+
+#### Caddy
+
+`CaddyDown` (`services.caddy`, critical): Caddy's metrics endpoint (`caddy:2020`) or its LAN port (`192.168.2.200:80`) has not answered for 3 minutes. Both are checked without DNS. Every `*.atlas.local` route, the public hostnames through the tunnel, and every health probe except `plex-direct` depend on it, so it suppresses `ProbeFailed`. Check the `caddy` stack and its logs in Komodo, validate the configuration with `./scripts/validate.sh`, and redeploy it. Gated during the appdata backup.
+
+#### Application Probes
+
+`ProbeFailed` (`services.apps`): an application's health endpoint (job `probe_health`, through Caddy and the LAN hostname) has failed for 5 minutes. Warning for every application; critical for Plex (`plex` through Caddy, `plex-direct` on port 32400). Caddy's own probe is covered by [`CaddyDown`](#caddy). The link opens the application.
+
+1. Check the stack and its logs in Komodo, and redeploy it if it does not recover.
+2. If many probes fail at once, check Caddy, the LAN DNS (`*.atlas.local` from UniFi), and, for the VPN-bound applications, [the VPN](#vpn).
+
+Gated during the appdata backup, which stops these stacks. To test it, stop `sonarr` in Komodo outside the backup: one FIRING message after about 5 minutes and `services.apps` amber, then RESOLVED after starting it again.
+
+#### Cloudflare Tunnel
+
+`TunnelDown` (`services.tunnel`, critical): cloudflared has had no connection to Cloudflare (`cloudflared_tunnel_ha_connections`) for 5 minutes, or its metrics are missing, so the public `*.atlas.vandaele.io` hostnames are down. The LAN is not affected. Check the `cloudflared` stack and its logs in Komodo (token, outbound internet) and redeploy it. Not gated: cloudflared is never stopped.
+
+#### VPN
+
+`VpnDown` (`downloads.vpn`, critical): Gluetun has not reported its VPN as `running` for 5 minutes. It also fires when the Gluetun control server or json-exporter cannot be read, which leaves the VPN state unknown; Details say which. The applications in Gluetun's network namespace (autobrr, bazarr, flaresolverr, lidarr, prowlarr, qbittorrent, radarr, sabnzbd, slskd, sonarr, spottarr) are offline, so it suppresses their `ProbeFailed` and `PortForwardMismatch`. Check the `gluetun` logs in Komodo (WireGuard key, server selection); after restarting gluetun, redeploy the VPN-bound stacks so they join its new network namespace. Not gated: gluetun is never stopped.
+
+#### Port Forward
+
+`PortForwardMismatch` (`downloads.port-forward`, warning): for 15 minutes, qBittorrent has not listened on the port Gluetun forwards, or Gluetun has no forwarded port; Details show both. Torrents are then firewalled. Check the port forwarding lines in the `gluetun` logs and `docker exec gluetun cat /tmp/gluetun/forwarded_port`; set that port in qBittorrent (Settings, Connection) or reconnect the VPN. Gated during the appdata backup, which stops qBittorrent.
+
+#### Stack Health
+
+`StackUnhealthy` (`stacks.health`, warning): Komodo has reported a stack in a state other than `running` or `down` (not deployed, for example `appdata-backup`) for 15 minutes, for example `unhealthy` (mixed container states), `stopped`, `restarting`, `paused`, or `unknown` (Komodo cannot reach Periphery; then every stack fires at once). Open the stack in Komodo, check its containers and logs, and deploy it again. Gated during the appdata backup, which stops most stacks.
 
 ## Caddy Configuration
 

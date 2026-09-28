@@ -11,6 +11,34 @@ groups:
       - record: atlas:check_catalogue
         expr: vector(0)
         labels:
+          check: backup.appdata
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: backup.appdata-age
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: backup.offsite
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: backup.offsite-age
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: disk.health
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: downloads.port-forward
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: downloads.vpn
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
           check: meta.delivery
       - record: atlas:check_catalogue
         expr: vector(0)
@@ -24,6 +52,26 @@ groups:
         expr: vector(0)
         labels:
           check: meta.test
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: services.apps
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: services.caddy
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: services.tunnel
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: stacks.health
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: storage.space
 
       # 0 green, 1 amber, 2 red per check. ALERTS counts only firing alerts,
       # never pending ones, so a tile and a Discord message agree.

@@ -58,6 +58,13 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      # The plan hook writes atlas_offsite.prom here for node-exporter's
+      # textfile collector (README "Off-Site Backups With Backrest").
+      - type: bind
+        source: ${BACKUPS_DIR:?BACKUPS_DIR is required}/.metrics
+        target: /metrics
+        bind:
+          create_host_path: false
     expose:
       - "9898"
     networks:
