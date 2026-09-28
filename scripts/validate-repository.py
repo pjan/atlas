@@ -107,6 +107,7 @@ VALIDATION_VALUES = {
     "GRAFANA_ADMIN_PASSWORD": "validation-only-password",
     "GRAFANA_DATA_DIR": "/volume2/appdata/grafana",
     "GRAFANA_SECRET_KEY": "validation-only-secret-key",
+    "GRAFANA_SECRETS_MANAGER_KEY": "validation-only-secrets-manager-key",
     "HOMEPAGE_ALLOWED_HOSTS": (
         "homepage.atlas.local,homepage.atlas.vandaele.io"
     ),

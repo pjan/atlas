@@ -120,3 +120,34 @@ modules:
           state: '{ .info.state }'
         values:
           info: 1
+
+  # Komodo POST /read/ListAllStackServices: every service of every stack with
+  # its container. The default limit is 30, so ask for all. The filter skips
+  # services without a container (for example the one-shot appdata-backup).
+  # The Compose service is compose_service: the scrape target's own service
+  # label would otherwise replace it.
+  komodo_containers:
+    headers:
+      Content-Type: application/json
+    http_client_config:
+      http_headers:
+        X-Api-Key:
+          files: [/run/secrets/komodo_api_key]
+        X-Api-Secret:
+          files: [/run/secrets/komodo_api_secret]
+    body:
+      content: '{"limit": 0}'
+    metrics:
+      - name: komodo_container
+        help: Container of a Komodo stack service (1 per container).
+        type: object
+        path: '{ [?(@.container.id)] }'
+        labels:
+          stack: '{ .stack_name }'
+          compose_service: '{ .service }'
+          container: '{ .container.name }'
+          container_id: '{ .container.id }'
+          state: '{ .container.state }'
+          status: '{ .container.status }'
+        values:
+          info: 1

@@ -531,6 +531,7 @@ CLOUDFLARE_TUNNEL_ID
 CLOUDFLARE_TUNNEL_TOKEN
 GLUETUN_CONTROL_API_KEY
 GRAFANA_ADMIN_PASSWORD
+GRAFANA_SECRETS_MANAGER_KEY
 GRAFANA_SECRET_KEY
 HEALTHCHECKS_APPDATA_PING_URL
 HOMEPAGE_ADGUARD_PASSWORD
@@ -573,6 +574,11 @@ resource that owns the value. Compose files translate those names to any
 upstream-specific environment names. Homepage's required `HOMEPAGE_VAR_*`
 prefix therefore appears only inside the Homepage container environment and
 its configuration placeholders, not in Komodo variable names or stack inputs.
+
+Mark every variable that holds a key, password, token, or webhook URL as
+secret in Komodo. Komodo redacts only secret variables in logs and in the
+deployed `docker compose config`, which any user with Read on a stack can
+retrieve, including the monitoring service user.
 
 Generate `QBITTORRENT_API_KEY` in qBittorrent under `Options > WebUI >
 Authentication > API Key`, then store the complete `qbt_...` value in Komodo.
@@ -1446,7 +1452,7 @@ Operational notes:
 
 ## Monitoring
 
-The `monitoring` stack runs Prometheus, node-exporter, blackbox-exporter, and Grafana on the private `monitoring_network`. Only Grafana also joins `proxy_network`, and it is reachable at `http://grafana.atlas.local` and at `https://grafana.atlas.vandaele.io`, which must be protected by Cloudflare Access; Grafana also requires its own login. Prometheus has no host port and no web route; query it through Grafana.
+The `monitoring` stack runs Prometheus, node-exporter, blackbox-exporter, smartctl-exporter, cAdvisor, the application exporters, and Grafana on the private `monitoring_network`. Only Grafana also joins `proxy_network`, and it is reachable at `http://grafana.atlas.local` and at `https://grafana.atlas.vandaele.io`, which must be protected by Cloudflare Access; Grafana also requires its own login. Prometheus has no host port and no web route; query it through Grafana.
 
 The nightly `appdata-backup` Action never stops the `monitoring` stack, and its data is not backed up: `/volume2/appdata/prometheus` (90 days, at most 20 GB) and `/volume2/appdata/grafana` (Grafana's SQLite database) are excluded. Only configuration is kept, in git: Prometheus, blackbox, and Grafana provisioning in this repository, and dashboards in `pjan/atlas-dashboards`. After losing Volume 2, Grafana starts with an empty database: the admin login comes from `GRAFANA_ADMIN_PASSWORD`, the datasource (and alerting) from provisioning, and the dashboards return once Git Sync is reconnected with the token from the password manager. Extra users, service accounts, and alert history are lost. Scrapes run every 30 seconds and probes every 60 seconds.
 
@@ -1457,6 +1463,7 @@ Current signals:
 | Job | What it checks |
 |---|---|
 | `node` | CPU, memory, filesystems, md RAID, btrfs, and the backup textfile metrics in `/volume1/backups/.metrics` |
+| `cadvisor` | Per-container CPU, memory (working set, RSS, limit), block I/O, start time, and OOM events, keyed by `container_id` |
 | `smartctl` | SMART health, NVMe wear, spare, critical warnings, media errors, and temperatures for `sda` (Seagate 12 TB, Volume 1), `nvme0` (Lexar 512 GB, Volume 2), and `nvme1` (TWSC 128 GB, UGOS system disk) |
 | `probe_routes` | Every deployed `*.atlas.local` Caddy route (UniFi DNS, Caddy, and the application; 401 and 403 count as healthy) |
 | `probe_tcp` | AdGuard DNS `:53`, Caddy `:80`, Komodo `:9120`, Plex `:32400`, and Roon Server `:9330` on `192.168.2.200` |
@@ -1469,21 +1476,23 @@ Current signals:
 | `cloudflared` | Tunnel metrics, including `cloudflared_tunnel_ha_connections`, on `:2000` |
 | `unpackerr` | Extraction metrics on `:5656` |
 | `exportarr`, `exportarr_slow` | Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, and SABnzbd through exportarr: the applications' own health issues (`<app>_system_health_issues`, for example unavailable indexers or download clients), status, and queues. Sonarr and Bazarr are scraped every 5 minutes because they are slow to query |
-| `json_apis` | Gluetun VPN status, public IP and country, and forwarded port; qBittorrent connection status (`qbittorrent_transfer_status_info{connection_status}`: connected, firewalled, or disconnected), DHT nodes, transfer rates, and `listen_port` (must equal the Gluetun forwarded port); slskd connected and logged in to Soulseek; and the state of every Komodo stack (`komodo_stack_info`) |
+| `json_apis` | Gluetun VPN status, public IP and country, and forwarded port; qBittorrent connection status (`qbittorrent_transfer_status_info{connection_status}`: connected, firewalled, or disconnected), DHT nodes, transfer rates, and `listen_port` (must equal the Gluetun forwarded port); slskd connected and logged in to Soulseek; the state of every Komodo stack (`komodo_stack_info`); and every stack container with its name, stack, service, state, and Docker health (`komodo_container_info`) |
 
 smartctl-exporter addresses disks by their stable `/dev/disk/by-id` names (`wwn-*` and `nvme-eui.*`, which avoid publishing serial numbers). Docker resolves those names when the container is created, so recreate the `monitoring` stack after adding or replacing a disk and update the device list in `stacks/monitoring/compose.yaml`. It runs as root with only those devices and the `SYS_RAWIO` (SATA) and `SYS_ADMIN` (NVMe) capabilities. smartctl cannot infer the device type from those names, so every device is listed with its type (`;sat` or `;nvme`).
+
+cAdvisor has no Docker socket and no access to the Docker root (`/volume2/@docker`), because both expose every container's environment. It reads only `/sys/fs/cgroup`, so its series carry just the cgroup path (`/system.slice/docker-<id>.scope`, systemd driver on UGOS). Prometheus keeps the metrics the dashboards use, derives `container_id` from that path, and drops everything else. Names, stacks, Compose services, and health come from Komodo (`ListAllStackServices`) as `komodo_container_info{container, stack, compose_service, state, health}`; join them with `* on (container_id) group_left (container, stack, compose_service) group by (container_id, container, stack, compose_service) (komodo_container_info)`. cAdvisor runs as root with only `CAP_SYSLOG` and read access to `/dev/kmsg`, which it needs for OOM events (`kernel.dmesg_restrict=1`). There is no per-container network I/O, restarts are derived from `container_start_time_seconds`, and a recreated container starts a new series. Containers outside Komodo stacks (the Komodo bootstrap) have no name.
 
 Volume 1 is a single 12 TB disk (`md1` is RAID 1 with one member), so it has no redundancy: media and the local backups share one disk. The off-site Backrest copy protects `/volume1/backups`; media are not protected.
 
 Caddy, cloudflared, and Unpackerr join `monitoring_network` for scraping; their metrics ports are not published on the host. Public `*.atlas.vandaele.io` hostnames answer `404` for `/metrics` and `/prometheus`, so application metrics endpoints (for example slskd and Speedtest Tracker) are never exposed through Cloudflare.
 
-Grafana provisions the Prometheus datasource (uid `prometheus`) from `stacks/monitoring/grafana/provisioning/`. Grafana runs with a read-only root filesystem, so plugin preinstallation and automatic plugin updates are disabled (`GF_PLUGINS_PREINSTALL_DISABLED`, `GF_PLUGINS_PREINSTALL_AUTO_UPDATE`): plugin versions come only from the pinned image. The app plugins Grafana installed on its first start (Advisor, Explore Traces, Logs Drilldown, Metrics Drilldown, Pyroscope) remain in `/volume2/appdata/grafana/plugins`, are no longer updated, and do not return after a Volume 2 loss. Grafana 13 ships Prometheus as a bundled plugin, and a failed startup update would otherwise leave it unregistered. Dashboards are kept in the private `pjan/atlas-dashboards` repository with Grafana Git Sync, using a fine-grained token scoped to that repository only. Do not create dashboards outside synced folders: anything else exists only in `grafana.db`.
+Grafana provisions the Prometheus datasource (uid `prometheus`) from `stacks/monitoring/grafana/provisioning/`. Grafana runs with a read-only root filesystem, so plugin preinstallation and automatic plugin updates are disabled (`GF_PLUGINS_PREINSTALL_DISABLED`, `GF_PLUGINS_PREINSTALL_AUTO_UPDATE`): plugin versions come only from the pinned image. The app plugins Grafana installed on its first start (Advisor, Explore Traces, Logs Drilldown, Metrics Drilldown, Pyroscope) remain in `/volume2/appdata/grafana/plugins`, are no longer updated, and do not return after a Volume 2 loss. Grafana 13 ships Prometheus as a bundled plugin, and a failed startup update would otherwise leave it unregistered. Dashboards are kept in the private `pjan/atlas-dashboards` repository with Grafana Git Sync, using a fine-grained token scoped to that repository only (Contents read and write, Metadata read, Administration read). Git Sync reads only `dashboards/`, targets the folder "Atlas dashboards", polls every 60 seconds with webhooks disabled (Grafana is behind Cloudflare Access), and commits UI saves directly to `main`. Do not create dashboards outside synced folders: anything else exists only in `grafana.db`. Never edit the vendored community dashboards in the UI; `scripts/vendor.sh` in that repository regenerates them. The Git Sync connection itself lives in `grafana.db`, so after a Volume 2 loss reconnect it in **Administration → General → Provisioning** with the same settings and the token from the password manager.
 
 Secrets never go into Prometheus, blackbox, or exporter configuration files. Exporters that accept an API key in their environment (exportarr) receive it from the existing Komodo variables. qBittorrent is read through `json-exporter` with its API key rather than a dedicated exporter: the released prometheus-qbittorrent-exporter `1.7.0` ignores the API key and logs in with an empty password, which makes qBittorrent ban the exporter's address. `json-exporter` reads its keys from Compose secrets fed by Komodo variables (`secrets.<name>.environment` in `stacks/monitoring/compose.yaml`), mounted under `/run/secrets`, and uses them only through `*_file` or header `files` settings in `stacks/monitoring/json/json.yml`; because of those secrets it runs without a read-only root filesystem. The validator counts secret environment variables as Compose inputs.
 
-`KOMODO_MONITORING_API_KEY` and `KOMODO_MONITORING_API_SECRET` belong to a dedicated Komodo service user with read-only access to stacks; they let `json-exporter` report every stack's state without the Docker socket. The Gluetun control key used for the VPN metrics is the shared `GLUETUN_CONTROL_API_KEY`, whose default role can also change the VPN state; a GET-only role for monitoring is optional hardening. Exporters that accept environment variables receive keys from Komodo variables; services that read secret files use `/run/secrets`.
+`KOMODO_MONITORING_API_KEY` and `KOMODO_MONITORING_API_SECRET` belong to a dedicated Komodo service user (User level, not admin) with only Read on stacks; they let `json-exporter` report every stack's and container's state without the Docker socket. Read on a stack includes its deployed `docker compose config`, in which Komodo redacts only values from variables marked secret, so every secret-bearing variable must be marked secret (see Required Non-Default Variables). Never grant this user Inspect or Logs: container inspect returns the environment. The Gluetun control key used for the VPN metrics is the shared `GLUETUN_CONTROL_API_KEY`, whose default role can also change the VPN state; a GET-only role for monitoring is optional hardening. Exporters that accept environment variables receive keys from Komodo variables; services that read secret files use `/run/secrets`.
 
-`GRAFANA_SECRET_KEY` encrypts secrets stored in Grafana (contact points, the Git Sync token). Set it before Grafana's first start, keep it in the password manager, and never change it afterwards. `GRAFANA_ADMIN_PASSWORD` only applies on first start; change the password in Grafana later.
+`GRAFANA_SECRET_KEY` (`[security] secret_key`) encrypts Grafana's legacy secrets, such as contact point settings. `GRAFANA_SECRETS_MANAGER_KEY` (`[secrets_manager.encryption.secret_key.v1]`) encrypts secrets stored through Grafana's secrets manager, including the Git Sync token; its built-in default is public. Set both before storing any secret, keep them in the password manager, and never change them afterwards. `GRAFANA_ADMIN_PASSWORD` only applies on first start; change the password in Grafana later.
 
 ## Caddy Configuration
 

@@ -30,6 +30,26 @@ scrape_configs:
         labels:
           instance: atlas
 
+  # cAdvisor without the Docker socket: series carry only the cgroup path.
+  # Keep the metrics the dashboards use, derive container_id, and drop
+  # non-container cgroups. Names come from komodo_container_info.
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+        labels:
+          instance: atlas
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'container_(cpu_usage_seconds_total|memory_working_set_bytes|memory_rss|spec_memory_limit_bytes|oom_events_total|blkio_device_usage_total|start_time_seconds|last_seen)'
+        action: keep
+      - source_labels: [id]
+        regex: '/system\.slice/docker-([0-9a-f]{64})\.scope'
+        target_label: container_id
+        replacement: '$1'
+      - source_labels: [container_id]
+        regex: ''
+        action: drop
+
   - job_name: grafana
     static_configs:
       - targets: ["grafana:3000"]
@@ -93,6 +113,8 @@ scrape_configs:
         labels: {module: slskd_server, service: slskd}
       - targets: ["http://192.168.2.200:9120/read/ListStacks"]
         labels: {module: komodo_stacks, service: komodo}
+      - targets: ["http://192.168.2.200:9120/read/ListAllStackServices"]
+        labels: {module: komodo_containers, service: komodo}
     relabel_configs:
       - source_labels: [module]
         target_label: __param_module
@@ -102,6 +124,14 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: json-exporter:7979
+    # Docker reports health only inside the container status text.
+    metric_relabel_configs:
+      - source_labels: [__name__, status]
+        regex: 'komodo_container_info;.*\((healthy|unhealthy|health: starting)\).*'
+        target_label: health
+        replacement: '$1'
+      - regex: status
+        action: labeldrop
 
   # Application health endpoints through Caddy. Each target selects its
   # blackbox module with the "module" label.
