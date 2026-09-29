@@ -1,0 +1,295 @@
+# Container and Komodo series for the Atlas Containers dashboard and the
+# later container and Komodo alerts (see README "Monitoring"). cAdvisor
+# series carry only container_id; every rule here carries the names, so
+# dashboards and alerts never repeat the join. Reloaded automatically with
+# prometheus.yml. Tests: stacks/monitoring/prometheus-tests/.
+
+groups:
+  - name: containers
+    rules:
+      # One series per container ID: container, stack, compose_service,
+      # stack_id. Komodo stack services first, then other containers Komodo
+      # sees (the Komodo bootstrap, the backup's one-shot containers), then
+      # the ID. Each Komodo source prefers its current series, so a renamed
+      # container (or stack) has one name; last_over_time keeps the names of
+      # IDs Komodo no longer lists (during a Komodo outage) for an hour, one
+      # per ID (topk) if a rename falls in that hour. The ID branch waits 3
+      # minutes so a new container is not briefly "id-…".
+      # stack_id!="" skips komodo_container_info series from before stack_id
+      # existed.
+      - record: atlas:container_names
+        expr: |
+          group by (container_id, container, stack, compose_service, stack_id) (komodo_container_info{stack_id!=""})
+          or on (container_id)
+          topk by (container_id) (1, group by (container_id, container, stack, compose_service, stack_id) (last_over_time(komodo_container_info{stack_id!=""}[1h])))
+          or on (container_id)
+          label_replace(
+            label_replace(
+                group by (container_id, container) (komodo_server_container_info)
+              or on (container_id)
+                topk by (container_id) (1, group by (container_id, container) (last_over_time(komodo_server_container_info[1h]))),
+              "stack", "unmanaged", "", ""),
+            "stack", "appdata-backup", "container", "appdata-backup-.*")
+          or on (container_id)
+          label_replace(label_replace(
+              group by (container_id) (container_start_time_seconds and (time() - container_start_time_seconds > 180)),
+              "container", "id-$1", "container_id", "(.{12}).*"),
+            "stack", "unmanaged", "", "")
+
+      # 1 at the one evaluation after a container ID's start time increased,
+      # else 0. The offset equals the evaluation interval. last_over_time
+      # bridges up to 6 hours without samples (a stopped container), so a
+      # restart after any downtime counts once. A new ID yields nothing: that
+      # is a recreate, not a restart. Two restarts within 30 s count once.
+      - record: atlas:container_started
+        expr: |
+          container_start_time_seconds > bool last_over_time(container_start_time_seconds[6h] offset 30s)
+
+      # atlas:container_started outside the appdata backup (which stops and
+      # starts most stacks), with names. Count restarts with
+      # sum_over_time(atlas:container_restarted_outside_backup[<range>]).
+      - record: atlas:container_restarted_outside_backup
+        expr: |
+          (max by (container_id) (atlas:container_started) unless on () (atlas:maintenance == 1))
+          * on (container_id) group_left (container, stack, compose_service, stack_id) atlas:container_names
+
+      # CPU in cores (1 = one full core), not a share of one core.
+      - record: atlas:container_cpu_cores
+        expr: |
+          sum by (container_id) (rate(container_cpu_usage_seconds_total[2m]))
+          * on (container_id) group_left (container, stack, compose_service, stack_id) atlas:container_names
+
+      - record: atlas:container_memory_working_set_bytes
+        expr: |
+          max by (container_id) (container_memory_working_set_bytes)
+          * on (container_id) group_left (container, stack, compose_service, stack_id) atlas:container_names
+
+      # Working set as a share of mem_limit; absent for a container without
+      # a limit (cAdvisor reports 0).
+      - record: atlas:container_memory_limit_ratio
+        expr: |
+          max by (container_id) (container_memory_working_set_bytes / (container_spec_memory_limit_bytes > 0))
+          * on (container_id) group_left (container, stack, compose_service, stack_id) atlas:container_names
+
+      # Threads as a share of pids_limit; absent for a container without a
+      # limit (cAdvisor reports 0).
+      - record: atlas:container_pids_limit_ratio
+        expr: |
+          max by (container_id) (container_threads / (container_threads_max > 0))
+          * on (container_id) group_left (container, stack, compose_service, stack_id) atlas:container_names
+
+      # Block I/O per volume. cAdvisor reports every layer (dm, md, and the
+      # disk carry the same bytes), so only the top layer counts: dm-0 is
+      # Volume 1, dm-1 Volume 2, nvme1n1 the UGOS system disk, zram the
+      # compressed swap. Never sum across layers.
+      - record: atlas:container_io_bytes_per_second
+        expr: |
+          sum by (container_id, operation, volume) (
+            label_replace(label_replace(label_replace(label_replace(
+                rate(container_blkio_device_usage_total{device=~"(/dev/)?(dm-0|dm-1|nvme1n1|zram[0-9]+)"}[2m]),
+                "volume", "Volume 1", "device", "(/dev/)?dm-0"),
+              "volume", "Volume 2", "device", "(/dev/)?dm-1"),
+              "volume", "System", "device", "(/dev/)?nvme1n1"),
+              "volume", "Swap", "device", "(/dev/)?zram[0-9]+")
+          )
+          * on (container_id) group_left (container, stack, compose_service, stack_id) atlas:container_names
+
+      # Fraction of time at least one task of the container waited for CPU,
+      # memory, or I/O (PSI "some"), by resource.
+      - record: atlas:container_pressure_waiting_ratio
+        expr: |
+          max by (container_id, resource) (
+              label_replace(rate(container_pressure_cpu_waiting_seconds_total[2m]), "resource", "cpu", "", "")
+            or
+              label_replace(rate(container_pressure_memory_waiting_seconds_total[2m]), "resource", "memory", "", "")
+            or
+              label_replace(rate(container_pressure_io_waiting_seconds_total[2m]), "resource", "io", "", "")
+          )
+          * on (container_id) group_left (container, stack, compose_service, stack_id) atlas:container_names
+
+      # Komodo container state and Docker health as one number per container
+      # name, so a timeline keeps one row across recreates: 1 running (no
+      # healthcheck), 2 healthy, 3 starting (health: starting), 4 created,
+      # 5 paused, 6 exited, 7 restarting, 8 removing, 9 dead, 10 unhealthy.
+      - record: atlas:container_state_code
+        expr: |
+          max by (container, stack, stack_id) (
+              komodo_container_info{state="running", health=""} * 1
+            or
+              komodo_container_info{state="running", health="healthy"} * 2
+            or
+              komodo_container_info{state="running", health="health: starting"} * 3
+            or
+              komodo_container_info{state="created"} * 4
+            or
+              komodo_container_info{state="paused"} * 5
+            or
+              komodo_container_info{state="exited"} * 6
+            or
+              komodo_container_info{state="restarting"} * 7
+            or
+              komodo_container_info{state="removing"} * 8
+            or
+              komodo_container_info{state="dead"} * 9
+            or
+              komodo_container_info{state="running", health="unhealthy"} * 10
+          )
+
+      # Komodo stack state as a number: 0 down (not deployed), 1 running,
+      # 2 deploying, 3 created, 4 paused, 5 stopped, 6 restarting, 7 removing,
+      # 8 dead, 9 unhealthy, 10 unknown (Periphery unreachable).
+      - record: atlas:stack_state_code
+        expr: |
+          max by (stack, stack_id) (
+              komodo_stack_info{state="down"} * 0
+            or
+              komodo_stack_info{state="running"} * 1
+            or
+              komodo_stack_info{state="deploying"} * 2
+            or
+              komodo_stack_info{state="created"} * 3
+            or
+              komodo_stack_info{state="paused"} * 4
+            or
+              komodo_stack_info{state="stopped"} * 5
+            or
+              komodo_stack_info{state="restarting"} * 6
+            or
+              komodo_stack_info{state="removing"} * 7
+            or
+              komodo_stack_info{state="dead"} * 8
+            or
+              komodo_stack_info{state="unhealthy"} * 9
+            or
+              komodo_stack_info{state="unknown"} * 10
+          )
+
+      # The Komodo control plane as one number per kind (server, sync,
+      # action, procedure) and name: 0 Ok, 1 Running or Syncing, 2 Pending
+      # (the sync has undeployed changes), 3 Failed or NotOk (Periphery
+      # unreachable), 4 Disabled, 5 Unknown.
+      - record: atlas:komodo_state_code
+        expr: |
+          max by (kind, name) (
+              label_replace(label_replace(
+                  komodo_server_info{state="Ok"} * 0
+                or
+                  komodo_server_info{state="NotOk"} * 3
+                or
+                  komodo_server_info{state="Disabled"} * 4,
+                "kind", "server", "", ""), "name", "$1", "server", "(.*)")
+            or
+              label_replace(label_replace(
+                  komodo_sync_info{state="Ok"} * 0
+                or
+                  komodo_sync_info{state="Syncing"} * 1
+                or
+                  komodo_sync_info{state="Pending"} * 2
+                or
+                  komodo_sync_info{state="Failed"} * 3
+                or
+                  komodo_sync_info{state="Unknown"} * 5,
+                "kind", "sync", "", ""), "name", "$1", "sync", "(.*)")
+            or
+              label_replace(label_replace(
+                  komodo_action_info{state="Ok"} * 0
+                or
+                  komodo_action_info{state="Running"} * 1
+                or
+                  komodo_action_info{state="Failed"} * 3
+                or
+                  komodo_action_info{state="Unknown"} * 5,
+                "kind", "action", "", ""), "name", "$1", "action", "(.*)")
+            or
+              label_replace(label_replace(
+                  komodo_procedure_info{state="Ok"} * 0
+                or
+                  komodo_procedure_info{state="Running"} * 1
+                or
+                  komodo_procedure_info{state="Failed"} * 3
+                or
+                  komodo_procedure_info{state="Unknown"} * 5,
+                "kind", "procedure", "", ""), "name", "$1", "procedure", "(.*)")
+          )
+
+      # 1 per Komodo resource, keyed like the target of an update or alert
+      # (target_type, target_id), with its name. Current resources first, so
+      # a resource renamed in Komodo keeps one name (the new one); resources
+      # Komodo no longer lists keep a name from the last day (one per ID).
+      - record: atlas:komodo_targets
+        expr: |
+          group by (target_type, target_id, target_name) (
+              label_replace(label_replace(label_replace(
+                komodo_stack_info{stack_id!=""},
+                "target_type", "Stack", "", ""), "target_id", "$1", "stack_id", "(.*)"), "target_name", "$1", "stack", "(.*)")
+            or
+              label_replace(label_replace(label_replace(
+                komodo_action_info,
+                "target_type", "Action", "", ""), "target_id", "$1", "action_id", "(.*)"), "target_name", "$1", "action", "(.*)")
+            or
+              label_replace(label_replace(label_replace(
+                komodo_procedure_info,
+                "target_type", "Procedure", "", ""), "target_id", "$1", "procedure_id", "(.*)"), "target_name", "$1", "procedure", "(.*)")
+            or
+              label_replace(label_replace(label_replace(
+                komodo_sync_info,
+                "target_type", "ResourceSync", "", ""), "target_id", "$1", "sync_id", "(.*)"), "target_name", "$1", "sync", "(.*)")
+            or
+              label_replace(label_replace(label_replace(
+                komodo_server_info,
+                "target_type", "Server", "", ""), "target_id", "$1", "server_id", "(.*)"), "target_name", "$1", "server", "(.*)")
+          )
+          or on (target_type, target_id)
+          topk by (target_type, target_id) (1, group by (target_type, target_id, target_name) (
+              label_replace(label_replace(label_replace(
+                last_over_time(komodo_stack_info{stack_id!=""}[1d]),
+                "target_type", "Stack", "", ""), "target_id", "$1", "stack_id", "(.*)"), "target_name", "$1", "stack", "(.*)")
+            or
+              label_replace(label_replace(label_replace(
+                last_over_time(komodo_action_info[1d]),
+                "target_type", "Action", "", ""), "target_id", "$1", "action_id", "(.*)"), "target_name", "$1", "action", "(.*)")
+            or
+              label_replace(label_replace(label_replace(
+                last_over_time(komodo_procedure_info[1d]),
+                "target_type", "Procedure", "", ""), "target_id", "$1", "procedure_id", "(.*)"), "target_name", "$1", "procedure", "(.*)")
+            or
+              label_replace(label_replace(label_replace(
+                last_over_time(komodo_sync_info[1d]),
+                "target_type", "ResourceSync", "", ""), "target_id", "$1", "sync_id", "(.*)"), "target_name", "$1", "sync", "(.*)")
+            or
+              label_replace(label_replace(label_replace(
+                last_over_time(komodo_server_info[1d]),
+                "target_type", "Server", "", ""), "target_id", "$1", "server_id", "(.*)"), "target_name", "$1", "server", "(.*)")
+          ))
+
+      # Komodo updates with the target's name (updates of unknown targets,
+      # e.g. System, keep none) and the system users' names instead of their
+      # IDs. The value stays the start time in Unix milliseconds.
+      - record: atlas:komodo_update_start_timestamp_ms
+        expr: |
+          label_replace(label_replace(label_replace(label_replace(label_replace(
+          label_replace(label_replace(label_replace(label_replace(
+            (
+                komodo_update_start_timestamp_ms
+                * on (target_type, target_id) group_left (target_name) atlas:komodo_targets
+              or on (update_id, update_status, success)
+                komodo_update_start_timestamp_ms
+            ),
+            "username", "System", "username", "000000000000000000000000"),
+            "username", "Procedure", "username", "000000000000000000000001"),
+            "username", "Action", "username", "000000000000000000000002"),
+            "username", "Git Webhook", "username", "000000000000000000000003"),
+            "username", "Auto Redeploy", "username", "000000000000000000000004"),
+            "username", "Resource Sync", "username", "000000000000000000000005"),
+            "username", "Stack Wizard", "username", "000000000000000000000006"),
+            "username", "Build Manager", "username", "000000000000000000000007"),
+            "username", "Repo Manager", "username", "000000000000000000000008")
+
+      # Komodo alerts with the target's name. The value stays the time the
+      # alert was opened, in Unix milliseconds.
+      - record: atlas:komodo_alert_timestamp_ms
+        expr: |
+          komodo_alert_timestamp_ms
+          * on (target_type, target_id) group_left (target_name) atlas:komodo_targets
+          or on (alert_id, resolved)
+          komodo_alert_timestamp_ms

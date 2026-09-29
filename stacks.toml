@@ -1252,6 +1252,7 @@ config_files = [
   { path = "prometheus/rules/downloads.yml", services = ["prometheus"], requires = "None" },
   { path = "prometheus/rules/services.yml", services = ["prometheus"], requires = "None" },
   { path = "prometheus/rules/storage.yml", services = ["prometheus"], requires = "None" },
+  { path = "prometheus/rules/containers.yml", services = ["prometheus"], requires = "None" },
   { path = "alertmanager/alertmanager.yml", services = ["alertmanager"], requires = "None" },
   { path = "alertmanager/atlas.tmpl", services = ["alertmanager"], requires = "None" },
   { path = "blackbox/blackbox.yml", services = ["blackbox-exporter"], requires = "None" },

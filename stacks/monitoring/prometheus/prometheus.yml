@@ -45,15 +45,20 @@ scrape_configs:
 
   # cAdvisor without the Docker socket: series carry only the cgroup path.
   # Keep the metrics the dashboards use, derive container_id, and drop
-  # non-container cgroups. Names come from komodo_container_info.
+  # non-container cgroups. Names come from atlas:container_names
+  # (rules/containers.yml). Of the process metrics only threads are kept:
+  # cAdvisor counts file descriptors and sockets in its own PID namespace.
   - job_name: cadvisor
+    # cAdvisor timestamps its samples, so without this Prometheus keeps a
+    # removed container's series for 5 minutes.
+    track_timestamps_staleness: true
     static_configs:
       - targets: ["cadvisor:8080"]
         labels:
           instance: atlas
     metric_relabel_configs:
       - source_labels: [__name__]
-        regex: 'container_(cpu_usage_seconds_total|memory_working_set_bytes|memory_rss|spec_memory_limit_bytes|oom_events_total|blkio_device_usage_total|start_time_seconds|last_seen)'
+        regex: 'container_(cpu_usage_seconds_total|memory_working_set_bytes|memory_rss|spec_memory_limit_bytes|oom_events_total|blkio_device_usage_total|start_time_seconds|last_seen|pressure_(cpu|memory|io)_waiting_seconds_total|threads|threads_max)'
         action: keep
       - source_labels: [id]
         regex: '/system\.slice/docker-([0-9a-f]{64})\.scope'
@@ -128,6 +133,20 @@ scrape_configs:
         labels: {module: komodo_stacks, service: komodo}
       - targets: ["http://192.168.2.200:9120/read/ListAllStackServices"]
         labels: {module: komodo_containers, service: komodo}
+      - targets: ["http://192.168.2.200:9120/read/ListServers"]
+        labels: {module: komodo_servers, service: komodo}
+      - targets: ["http://192.168.2.200:9120/read/ListActions"]
+        labels: {module: komodo_actions, service: komodo}
+      - targets: ["http://192.168.2.200:9120/read/ListProcedures"]
+        labels: {module: komodo_procedures, service: komodo}
+      - targets: ["http://192.168.2.200:9120/read/ListResourceSyncs"]
+        labels: {module: komodo_syncs, service: komodo}
+      - targets: ["http://192.168.2.200:9120/read/ListAllContainers"]
+        labels: {module: komodo_server_containers, service: komodo}
+      - targets: ["http://192.168.2.200:9120/read/ListUpdates"]
+        labels: {module: komodo_updates, service: komodo}
+      - targets: ["http://192.168.2.200:9120/read/ListAlerts"]
+        labels: {module: komodo_alerts, service: komodo}
     relabel_configs:
       - source_labels: [module]
         target_label: __param_module
@@ -137,14 +156,19 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: json-exporter:7979
-    # Docker reports health only inside the container status text
-    # (container_status, from komodo_containers). Drop only that label:
-    # other modules keep theirs, e.g. gluetun_vpn_status_info{status}.
+    # Docker reports health and the exit code only inside the container
+    # status text (container_status, from komodo_containers and
+    # komodo_server_containers). Drop only that label: other modules keep
+    # theirs, e.g. gluetun_vpn_status_info{status}.
     metric_relabel_configs:
       - source_labels: [__name__, container_status]
-        regex: 'komodo_container_info;.*\((healthy|unhealthy|health: starting)\).*'
+        regex: 'komodo_(container|server_container)_info;.*\((healthy|unhealthy|health: starting)\).*'
         target_label: health
-        replacement: '$1'
+        replacement: '$2'
+      - source_labels: [__name__, container_status]
+        regex: 'komodo_(container|server_container)_info;Exited \(([0-9]+)\).*'
+        target_label: exit_code
+        replacement: '$2'
       - regex: container_status
         action: labeldrop
 

@@ -1,0 +1,387 @@
+# promtool tests for rules/containers.yml: container names and their
+# fallbacks, restarts outside the appdata backup, the state codes, and the
+# Komodo event joins. Run by scripts/validate.sh. Outside prometheus/, so
+# Prometheus never loads these files.
+
+rule_files:
+  - ../prometheus/rules/rag.yml
+  - ../prometheus/rules/containers.yml
+
+evaluation_interval: 30s
+
+tests:
+  # A stack service, a server-only container (the Komodo bootstrap), a
+  # one-shot backup container, and a container Komodo does not list, which
+  # started at 0 and gets its ID as name only after 180 s. Komodo stops
+  # answering from 5m to 25m; the names stay.
+  - name: container names
+    interval: 30s
+    input_series:
+      - series: 'komodo_container_info{container="sonarr", container_id="1111111111111111111111111111111111111111111111111111111111111111", stack="sonarr", compose_service="sonarr", stack_id="66f000000000000000000001", state="running", image="lscr.io/linuxserver/sonarr:4"}'
+        values: '1x10 _x40 1x10'
+      - series: 'komodo_server_container_info{container="komodo-core-1", container_id="2222222222222222222222222222222222222222222222222222222222222222", state="running", image="ghcr.io/moghtech/komodo-core:2"}'
+        values: '1x10 _x40 1x10'
+      - series: 'komodo_server_container_info{container="appdata-backup-backup-run-5f1c2d3e4a5b", container_id="3333333333333333333333333333333333333333333333333333333333333333", state="running", image="instrumentisto/rsync-ssh:alpine"}'
+        values: '1x10 _x40 1x10'
+      - series: 'container_start_time_seconds{container_id="1111111111111111111111111111111111111111111111111111111111111111", id="/system.slice/docker-1111111111111111111111111111111111111111111111111111111111111111.scope"}'
+        values: '0x60'
+      - series: 'container_start_time_seconds{container_id="4444444444444444444444444444444444444444444444444444444444444444", id="/system.slice/docker-4444444444444444444444444444444444444444444444444444444444444444.scope"}'
+        values: '0x60'
+    promql_expr_test:
+      - expr: atlas:container_names
+        eval_time: 2m
+        exp_samples:
+          - labels: 'atlas:container_names{container="sonarr", container_id="1111111111111111111111111111111111111111111111111111111111111111", stack="sonarr", compose_service="sonarr", stack_id="66f000000000000000000001"}'
+            value: 1
+          - labels: 'atlas:container_names{container="komodo-core-1", container_id="2222222222222222222222222222222222222222222222222222222222222222", stack="unmanaged"}'
+            value: 1
+          - labels: 'atlas:container_names{container="appdata-backup-backup-run-5f1c2d3e4a5b", container_id="3333333333333333333333333333333333333333333333333333333333333333", stack="appdata-backup"}'
+            value: 1
+      - expr: atlas:container_names
+        eval_time: 15m
+        exp_samples:
+          - labels: 'atlas:container_names{container="sonarr", container_id="1111111111111111111111111111111111111111111111111111111111111111", stack="sonarr", compose_service="sonarr", stack_id="66f000000000000000000001"}'
+            value: 1
+          - labels: 'atlas:container_names{container="komodo-core-1", container_id="2222222222222222222222222222222222222222222222222222222222222222", stack="unmanaged"}'
+            value: 1
+          - labels: 'atlas:container_names{container="appdata-backup-backup-run-5f1c2d3e4a5b", container_id="3333333333333333333333333333333333333333333333333333333333333333", stack="appdata-backup"}'
+            value: 1
+          - labels: 'atlas:container_names{container="id-444444444444", container_id="4444444444444444444444444444444444444444444444444444444444444444", stack="unmanaged"}'
+            value: 1
+
+  # Each container keeps its Komodo name. sonarr stops and starts within 10
+  # seconds, radarr is down for 20 minutes, plex is recreated with a new ID,
+  # and lidarr never restarts. No backup runs.
+  - name: restarts outside the backup
+    interval: 30s
+    input_series:
+      - series: 'container_start_time_seconds{container_id="aaaa", id="/system.slice/docker-aaaa.scope"}'
+        values: '100x10 1000x50'
+      - series: 'container_start_time_seconds{container_id="bbbb", id="/system.slice/docker-bbbb.scope"}'
+        values: '100x10 _x40 2000x10'
+      - series: 'container_start_time_seconds{container_id="cccc", id="/system.slice/docker-cccc.scope"}'
+        values: '100x10'
+      - series: 'container_start_time_seconds{container_id="dddd", id="/system.slice/docker-dddd.scope"}'
+        values: '_x11 1000x49'
+      - series: 'container_start_time_seconds{container_id="eeee", id="/system.slice/docker-eeee.scope"}'
+        values: '100x60'
+      - series: 'komodo_container_info{container="sonarr", container_id="aaaa", stack="sonarr", compose_service="sonarr", stack_id="s1", state="running"}'
+        values: '1x60'
+      - series: 'komodo_container_info{container="radarr", container_id="bbbb", stack="radarr", compose_service="radarr", stack_id="s2", state="running"}'
+        values: '1x60'
+      - series: 'komodo_container_info{container="plex", container_id="cccc", stack="plex", compose_service="plex", stack_id="s3", state="running"}'
+        values: '1x10'
+      - series: 'komodo_container_info{container="plex", container_id="dddd", stack="plex", compose_service="plex", stack_id="s3", state="running"}'
+        values: '_x11 1x49'
+      - series: 'komodo_container_info{container="lidarr", container_id="eeee", stack="lidarr", compose_service="lidarr", stack_id="s4", state="running"}'
+        values: '1x60'
+    promql_expr_test:
+      - expr: atlas:container_restarted_outside_backup == 1
+        eval_time: 5m30s
+        exp_samples:
+          - labels: 'atlas:container_restarted_outside_backup{container="sonarr", container_id="aaaa", stack="sonarr", compose_service="sonarr", stack_id="s1"}'
+            value: 1
+      - expr: atlas:container_restarted_outside_backup == 1
+        eval_time: 25m30s
+        exp_samples:
+          - labels: 'atlas:container_restarted_outside_backup{container="radarr", container_id="bbbb", stack="radarr", compose_service="radarr", stack_id="s2"}'
+            value: 1
+      - expr: sum by (container, container_id) (sum_over_time(atlas:container_restarted_outside_backup[30m]))
+        eval_time: 30m
+        exp_samples:
+          - labels: '{container="sonarr", container_id="aaaa"}'
+            value: 1
+          - labels: '{container="radarr", container_id="bbbb"}'
+            value: 1
+          - labels: '{container="plex", container_id="cccc"}'
+            value: 0
+          - labels: '{container="plex", container_id="dddd"}'
+            value: 0
+          - labels: '{container="lidarr", container_id="eeee"}'
+            value: 0
+
+  # The appdata backup (backup check at 5m) stops sonarr for 20 minutes:
+  # the restart is seen but not counted.
+  - name: restart during the backup
+    interval: 30s
+    input_series:
+      - series: 'atlas_backup_last_run_timestamp_seconds{set="appdata", mode="check"}'
+        values: '_x10 300x50'
+      - series: 'container_start_time_seconds{container_id="aaaa", id="/system.slice/docker-aaaa.scope"}'
+        values: '100x10 _x40 2000x10'
+      - series: 'komodo_container_info{container="sonarr", container_id="aaaa", stack="sonarr", compose_service="sonarr", stack_id="s1", state="running"}'
+        values: '1x60'
+    promql_expr_test:
+      - expr: sum_over_time(atlas:container_started[30m])
+        eval_time: 30m
+        exp_samples:
+          - labels: '{container_id="aaaa", id="/system.slice/docker-aaaa.scope"}'
+            value: 1
+      - expr: sum_over_time(atlas:container_restarted_outside_backup[30m])
+        eval_time: 30m
+        exp_samples:
+          - labels: '{container="sonarr", container_id="aaaa", stack="sonarr", compose_service="sonarr", stack_id="s1"}'
+            value: 0
+
+  # Every container state and health, one container each.
+  - name: container state codes
+    interval: 1m
+    input_series:
+      - series: 'komodo_container_info{container="c1", container_id="01", stack="s", stack_id="i", state="running"}'
+        values: '1x3'
+      - series: 'komodo_container_info{container="c2", container_id="02", stack="s", stack_id="i", state="running", health="healthy"}'
+        values: '1x3'
+      - series: 'komodo_container_info{container="c3", container_id="03", stack="s", stack_id="i", state="running", health="health: starting"}'
+        values: '1x3'
+      - series: 'komodo_container_info{container="c4", container_id="04", stack="s", stack_id="i", state="created"}'
+        values: '1x3'
+      - series: 'komodo_container_info{container="c5", container_id="05", stack="s", stack_id="i", state="paused"}'
+        values: '1x3'
+      - series: 'komodo_container_info{container="c6", container_id="06", stack="s", stack_id="i", state="exited", exit_code="137"}'
+        values: '1x3'
+      - series: 'komodo_container_info{container="c7", container_id="07", stack="s", stack_id="i", state="restarting"}'
+        values: '1x3'
+      - series: 'komodo_container_info{container="c8", container_id="08", stack="s", stack_id="i", state="removing"}'
+        values: '1x3'
+      - series: 'komodo_container_info{container="c9", container_id="09", stack="s", stack_id="i", state="dead"}'
+        values: '1x3'
+      - series: 'komodo_container_info{container="c10", container_id="10", stack="s", stack_id="i", state="running", health="unhealthy"}'
+        values: '1x3'
+    promql_expr_test:
+      - expr: atlas:container_state_code
+        eval_time: 2m
+        exp_samples:
+          - labels: 'atlas:container_state_code{container="c1", stack="s", stack_id="i"}'
+            value: 1
+          - labels: 'atlas:container_state_code{container="c2", stack="s", stack_id="i"}'
+            value: 2
+          - labels: 'atlas:container_state_code{container="c3", stack="s", stack_id="i"}'
+            value: 3
+          - labels: 'atlas:container_state_code{container="c4", stack="s", stack_id="i"}'
+            value: 4
+          - labels: 'atlas:container_state_code{container="c5", stack="s", stack_id="i"}'
+            value: 5
+          - labels: 'atlas:container_state_code{container="c6", stack="s", stack_id="i"}'
+            value: 6
+          - labels: 'atlas:container_state_code{container="c7", stack="s", stack_id="i"}'
+            value: 7
+          - labels: 'atlas:container_state_code{container="c8", stack="s", stack_id="i"}'
+            value: 8
+          - labels: 'atlas:container_state_code{container="c9", stack="s", stack_id="i"}'
+            value: 9
+          - labels: 'atlas:container_state_code{container="c10", stack="s", stack_id="i"}'
+            value: 10
+
+  # Every Komodo stack state, one stack each.
+  - name: stack state codes
+    interval: 1m
+    input_series:
+      - series: 'komodo_stack_info{stack="s0", stack_id="i0", state="down"}'
+        values: '1x3'
+      - series: 'komodo_stack_info{stack="s1", stack_id="i1", state="running"}'
+        values: '1x3'
+      - series: 'komodo_stack_info{stack="s2", stack_id="i2", state="deploying"}'
+        values: '1x3'
+      - series: 'komodo_stack_info{stack="s3", stack_id="i3", state="created"}'
+        values: '1x3'
+      - series: 'komodo_stack_info{stack="s4", stack_id="i4", state="paused"}'
+        values: '1x3'
+      - series: 'komodo_stack_info{stack="s5", stack_id="i5", state="stopped"}'
+        values: '1x3'
+      - series: 'komodo_stack_info{stack="s6", stack_id="i6", state="restarting"}'
+        values: '1x3'
+      - series: 'komodo_stack_info{stack="s7", stack_id="i7", state="removing"}'
+        values: '1x3'
+      - series: 'komodo_stack_info{stack="s8", stack_id="i8", state="dead"}'
+        values: '1x3'
+      - series: 'komodo_stack_info{stack="s9", stack_id="i9", state="unhealthy"}'
+        values: '1x3'
+      - series: 'komodo_stack_info{stack="s10", stack_id="i10", state="unknown"}'
+        values: '1x3'
+    promql_expr_test:
+      - expr: atlas:stack_state_code
+        eval_time: 2m
+        exp_samples:
+          - labels: 'atlas:stack_state_code{stack="s0", stack_id="i0"}'
+            value: 0
+          - labels: 'atlas:stack_state_code{stack="s1", stack_id="i1"}'
+            value: 1
+          - labels: 'atlas:stack_state_code{stack="s2", stack_id="i2"}'
+            value: 2
+          - labels: 'atlas:stack_state_code{stack="s3", stack_id="i3"}'
+            value: 3
+          - labels: 'atlas:stack_state_code{stack="s4", stack_id="i4"}'
+            value: 4
+          - labels: 'atlas:stack_state_code{stack="s5", stack_id="i5"}'
+            value: 5
+          - labels: 'atlas:stack_state_code{stack="s6", stack_id="i6"}'
+            value: 6
+          - labels: 'atlas:stack_state_code{stack="s7", stack_id="i7"}'
+            value: 7
+          - labels: 'atlas:stack_state_code{stack="s8", stack_id="i8"}'
+            value: 8
+          - labels: 'atlas:stack_state_code{stack="s9", stack_id="i9"}'
+            value: 9
+          - labels: 'atlas:stack_state_code{stack="s10", stack_id="i10"}'
+            value: 10
+
+  # Every Komodo server, sync, Action, and Procedure state.
+  - name: komodo state codes
+    interval: 1m
+    input_series:
+      - series: 'komodo_server_info{server="atlas", server_id="v1", state="Ok", version="v2.3.3"}'
+        values: '1x3'
+      - series: 'komodo_server_info{server="atlas-2", server_id="v2", state="NotOk", version="null"}'
+        values: '1x3'
+      - series: 'komodo_server_info{server="atlas-3", server_id="v3", state="Disabled", version="null"}'
+        values: '1x3'
+      - series: 'komodo_sync_info{sync="pjan/atlas", sync_id="y1", state="Ok", last_sync_hash="c295c82"}'
+        values: '1x3'
+      - series: 'komodo_sync_info{sync="y-syncing", sync_id="y2", state="Syncing", last_sync_hash="c295c82"}'
+        values: '1x3'
+      - series: 'komodo_sync_info{sync="y-pending", sync_id="y3", state="Pending", last_sync_hash="c295c82"}'
+        values: '1x3'
+      - series: 'komodo_sync_info{sync="y-failed", sync_id="y4", state="Failed", last_sync_hash="c295c82"}'
+        values: '1x3'
+      - series: 'komodo_sync_info{sync="y-unknown", sync_id="y5", state="Unknown", last_sync_hash="null"}'
+        values: '1x3'
+      - series: 'komodo_action_info{action="appdata-backup", action_id="a1", state="Ok"}'
+        values: '1x3'
+      - series: 'komodo_action_info{action="a-running", action_id="a2", state="Running"}'
+        values: '1x3'
+      - series: 'komodo_action_info{action="a-failed", action_id="a3", state="Failed"}'
+        values: '1x3'
+      - series: 'komodo_action_info{action="a-unknown", action_id="a4", state="Unknown"}'
+        values: '1x3'
+      - series: 'komodo_procedure_info{procedure="Backup Core Database", procedure_id="p1", state="Ok"}'
+        values: '1x3'
+      - series: 'komodo_procedure_info{procedure="p-running", procedure_id="p2", state="Running"}'
+        values: '1x3'
+      - series: 'komodo_procedure_info{procedure="p-failed", procedure_id="p3", state="Failed"}'
+        values: '1x3'
+      - series: 'komodo_procedure_info{procedure="p-unknown", procedure_id="p4", state="Unknown"}'
+        values: '1x3'
+    promql_expr_test:
+      - expr: atlas:komodo_state_code
+        eval_time: 2m
+        exp_samples:
+          - labels: 'atlas:komodo_state_code{kind="server", name="atlas"}'
+            value: 0
+          - labels: 'atlas:komodo_state_code{kind="server", name="atlas-2"}'
+            value: 3
+          - labels: 'atlas:komodo_state_code{kind="server", name="atlas-3"}'
+            value: 4
+          - labels: 'atlas:komodo_state_code{kind="sync", name="pjan/atlas"}'
+            value: 0
+          - labels: 'atlas:komodo_state_code{kind="sync", name="y-syncing"}'
+            value: 1
+          - labels: 'atlas:komodo_state_code{kind="sync", name="y-pending"}'
+            value: 2
+          - labels: 'atlas:komodo_state_code{kind="sync", name="y-failed"}'
+            value: 3
+          - labels: 'atlas:komodo_state_code{kind="sync", name="y-unknown"}'
+            value: 5
+          - labels: 'atlas:komodo_state_code{kind="action", name="appdata-backup"}'
+            value: 0
+          - labels: 'atlas:komodo_state_code{kind="action", name="a-running"}'
+            value: 1
+          - labels: 'atlas:komodo_state_code{kind="action", name="a-failed"}'
+            value: 3
+          - labels: 'atlas:komodo_state_code{kind="action", name="a-unknown"}'
+            value: 5
+          - labels: 'atlas:komodo_state_code{kind="procedure", name="Backup Core Database"}'
+            value: 0
+          - labels: 'atlas:komodo_state_code{kind="procedure", name="p-running"}'
+            value: 1
+          - labels: 'atlas:komodo_state_code{kind="procedure", name="p-failed"}'
+            value: 3
+          - labels: 'atlas:komodo_state_code{kind="procedure", name="p-unknown"}'
+            value: 5
+
+  # A Procedure deploys sonarr, pjan runs the backup Action, and a System
+  # update has no known target. A StackStateChange alert for sonarr.
+  - name: komodo events
+    interval: 1m
+    input_series:
+      - series: 'komodo_stack_info{stack="sonarr", stack_id="s1", state="running"}'
+        values: '1x5'
+      - series: 'komodo_action_info{action="appdata-backup", action_id="a1", state="Ok"}'
+        values: '1x5'
+      - series: 'komodo_update_start_timestamp_ms{update_id="u1", operation="DeployStack", target_type="Stack", target_id="s1", update_status="Complete", success="true", username="000000000000000000000001"}'
+        values: '1790000000000x5'
+      - series: 'komodo_update_start_timestamp_ms{update_id="u2", operation="RunAction", target_type="Action", target_id="a1", update_status="InProgress", success="false", username="pjan"}'
+        values: '1790000060000x5'
+      - series: 'komodo_update_start_timestamp_ms{update_id="u3", operation="GlobalAutoUpdate", target_type="System", target_id="", update_status="Complete", success="false", username="000000000000000000000000"}'
+        values: '1790000120000x5'
+      - series: 'komodo_alert_timestamp_ms{alert_id="66f9a1b2c3d4e5f607182930", alert_type="StackStateChange", level="WARNING", resolved="false", target_type="Stack", target_id="s1", from_state="running", to_state="stopped"}'
+        values: '1790000180000x5'
+    promql_expr_test:
+      - expr: atlas:komodo_update_start_timestamp_ms
+        eval_time: 4m
+        exp_samples:
+          - labels: 'atlas:komodo_update_start_timestamp_ms{update_id="u1", operation="DeployStack", target_type="Stack", target_id="s1", target_name="sonarr", update_status="Complete", success="true", username="Procedure"}'
+            value: 1790000000000
+          - labels: 'atlas:komodo_update_start_timestamp_ms{update_id="u2", operation="RunAction", target_type="Action", target_id="a1", target_name="appdata-backup", update_status="InProgress", success="false", username="pjan"}'
+            value: 1790000060000
+          - labels: 'atlas:komodo_update_start_timestamp_ms{update_id="u3", operation="GlobalAutoUpdate", target_type="System", update_status="Complete", success="false", username="System"}'
+            value: 1790000120000
+      - expr: atlas:komodo_alert_timestamp_ms
+        eval_time: 4m
+        exp_samples:
+          - labels: 'atlas:komodo_alert_timestamp_ms{alert_id="66f9a1b2c3d4e5f607182930", alert_type="StackStateChange", level="WARNING", resolved="false", target_type="Stack", target_id="s1", target_name="sonarr", from_state="running", to_state="stopped"}'
+            value: 1790000180000
+
+  # sonarr is renamed sonarr-4k in Komodo at 6m (same stack ID): its update
+  # joins the new name, and the old name in the 1-day window is no second
+  # target.
+  - name: stack renamed
+    interval: 1m
+    input_series:
+      - series: 'komodo_stack_info{stack="sonarr", stack_id="s1", state="running"}'
+        values: '1x5 stale'
+      - series: 'komodo_stack_info{stack="sonarr-4k", stack_id="s1", state="running"}'
+        values: '_x6 1x10'
+      - series: 'komodo_update_start_timestamp_ms{update_id="u1", operation="DeployStack", target_type="Stack", target_id="s1", update_status="Complete", success="true", username="pjan"}'
+        values: '1790000000000x16'
+    promql_expr_test:
+      - expr: atlas:komodo_targets
+        eval_time: 12m
+        exp_samples:
+          - labels: 'atlas:komodo_targets{target_type="Stack", target_id="s1", target_name="sonarr-4k"}'
+            value: 1
+      - expr: atlas:komodo_update_start_timestamp_ms
+        eval_time: 12m
+        exp_samples:
+          - labels: 'atlas:komodo_update_start_timestamp_ms{update_id="u1", operation="DeployStack", target_type="Stack", target_id="s1", target_name="sonarr-4k", update_status="Complete", success="true", username="pjan"}'
+            value: 1790000000000
+
+  # Komodo reports new names at 6m for a stack container and a container
+  # outside stacks (same IDs, e.g. a Docker rename): each ID keeps exactly
+  # one name, the current one. Komodo stops answering at 17m: both names are
+  # in the 1-hour window, and each ID still has one.
+  - name: container renamed
+    interval: 1m
+    input_series:
+      - series: 'komodo_container_info{container="radarr", container_id="aaaa", stack="radarr", compose_service="radarr", stack_id="s2", state="running"}'
+        values: '1x5 stale'
+      - series: 'komodo_container_info{container="radarr-4k", container_id="aaaa", stack="radarr", compose_service="radarr", stack_id="s2", state="running"}'
+        values: '_x6 1x10 stale'
+      - series: 'komodo_server_container_info{container="komodo-core-1", container_id="bbbb", state="running"}'
+        values: '1x5 stale'
+      - series: 'komodo_server_container_info{container="komodo-core", container_id="bbbb", state="running"}'
+        values: '_x6 1x10 stale'
+    promql_expr_test:
+      - expr: atlas:container_names
+        eval_time: 12m
+        exp_samples:
+          - labels: 'atlas:container_names{container="radarr-4k", container_id="aaaa", stack="radarr", compose_service="radarr", stack_id="s2"}'
+            value: 1
+          - labels: 'atlas:container_names{container="komodo-core", container_id="bbbb", stack="unmanaged"}'
+            value: 1
+      - expr: count by (container_id) (atlas:container_names)
+        eval_time: 25m
+        exp_samples:
+          - labels: '{container_id="aaaa"}'
+            value: 1
+          - labels: '{container_id="bbbb"}'
+            value: 1

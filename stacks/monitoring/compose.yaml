@@ -244,11 +244,12 @@ services:
       retries: 3
       start_period: 30s
 
-  # Per-container CPU, memory, block I/O, start time, and OOM events from the
-  # host cgroups only. There is deliberately no Docker socket and no Docker
-  # root: those expose every container's environment. Series therefore carry
-  # only the cgroup path; Prometheus derives container_id from it, and the
-  # komodo_containers json-exporter module supplies names, stacks, and health.
+  # Per-container CPU, memory, block I/O, pressure (PSI), threads, start time,
+  # and OOM events from the host cgroups only. There is deliberately no Docker
+  # socket and no Docker root: those expose every container's environment.
+  # Series therefore carry only the cgroup path; Prometheus derives
+  # container_id from it, and the komodo_containers json-exporter module
+  # supplies names, stacks, and health.
   # Root with only CAP_SYSLOG reads /dev/kmsg for OOM events
   # (kernel.dmesg_restrict=1 on UGOS).
   cadvisor:
@@ -270,7 +271,7 @@ services:
       - --raw_cgroup_prefix_whitelist=/system.slice/docker-
       - --store_container_labels=false
       - --housekeeping_interval=15s
-      - --enable_metrics=cpu,memory,diskIO,oom_event
+      - --enable_metrics=cpu,memory,diskIO,oom_event,pressure,process
       - --port=8080
     volumes:
       - type: bind
@@ -462,7 +463,8 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Reads Gluetun, qBittorrent, slskd, and Komodo (stacks and containers) APIs. Its keys come from
+  # Reads Gluetun, qBittorrent, slskd, and Komodo (stacks, containers, the
+  # server, Actions, Procedures, the Resource Sync, updates, and alerts) APIs. Its keys come from
   # Komodo variables as Compose secrets under /run/secrets, which is why this
   # service cannot use a read-only root filesystem.
   json-exporter:

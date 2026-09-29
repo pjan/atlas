@@ -117,6 +117,7 @@ modules:
         path: '{ [*] }'
         labels:
           stack: '{ .name }'
+          stack_id: '{ .id }'
           state: '{ .info.state }'
         values:
           info: 1
@@ -145,9 +146,271 @@ modules:
         labels:
           stack: '{ .stack_name }'
           compose_service: '{ .service }'
+          stack_id: '{ .stack_id }'
           container: '{ .container.name }'
           container_id: '{ .container.id }'
+          image: '{ .container.image }'
           state: '{ .container.state }'
           container_status: '{ .container.status }'
         values:
           info: 1
+
+  # Komodo POST /read/ListServers -> [{"id": "...", "name": "atlas",
+  # "info": {"state": "Ok", "version": "..."}}]. state is Ok, NotOk
+  # (Periphery unreachable), or Disabled. version is null while unreachable.
+  komodo_servers:
+    headers:
+      Content-Type: application/json
+    http_client_config:
+      http_headers:
+        X-Api-Key:
+          files: [/run/secrets/komodo_api_key]
+        X-Api-Secret:
+          files: [/run/secrets/komodo_api_secret]
+    body:
+      content: '{}'
+    metrics:
+      - name: komodo_server
+        help: Komodo server state (1 for the reported state).
+        type: object
+        path: '{ [*] }'
+        labels:
+          server: '{ .name }'
+          server_id: '{ .id }'
+          state: '{ .info.state }'
+          version: '{ .info.version }'
+        values:
+          info: 1
+
+  # Komodo POST /read/ListActions -> [{"id": "...", "name": "...", "info":
+  # {"state": "Ok", "last_run_at": ms, "next_scheduled_run": ms or null}}].
+  # The filters skip Actions that never ran or have no schedule; json-exporter
+  # still logs a conversion error for a null timestamp.
+  komodo_actions:
+    headers:
+      Content-Type: application/json
+    http_client_config:
+      http_headers:
+        X-Api-Key:
+          files: [/run/secrets/komodo_api_key]
+        X-Api-Secret:
+          files: [/run/secrets/komodo_api_secret]
+    body:
+      content: '{}'
+    metrics:
+      - name: komodo_action
+        help: Komodo Action state (1 for the reported state).
+        type: object
+        path: '{ [*] }'
+        labels:
+          action: '{ .name }'
+          action_id: '{ .id }'
+          state: '{ .info.state }'
+        values:
+          info: 1
+      - name: komodo_action
+        help: Last successful run of a Komodo Action, in Unix milliseconds.
+        type: object
+        path: '{ [?(@.info.last_run_at)] }'
+        labels:
+          action: '{ .name }'
+          action_id: '{ .id }'
+        values:
+          last_run_timestamp_ms: '{ .info.last_run_at }'
+      - name: komodo_action
+        help: Next scheduled run of a Komodo Action, in Unix milliseconds.
+        type: object
+        path: '{ [?(@.info.next_scheduled_run)] }'
+        labels:
+          action: '{ .name }'
+          action_id: '{ .id }'
+        values:
+          next_run_timestamp_ms: '{ .info.next_scheduled_run }'
+
+  # Komodo POST /read/ListProcedures: the same shape as ListActions.
+  komodo_procedures:
+    headers:
+      Content-Type: application/json
+    http_client_config:
+      http_headers:
+        X-Api-Key:
+          files: [/run/secrets/komodo_api_key]
+        X-Api-Secret:
+          files: [/run/secrets/komodo_api_secret]
+    body:
+      content: '{}'
+    metrics:
+      - name: komodo_procedure
+        help: Komodo Procedure state (1 for the reported state).
+        type: object
+        path: '{ [*] }'
+        labels:
+          procedure: '{ .name }'
+          procedure_id: '{ .id }'
+          state: '{ .info.state }'
+        values:
+          info: 1
+      - name: komodo_procedure
+        help: Last successful run of a Komodo Procedure, in Unix milliseconds.
+        type: object
+        path: '{ [?(@.info.last_run_at)] }'
+        labels:
+          procedure: '{ .name }'
+          procedure_id: '{ .id }'
+        values:
+          last_run_timestamp_ms: '{ .info.last_run_at }'
+      - name: komodo_procedure
+        help: Next scheduled run of a Komodo Procedure, in Unix milliseconds.
+        type: object
+        path: '{ [?(@.info.next_scheduled_run)] }'
+        labels:
+          procedure: '{ .name }'
+          procedure_id: '{ .id }'
+        values:
+          next_run_timestamp_ms: '{ .info.next_scheduled_run }'
+
+  # Komodo POST /read/ListResourceSyncs -> [{"id": "...", "name": "pjan/atlas",
+  # "info": {"state": "Ok", "last_sync_ts": ms, "last_sync_hash": "..."}}].
+  # last_sync_message is multi-line, so it is never a label.
+  komodo_syncs:
+    headers:
+      Content-Type: application/json
+    http_client_config:
+      http_headers:
+        X-Api-Key:
+          files: [/run/secrets/komodo_api_key]
+        X-Api-Secret:
+          files: [/run/secrets/komodo_api_secret]
+    body:
+      content: '{}'
+    metrics:
+      - name: komodo_sync
+        help: Komodo Resource Sync state and last synced commit (1 per sync).
+        type: object
+        path: '{ [*] }'
+        labels:
+          sync: '{ .name }'
+          sync_id: '{ .id }'
+          state: '{ .info.state }'
+          last_sync_hash: '{ .info.last_sync_hash }'
+        values:
+          info: 1
+      - name: komodo_sync
+        help: Last run of a Komodo Resource Sync, in Unix milliseconds (0 if never).
+        type: object
+        path: '{ [*] }'
+        labels:
+          sync: '{ .name }'
+          sync_id: '{ .id }'
+        values:
+          last_sync_timestamp_ms: '{ .info.last_sync_ts }'
+
+  # Komodo POST /read/ListAllContainers: every container on the server,
+  # including those outside Komodo stacks (the Komodo bootstrap and the
+  # backup's one-shot containers). The default limit is 50, so ask for all.
+  # container_status becomes health and exit_code in prometheus.yml.
+  komodo_server_containers:
+    headers:
+      Content-Type: application/json
+    http_client_config:
+      http_headers:
+        X-Api-Key:
+          files: [/run/secrets/komodo_api_key]
+        X-Api-Secret:
+          files: [/run/secrets/komodo_api_secret]
+    body:
+      content: '{"limit": 0}'
+    metrics:
+      - name: komodo_server_container
+        help: Container on a Komodo server (1 per container).
+        type: object
+        path: '{ [?(@.id)] }'
+        labels:
+          container: '{ .name }'
+          container_id: '{ .id }'
+          state: '{ .state }'
+          image: '{ .image }'
+          container_status: '{ .status }'
+        values:
+          info: 1
+
+  # Komodo POST /read/ListUpdates: page 0, the newest 100 updates
+  # (operations), newest first: {"updates": [{"id", "operation", "start_ts"
+  # (ms), "success", "username", "target": {"type", "id"}, "status"}]}.
+  # One series per update and status (InProgress, then Complete). username
+  # is a name or a system user ID (see rules/containers.yml).
+  komodo_updates:
+    headers:
+      Content-Type: application/json
+    http_client_config:
+      http_headers:
+        X-Api-Key:
+          files: [/run/secrets/komodo_api_key]
+        X-Api-Secret:
+          files: [/run/secrets/komodo_api_secret]
+    body:
+      content: '{}'
+    metrics:
+      - name: komodo_update
+        help: Start of a Komodo update (operation), in Unix milliseconds.
+        type: object
+        path: '{ .updates[*] }'
+        labels:
+          update_id: '{ .id }'
+          operation: '{ .operation }'
+          target_type: '{ .target.type }'
+          target_id: '{ .target.id }'
+          update_status: '{ .status }'
+          success: '{ .success }'
+          username: '{ .username }'
+        values:
+          start_timestamp_ms: '{ .start_ts }'
+
+  # Komodo POST /read/ListAlerts: page 0, the newest 100 alerts: {"alerts":
+  # [{"_id": {"$oid": "..."}, "ts" (ms), "resolved", "level" (OK, WARNING,
+  # CRITICAL), "target": {"type", "id"}, "data": {"type", "data": {...}}}]}.
+  # Komodo records alerts even without an alerter. Only StackStateChange
+  # has from and to; the other types get empty labels (a missing key would
+  # log an error per alert and scrape).
+  komodo_alerts:
+    headers:
+      Content-Type: application/json
+    http_client_config:
+      http_headers:
+        X-Api-Key:
+          files: [/run/secrets/komodo_api_key]
+        X-Api-Secret:
+          files: [/run/secrets/komodo_api_secret]
+    body:
+      content: '{}'
+    metrics:
+      - name: komodo_alert
+        help: Time a Komodo alert was opened, in Unix milliseconds.
+        type: object
+        path: '{ .alerts[?(@.data.type == "StackStateChange")] }'
+        labels:
+          alert_id: "{ ._id['\\$oid'] }"
+          alert_type: '{ .data.type }'
+          level: '{ .level }'
+          resolved: '{ .resolved }'
+          target_type: '{ .target.type }'
+          target_id: '{ .target.id }'
+          from_state: '{ .data.data.from }'
+          to_state: '{ .data.data.to }'
+        values:
+          timestamp_ms: '{ .ts }'
+      - name: komodo_alert
+        help: Time a Komodo alert was opened, in Unix milliseconds.
+        type: object
+        path: '{ .alerts[?(@.data.type != "StackStateChange")] }'
+        labels:
+          alert_id: "{ ._id['\\$oid'] }"
+          alert_type: '{ .data.type }'
+          level: '{ .level }'
+          resolved: '{ .resolved }'
+          target_type: '{ .target.type }'
+          target_id: '{ .target.id }'
+          from_state: ''
+          to_state: ''
+        values:
+          timestamp_ms: '{ .ts }'
