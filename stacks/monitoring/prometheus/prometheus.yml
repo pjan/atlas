@@ -137,13 +137,15 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: json-exporter:7979
-    # Docker reports health only inside the container status text.
+    # Docker reports health only inside the container status text
+    # (container_status, from komodo_containers). Drop only that label:
+    # other modules keep theirs, e.g. gluetun_vpn_status_info{status}.
     metric_relabel_configs:
-      - source_labels: [__name__, status]
+      - source_labels: [__name__, container_status]
         regex: 'komodo_container_info;.*\((healthy|unhealthy|health: starting)\).*'
         target_label: health
         replacement: '$1'
-      - regex: status
+      - regex: container_status
         action: labeldrop
 
   # Application health endpoints through Caddy. Each target selects its

@@ -148,6 +148,6 @@ modules:
           container: '{ .container.name }'
           container_id: '{ .container.id }'
           state: '{ .container.state }'
-          status: '{ .container.status }'
+          container_status: '{ .container.status }'
         values:
           info: 1
