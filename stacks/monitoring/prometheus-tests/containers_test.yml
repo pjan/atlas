@@ -147,6 +147,10 @@ tests:
         values: '1x3'
       - series: 'komodo_container_info{container="c10", container_id="10", stack="s", stack_id="i", state="running", health="unhealthy"}'
         values: '1x3'
+      - series: 'komodo_container_info{container="c11", container_id="11", stack="s", stack_id="i", state="exited", exit_code="0"}'
+        values: '1x3'
+      - series: 'komodo_container_info{container="c12", container_id="12", stack="s", stack_id="i", state="exited"}'
+        values: '1x3'
     promql_expr_test:
       - expr: atlas:container_state_code
         eval_time: 2m
@@ -171,6 +175,10 @@ tests:
             value: 9
           - labels: 'atlas:container_state_code{container="c10", stack="s", stack_id="i"}'
             value: 10
+          - labels: 'atlas:container_state_code{container="c11", stack="s", stack_id="i"}'
+            value: 11
+          - labels: 'atlas:container_state_code{container="c12", stack="s", stack_id="i"}'
+            value: 6
 
   # Every Komodo stack state, one stack each.
   - name: stack state codes

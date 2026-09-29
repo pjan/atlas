@@ -1258,6 +1258,8 @@ config_files = [
   { path = "blackbox/blackbox.yml", services = ["blackbox-exporter"], requires = "None" },
   { path = "json/json.yml", services = ["json-exporter"], requires = "Restart" },
   { path = "grafana/provisioning/datasources/prometheus.yml", services = ["grafana"], requires = "Restart" },
+  { path = "grafana/plugins/atlas-theme-app/plugin.json", services = ["grafana"], requires = "Restart" },
+  { path = "grafana/plugins/atlas-theme-app/module.js", services = ["grafana"], requires = "Restart" },
 ]
 pre_deploy.path = "."
 pre_deploy.command = """

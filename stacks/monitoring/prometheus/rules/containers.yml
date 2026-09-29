@@ -110,7 +110,11 @@ groups:
       # Komodo container state and Docker health as one number per container
       # name, so a timeline keeps one row across recreates: 1 running (no
       # healthcheck), 2 healthy, 3 starting (health: starting), 4 created,
-      # 5 paused, 6 exited, 7 restarting, 8 removing, 9 dead, 10 unhealthy.
+      # 5 paused, 6 exited (non-zero or unknown exit code), 7 restarting,
+      # 8 removing, 9 dead, 10 unhealthy, 11 exited (0), a clean finish such
+      # as the backup's one-shot containers. exit_code exists only on exited
+      # containers; the exit_code="0" branch comes first, so "or" drops the
+      # same series from the generic exited branch (and max by would keep 11).
       - record: atlas:container_state_code
         expr: |
           max by (container, stack, stack_id) (
@@ -123,6 +127,8 @@ groups:
               komodo_container_info{state="created"} * 4
             or
               komodo_container_info{state="paused"} * 5
+            or
+              komodo_container_info{state="exited", exit_code="0"} * 11
             or
               komodo_container_info{state="exited"} * 6
             or

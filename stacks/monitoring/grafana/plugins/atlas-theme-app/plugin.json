@@ -1,0 +1,17 @@
+{
+  "type": "app",
+  "name": "Atlas Theme",
+  "id": "atlas-theme-app",
+  "preload": true,
+  "autoEnabled": true,
+  "info": {
+    "version": "1.0.0",
+    "updated": "2026-09-29",
+    "author": { "name": "pjan" },
+    "keywords": ["theme"],
+    "logos": { "small": "", "large": "" },
+    "description": "Atlas colours: page and panel backgrounds, named-colour remap, series palette, and stat tile, table cell, pill, and bar gauge styling"
+  },
+  "dependencies": { "grafanaDependency": ">=13.2.0", "plugins": [] },
+  "includes": []
+}
