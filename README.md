@@ -334,7 +334,7 @@ mv -f "$tmp" "$out"
 - The metrics are `atlas_offsite_last_run_timestamp_seconds`, `atlas_offsite_last_success_timestamp_seconds` (a failed snapshot keeps the previous value), `atlas_offsite_last_exit_code` (0 success, 3 partial, 1 error), `atlas_offsite_last_duration_seconds`, `atlas_offsite_last_bytes_added`, and `atlas_offsite_last_error_info{error}`. They must not reuse the `atlas_backup_*` names of `atlas_backups.prom`: node-exporter drops a metric whose HELP text differs between two files.
 - The file is written to a temporary name that node-exporter ignores and then renamed, so node-exporter never reads a partial file. Backrest runs as root with `DAC_OVERRIDE`, so it can write to the root-owned directory; the file is `0644` for node-exporter (`65534`).
 - The hook is for this plan only: another plan needs its own file name and metric labels.
-- To test it, run the plan with **Backup now** and check the file on the NAS: `cat /volume1/backups/.metrics/atlas_offsite.prom`.
+- Order matters when setting it up (or after a rebuild): deploy `backrest` first (the `/metrics` bind), then add the hook, then run the plan with **Backup now** and check the file on the NAS: `cat /volume1/backups/.metrics/atlas_offsite.prom`. Until that file exists, `OffsiteBackupStale` fires (a missing file counts as stale), so deploy `monitoring` with the off-site rules only after it is there.
 
 The restic password and the service-account key are also stored inside the backup itself (in the appdata snapshot of `/volume2/appdata/backrest`), so they must be kept in the password manager too; without them the off-site copy cannot be opened.
 
