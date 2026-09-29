@@ -512,7 +512,7 @@ services:
       start_period: 20s
 
   grafana:
-    image: grafana/grafana:13.2.2
+    image: grafana/grafana:13.2.3
     container_name: grafana
     restart: unless-stopped
     user: "472:0"
