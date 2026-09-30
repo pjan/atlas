@@ -28,6 +28,9 @@
  *   pill             ... [role="gridcell"] span style "background-color: rgb(...)"
  *   bar gauge bar    style "background: rgba(..., 0.35); border-...: 2px solid rgb(...)"
  * Without the plugin every dashboard still works, with Grafana's stock colours.
+ *
+ * Bump info.version in plugin.json with every change: Grafana loads this file as
+ * module.js?_cache=<version>, so browsers keep the old file until the version changes.
  */
 define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
   // Atlas palette, steps 100 to 900 (CONVENTIONS.md section 2).
