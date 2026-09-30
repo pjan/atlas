@@ -1261,7 +1261,8 @@ config_files = [
   { path = "grafana/plugins/atlas-theme-app/plugin.json", services = ["grafana"], requires = "Restart" },
   { path = "grafana/plugins/atlas-theme-app/module.js", services = ["grafana"], requires = "Restart" },
   { path = "grafana/plugins/atlas-theme-app/atlas-theme.json", services = ["grafana"], requires = "Restart" },
-  { path = "grafana/plugins/atlas-theme-app/atlas-style.json", services = ["grafana"], requires = "Restart" },
+  { path = "grafana/plugins/atlas-theme-app/atlas.css", services = ["grafana"], requires = "Restart" },
+  { path = "grafana/plugins/atlas-theme-app/README.md", services = ["grafana"], requires = "None" },
 ]
 pre_deploy.path = "."
 pre_deploy.command = """

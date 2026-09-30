@@ -1275,7 +1275,7 @@ def discord_message_problems(embeds: object, alerts: list[dict]) -> list[str]:
 
 
 def schema_problems(value: object, schema: dict, root: dict, path: str) -> list[str]:
-    """The JSON Schema keywords Grafana's theme schema and atlas-style.schema.json use."""
+    """The JSON Schema keywords Grafana's theme schema uses."""
     if "$ref" in schema:
         target: object = root
         for part in schema["$ref"].removeprefix("#/").split("/"):
@@ -1389,25 +1389,26 @@ def mirroring_problems(light: object, dark: object, where: str) -> list[str]:
     return []
 
 
+def palette_variable(key: str) -> str:
+    """The CSS variable the plugin defines for a palette key: gray100 -> --atlas-gray-100."""
+    return "--atlas-" + re.sub(r"^([a-z]+)([0-9]+)$", r"\1-\2", key)
+
+
 def validate_theme_plugin(validation: Validation) -> None:
-    """atlas-theme.json against Grafana's theme schema, atlas-style.json against its own,
-    every palette reference resolves, and dark steps mirror light ones (1000 - step)."""
-    documents = {}
-    for name in ("atlas-theme.json", "atlas-style.json"):
-        path = THEME_PLUGIN_DIRECTORY / name
-        try:
-            documents[name] = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as error:
-            validation.require(False, f"{relative(path)}: {error}")
-            return
-    theme, style = documents["atlas-theme.json"], documents["atlas-style.json"]
-    theme_file = relative(THEME_PLUGIN_DIRECTORY / "atlas-theme.json")
-    style_file = relative(THEME_PLUGIN_DIRECTORY / "atlas-style.json")
+    """atlas-theme.json against Grafana's theme schema, every palette reference resolves, dark
+    steps mirror light ones (1000 - step); atlas.css uses only defined --atlas- variables and
+    known canvas variable names."""
+    theme_path = THEME_PLUGIN_DIRECTORY / "atlas-theme.json"
+    css_path = THEME_PLUGIN_DIRECTORY / "atlas.css"
+    theme_file, css_file = relative(theme_path), relative(css_path)
+    try:
+        theme = json.loads(theme_path.read_text(encoding="utf-8"))
+        css = css_path.read_text(encoding="utf-8")
+    except (OSError, json.JSONDecodeError) as error:
+        validation.require(False, f"theme plugin: {error}")
+        return
     grafana_schema = json.loads(
         (THEME_SCHEMA_DIRECTORY / "grafana-theme.schema.json").read_text(encoding="utf-8")
-    )
-    style_schema = json.loads(
-        (THEME_SCHEMA_DIRECTORY / "atlas-style.schema.json").read_text(encoding="utf-8")
     )
 
     validation.require(
@@ -1433,66 +1434,50 @@ def validate_theme_plugin(validation: Validation) -> None:
             definition.get("colors", {}).get("mode") == mode,
             f"{theme_file}: themes.{mode}.colors.mode must be {mode}",
         )
-    for problem in schema_problems(style, style_schema, style_schema, "style"):
-        validation.require(False, f"{style_file}: {problem}")
-
-    for file_name, document in ((theme_file, theme), (style_file, style)):
-        for path, key, alpha in palette_references(document, "$"):
-            validation.require(
-                key in palette, f"{file_name}: {path} refers to unknown palette key {key}"
-            )
-            validation.require(
-                alpha is None or bool(re.fullmatch(r"0|1|0?\.[0-9]+", alpha)),
-                f"{file_name}: {path} has alpha {alpha}; use a number from 0 to 1",
-            )
-
+    for path, key, alpha in palette_references(theme, "$"):
+        validation.require(
+            key in palette, f"{theme_file}: {path} refers to unknown palette key {key}"
+        )
+        validation.require(
+            alpha is None or bool(re.fullmatch(r"0|1|0?\.[0-9]+", alpha)),
+            f"{theme_file}: {path} has alpha {alpha}; use a number from 0 to 1",
+        )
     names = theme.get("names", {})
-    slots = style.get("slots", {})
-    axes = style.get("canvas", {}).get("axes", {})
-    for file_name, where, light, dark in (
-        (theme_file, "themes.*", themes.get("light", {}), themes.get("dark", {})),
-        (theme_file, "names.*", names.get("light", {}), names.get("dark", {})),
-        (style_file, "slots.*", slots.get("light", {}), slots.get("dark", {})),
-        (style_file, "canvas.axes.*", axes.get("light", []), axes.get("dark", [])),
+    for where, light, dark in (
+        ("themes.*", themes.get("light", {}), themes.get("dark", {})),
+        ("names.*", names.get("light", {}), names.get("dark", {})),
     ):
         for problem in mirroring_problems(light, dark, where):
-            validation.require(False, f"{file_name}: {problem}")
+            validation.require(False, f"{theme_file}: {problem}")
 
-    # Every role hue has every slot step, and the theme draws the role in that hue.
-    slot_steps = {
-        value
-        for mode in THEME_MODES
-        for value in slots.get(mode, {}).values()
-        if isinstance(value, int)
-    }
-    drawn_as = {
-        shade["name"]: shade["color"]
-        for hue in themes.get("light", {}).get("visualization", {}).get("hues", [])
-        for shade in hue.get("shades", [])
-    } | names.get("light", {})
-    for name, hue in style.get("roles", {}).items():
-        for step in sorted(slot_steps):
+    # atlas.css: comments are ignored; braces balance; every var(--atlas-...) is defined by
+    # the palette or the stylesheet; the palette variables are not redefined; names that
+    # start like a canvas variable are one (README.md in the plugin directory).
+    code = re.sub(r"/\*.*?\*/", "", css, flags=re.DOTALL)
+    validation.require(
+        code.count("{") == code.count("}"), f"{css_file}: unbalanced braces"
+    )
+    palette_variables = {palette_variable(key) for key in palette}
+    declared = set(re.findall(r"(--atlas-[a-z0-9-]+)\s*:", code))
+    for name in sorted(declared & palette_variables):
+        validation.require(False, f"{css_file}: {name} is a palette variable; do not redefine it")
+    for name in sorted(set(re.findall(r"var\(\s*(--atlas-[a-z0-9-]+)", code))):
+        validation.require(
+            name in declared or name in palette_variables,
+            f"{css_file}: var({name}) is not defined by the palette or the stylesheet",
+        )
+    roles = "ok|warning|critical|progress|pending|unknown"
+    for name in sorted(declared):
+        if re.fullmatch(rf"--atlas-(grid|axis|{roles})(-.*)?", name):
             validation.require(
-                f"{hue}{step}" in palette,
-                f"{style_file}: roles.{name} ({hue}) has no {hue}{step} in the palette",
+                bool(
+                    re.fullmatch(
+                        rf"--atlas-(grid|axis-text|({roles})-(outline|text|sparkline|sparkline-fill))",
+                        name,
+                    )
+                ),
+                f"{css_file}: {name} is not a canvas variable (see the plugin README)",
             )
-        drawn = palette_steps(drawn_as.get(name, ""))
-        validation.require(
-            len(drawn) == 1 and drawn[0][0] == hue,
-            f"{style_file}: roles.{name} is {hue}, but {theme_file} draws {name} "
-            f"as {drawn_as.get(name)}",
-        )
-    # Every slot a rule uses exists, and every component matches on a colour.
-    slot_names = set(slots.get("light", {}))
-    used = set(re.findall(r"var\(--c-([a-z-]+)\)", json.dumps(style)))
-    used.add(style.get("sparkline", {}).get("slot", ""))
-    for name in sorted(used - slot_names):
-        validation.require(False, f"{style_file}: slot {name} is used but not defined")
-    for rule in style.get("components", []) + [style.get("sparkline", {})]:
-        validation.require(
-            "{c}" in rule.get("match", ""),
-            f"{style_file}: {rule.get('name', 'sparkline')} has no {{c}} in match",
-        )
 
 
 def validate_alert_messages(

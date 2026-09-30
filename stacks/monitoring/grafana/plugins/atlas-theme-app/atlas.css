@@ -1,0 +1,87 @@
+/*
+ * Atlas theme stylesheet (README.md in this directory).
+ *
+ * - Theme blocks: html[data-atlas-theme="light"] and html[data-atlas-theme="dark"]; the plugin
+ *   sets the attribute. Rules outside them apply in both themes.
+ * - Palette: var(--atlas-gray-100) ... var(--atlas-pink-900), var(--atlas-ink), var(--atlas-white),
+ *   var(--atlas-page), generated from atlas-theme.json.
+ * - Selectors: Grafana's data-testid attributes (for example [data-testid^="stat-panel-"],
+ *   [data-testid^="table-panel-"], [data-testid="data-testid dashboard controls"]), a panel by
+ *   [data-viz-panel-key="panel-<id>"], a panel type by [data-plugin-id="<type>"]. Grafana adds its
+ *   own styles after this sheet: prefix rules with a theme block selector (it also raises their
+ *   specificity) or use !important.
+ * - States: Grafana writes a state's colour inline, so a rule for one state matches that colour,
+ *   for example [style*="background: rgb(111, 198, 134)"] (a green tile or table cell in light) or
+ *   span[style*="background-color: rgb(111, 198, 134)"] (a green pill). The values, from
+ *   atlas-theme.json (they change when it does):
+ *   ok        green   light rgb(111, 198, 134)  dark rgb(67, 156, 94)     super-light-green: light rgb(191, 227, 199)  dark rgb(60, 102, 57)
+ *   warning   yellow  light rgb(234, 167, 79)   dark rgb(186, 127, 45)    super-light-yellow: light rgb(244, 213, 178)  dark rgb(124, 84, 30)
+ *   critical  red     light rgb(255, 151, 141)  dark rgb(234, 90, 83)     super-light-red: light rgb(254, 207, 202)  dark rgb(140, 73, 67)
+ *   progress  blue    light rgb(89, 188, 254)   dark rgb(0, 146, 217)     super-light-blue: light rgb(187, 223, 250)  dark rgb(39, 97, 135)
+ *   pending   purple  light rgb(223, 156, 234)  dark rgb(185, 112, 197)   super-light-purple: light rgb(240, 208, 245)  dark rgb(122, 75, 130)
+ *   unknown   gray    light rgb(177, 181, 178)  dark rgb(132, 142, 142)   super-light-gray: light rgb(218, 218, 217)  dark rgb(85, 94, 101)
+ */
+
+html[data-atlas-theme="light"] {
+  /* Canvas colours (README.md, Canvas variables). Remove a line to keep Grafana's colour. */
+  --atlas-grid: var(--atlas-gray-200);
+  --atlas-axis-text: var(--atlas-gray-700);
+  --atlas-ok-outline: var(--atlas-emerald-400);
+  --atlas-ok-text: var(--atlas-emerald-800);
+  --atlas-ok-sparkline: color-mix(in srgb, var(--atlas-emerald-900) 45%, transparent);
+  --atlas-ok-sparkline-fill: color-mix(in srgb, var(--atlas-emerald-900) 18%, transparent);
+  --atlas-warning-outline: var(--atlas-amber-400);
+  --atlas-warning-text: var(--atlas-amber-800);
+  --atlas-warning-sparkline: color-mix(in srgb, var(--atlas-amber-900) 45%, transparent);
+  --atlas-warning-sparkline-fill: color-mix(in srgb, var(--atlas-amber-900) 18%, transparent);
+  --atlas-critical-outline: var(--atlas-red-400);
+  --atlas-critical-text: var(--atlas-red-800);
+  --atlas-critical-sparkline: color-mix(in srgb, var(--atlas-red-900) 45%, transparent);
+  --atlas-critical-sparkline-fill: color-mix(in srgb, var(--atlas-red-900) 18%, transparent);
+  --atlas-progress-outline: var(--atlas-sky-400);
+  --atlas-progress-text: var(--atlas-sky-800);
+  --atlas-progress-sparkline: color-mix(in srgb, var(--atlas-sky-900) 45%, transparent);
+  --atlas-progress-sparkline-fill: color-mix(in srgb, var(--atlas-sky-900) 18%, transparent);
+  --atlas-pending-outline: var(--atlas-purple-400);
+  --atlas-pending-text: var(--atlas-purple-800);
+  --atlas-pending-sparkline: color-mix(in srgb, var(--atlas-purple-900) 45%, transparent);
+  --atlas-pending-sparkline-fill: color-mix(in srgb, var(--atlas-purple-900) 18%, transparent);
+  --atlas-unknown-outline: var(--atlas-gray-400);
+  --atlas-unknown-text: var(--atlas-gray-800);
+  --atlas-unknown-sparkline: color-mix(in srgb, var(--atlas-gray-900) 45%, transparent);
+  --atlas-unknown-sparkline-fill: color-mix(in srgb, var(--atlas-gray-900) 18%, transparent);
+
+  /* Styling rules for this theme go here or below, prefixed with this selector. */
+}
+
+html[data-atlas-theme="dark"] {
+  /* Canvas colours (README.md, Canvas variables). Remove a line to keep Grafana's colour. */
+  --atlas-grid: var(--atlas-gray-800);
+  --atlas-axis-text: var(--atlas-gray-300);
+  --atlas-ok-outline: var(--atlas-emerald-600);
+  --atlas-ok-text: var(--atlas-emerald-200);
+  --atlas-ok-sparkline: color-mix(in srgb, var(--atlas-emerald-100) 45%, transparent);
+  --atlas-ok-sparkline-fill: color-mix(in srgb, var(--atlas-emerald-100) 18%, transparent);
+  --atlas-warning-outline: var(--atlas-amber-600);
+  --atlas-warning-text: var(--atlas-amber-200);
+  --atlas-warning-sparkline: color-mix(in srgb, var(--atlas-amber-100) 45%, transparent);
+  --atlas-warning-sparkline-fill: color-mix(in srgb, var(--atlas-amber-100) 18%, transparent);
+  --atlas-critical-outline: var(--atlas-red-600);
+  --atlas-critical-text: var(--atlas-red-200);
+  --atlas-critical-sparkline: color-mix(in srgb, var(--atlas-red-100) 45%, transparent);
+  --atlas-critical-sparkline-fill: color-mix(in srgb, var(--atlas-red-100) 18%, transparent);
+  --atlas-progress-outline: var(--atlas-sky-600);
+  --atlas-progress-text: var(--atlas-sky-200);
+  --atlas-progress-sparkline: color-mix(in srgb, var(--atlas-sky-100) 45%, transparent);
+  --atlas-progress-sparkline-fill: color-mix(in srgb, var(--atlas-sky-100) 18%, transparent);
+  --atlas-pending-outline: var(--atlas-purple-600);
+  --atlas-pending-text: var(--atlas-purple-200);
+  --atlas-pending-sparkline: color-mix(in srgb, var(--atlas-purple-100) 45%, transparent);
+  --atlas-pending-sparkline-fill: color-mix(in srgb, var(--atlas-purple-100) 18%, transparent);
+  --atlas-unknown-outline: var(--atlas-gray-600);
+  --atlas-unknown-text: var(--atlas-gray-200);
+  --atlas-unknown-sparkline: color-mix(in srgb, var(--atlas-gray-100) 45%, transparent);
+  --atlas-unknown-sparkline-fill: color-mix(in srgb, var(--atlas-gray-100) 18%, transparent);
+
+  /* Styling rules for this theme go here or below, prefixed with this selector. */
+}
