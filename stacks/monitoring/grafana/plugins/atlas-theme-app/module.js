@@ -52,15 +52,18 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
   // Grafana's named hue -> Atlas hue (CONVENTIONS.md section 4).
   var HUE = { green: 'emerald', yellow: 'amber', red: 'red', blue: 'sky', purple: 'violet', orange: 'orange' };
   // Grafana shade -> Atlas step. The base name is the role fill: 400 light, 600 dark.
+  // super-light-* is the pill fill (200 light, 800 dark), used by state timelines.
   var SHADE = {
     light: { 'super-light': 200, light: 300, base: 400, 'semi-dark': 500, dark: 700 },
-    dark: { 'super-light': 200, light: 300, base: 600, 'semi-dark': 500, dark: 700 }
+    dark: { 'super-light': 800, light: 300, base: 600, 'semi-dark': 500, dark: 700 }
   };
   var FILL = { light: 400, dark: 600 };
   var TEXT = { light: '#020918', dark: '#ffffff' };
+  // Stat tiles in light: the 300 fill with the 900 as text (dark keeps the role fill and TEXT).
+  var TILE = { light: { bg: 300, fg: 900 } };
   var PILL = { light: { bg: 200, fg: 800 }, dark: { bg: 800, fg: 200 } };
-  // Table colour-text cells: the role colour as text, 800 light, 200 dark.
-  var CTEXT = { light: 800, dark: 200 };
+  // Table colour-text cells: the role colour as bold text, 900 light, 200 dark.
+  var CTEXT = { light: 900, dark: 200 };
   // Gray has no Grafana name; dashboards use gray 500, which the CSS turns into the gray fill.
   var GRAY = step('gray', 500);
   // palette-classic: five series hues at 500, then gray 500 for every further series.
@@ -129,15 +132,17 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
       var pill = pre + '[data-testid^="table-panel-"] [role="gridcell"] span[style*="background-color: rgb(' + key + ')"]';
       var bar = pre + '[style*="background: rgba(' + key + ', 0.35)"][style*="2px solid rgb(' + key + ')"]';
       var ctext = pre + '[data-testid^="table-panel-"] [role="gridcell"][style*="color: rgb(' + key + ')"]:not([style*="background"])';
-      css += tile + '{' + bg + 'border-radius:6px !important;overflow:hidden !important}\n';
-      css += tile + ',' + tile + ' *{color:' + TEXT[mode] + ' !important}\n';
+      var tileBg = TILE[mode] ? 'background:' + step(hue, TILE[mode].bg) + ' !important;' : bg;
+      var tileFg = TILE[mode] ? step(hue, TILE[mode].fg) : TEXT[mode];
+      css += tile + '{' + tileBg + 'border-radius:6px !important;overflow:hidden !important}\n';
+      css += tile + ',' + tile + ' *{color:' + tileFg + ' !important}\n';
       if (bg) { css += cell + '{' + bg + '}\n'; }
       css += cell + ',' + cell + ' *{color:' + TEXT[mode] + ' !important;font-weight:600 !important}\n';
       css += pill + '{background-color:' + step(hue, PILL[mode].bg) + ' !important;color:' + step(hue, PILL[mode].fg) +
         ' !important;box-shadow:inset 0 0 0 1px ' + fill + ' !important;border-radius:4px !important}\n';
       // Bar gauges and table gauge cells (basic mode) draw the bar at 35 % alpha; draw it solid.
       css += bar + '{background:' + fill + ' !important;border-color:' + fill + ' !important}\n';
-      css += ctext + ',' + ctext + ' *{color:' + step(hue, CTEXT[mode]) + ' !important}\n';
+      css += ctext + ',' + ctext + ' *{color:' + step(hue, CTEXT[mode]) + ' !important;font-weight:600 !important}\n';
     });
   });
   // A colour-background cell without a colour (a transparent step) keeps the theme text.
