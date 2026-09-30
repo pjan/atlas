@@ -36,15 +36,16 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
   // Atlas palette, steps 100 to 900 (CONVENTIONS.md section 2).
   var PAL = {
     gray: ['#ededed', '#dadbd7', '#c5c9c3', '#aeb6b0', '#95a49f', '#7c908f', '#647a7f', '#4c606d', '#344154'],
-    red: ['#ffe8e5', '#fed0ca', '#fcb6ae', '#f99a91', '#f47c72', '#d66c63', '#b55a53', '#904641', '#652f2b'],
-    orange: ['#fee9e0', '#fbd1c0', '#f9b99e', '#f59f7a', '#f08250', '#d27145', '#b15e39', '#8d4a2c', '#63321c'],
-    amber: ['#f9ebdb', '#f2d6b5', '#ebc08d', '#e4a95f', '#dc8f11', '#c07d0f', '#a2690a', '#815307', '#5a3803'],
-    emerald: ['#def2e7', '#bae4ce', '#93d5b4', '#64c699', '#24b57f', '#049e6c', '#01855b', '#026947', '#01492f'],
-    sky: ['#deeffc', '#badff9', '#94cef7', '#67bcf3', '#1fa9f0', '#2c93ce', '#157cb2', '#0f628d', '#074363'],
-    indigo: ['#e5edff', '#cadbff', '#aec8ff', '#91b3ff', '#739dff', '#6489df', '#5474bd', '#415b96', '#2c3f6a'],
-    purple: ['#f6e8f8', '#eed1f2', '#e5b9eb', '#db9fe4', '#d183dd', '#b773c1', '#9a60a3', '#7a4b82', '#55335b'],
-    violet: ['#efeafd', '#dfd5fb', '#cfbffa', '#bfa8f8', '#af8ef6', '#997cd7', '#8168b6', '#665291', '#463866'],
-    lime: ['#ebefdb', '#d8deb6', '#c4cd8f', '#b0bb62', '#9ca81e', '#88931b', '#727c14', '#5a620f', '#3e4307']
+    red: ['#ffe8e5', '#fed0ca', '#fcb6ae', '#ff978e', '#ff746b', '#ea5a53', '#bb564f', '#8c4944', '#60332f'],
+    orange: ['#fee9e0', '#ffd0bd', '#fdb799', '#fa9c74', '#f57e46', '#d66e3d', '#b35d36', '#884d33', '#5e3523'],
+    amber: ['#f9ebdb', '#f4d5b2', '#eebf87', '#eaa74f', '#d59236', '#bb7f2d', '#9e6b25', '#7c551f', '#563a14'],
+    emerald: ['#e0f1e3', '#c0e3c7', '#9bd5a8', '#6fc686', '#46b469', '#439d5e', '#43834c', '#3c673a', '#274727'],
+    sky: ['#deeffd', '#bbdffa', '#8dcfff', '#5abcff', '#26a8f3', '#0192d9', '#257bb1', '#286188', '#1a435e'],
+    indigo: ['#e5edff', '#cadbff', '#aec8ff', '#91b3ff', '#739dff', '#6189e4', '#5273c0', '#415b97', '#2f3f63'],
+    purple: ['#f6e8f8', '#f0d0f5', '#e8b7ef', '#df9cea', '#d580e3', '#ba70c5', '#9d5ea6', '#7b4b82', '#523657'],
+    violet: ['#efeaff', '#dfd4ff', '#cfbefc', '#c0a6fd', '#b08dfa', '#997bd9', '#8069b2', '#645588', '#453a60'],
+    lime: ['#ebefdb', '#d7dfb0', '#c3ce84', '#b0bc57', '#9ca73c', '#889232', '#737b2a', '#5a6121', '#3e4316'],
+    teal: ['#daf2ec', '#aae6d8', '#7bd8c5', '#1ec9b1', '#04b39f', '#019d81', '#04846a', '#016951', '#094839']
   };
   function step(hue, n) { return PAL[hue][n / 100 - 1]; }
 
