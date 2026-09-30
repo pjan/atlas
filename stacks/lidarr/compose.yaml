@@ -30,7 +30,8 @@ services:
         max-size: "10m"
         max-file: "3"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8686/ >/dev/null || wget -q --spider http://127.0.0.1:8686/"]
+      # /ping needs no API key and reports "OK" only while Lidarr can query its database.
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8686/ping | grep -E '\"status\"[[:space:]]*:[[:space:]]*\"OK\"' >/dev/null"]
       interval: 30s
       timeout: 5s
       retries: 3

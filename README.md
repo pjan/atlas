@@ -690,7 +690,7 @@ The pinned AdGuard Home image runs as `root`. Its work and configuration directo
 
 Both bind sources use `create_host_path: false`, so a missing preflight path fails closed rather than being silently created by Docker. DNS remains bound only to `[[NAS_LAN_IP]]:53` over TCP and UDP. Deploy AdGuard separately from other stacks because its restart temporarily interrupts Atlas DNS.
 
-Atlas deliberately keeps the AdGuard Home web interface on container port `3000` after the initial setup. The Caddy route and container healthcheck both depend on `http.address` remaining `0.0.0.0:3000`. During a fresh installation or a restore without the existing `AdGuardHome.yaml`, select port `3000` in the setup wizard instead of the normal port `80`.
+Atlas deliberately keeps the AdGuard Home web interface on container port `3000` after the initial setup. The Caddy route and container healthcheck both depend on `http.address` remaining `0.0.0.0:3000`. The healthcheck also asks AdGuard on `127.0.0.1:53` for `localhost` and requires the answer `127.0.0.1`, which AdGuard serves from the container's hosts file without any upstream, so an internet outage does not make it unhealthy. It therefore also depends on `dns.bind_hosts` including `0.0.0.0`, on filtering and **Use hosts file** staying enabled, and on `127.0.0.1` not being blocked in the access settings. During a fresh installation or a restore without the existing `AdGuardHome.yaml`, select port `3000` in the setup wizard instead of the normal port `80`.
 
 Verify the persisted listener without printing the adjacent user configuration:
 
