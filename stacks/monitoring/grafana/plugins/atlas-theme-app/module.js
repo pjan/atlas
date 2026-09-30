@@ -65,8 +65,10 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
   // Stat tiles in light: the 300 fill with the 900 as text (dark keeps the role fill and TEXT).
   var TILE = { light: { bg: 300, fg: 900 } };
   var PILL = { light: { bg: 200, fg: 800 }, dark: { bg: 800, fg: 200 } };
-  // Table colour-text cells: the role colour as bold text, 900 light, 200 dark.
-  var CTEXT = { light: 900, dark: 200 };
+  // Table colour-text cells: the role colour as bold text, 700 light, 200 dark.
+  var CTEXT = { light: 700, dark: 200 };
+  // Grafana's strong border colour per theme: the dashboard link buttons use it.
+  var BORDER = { light: 'rgba(36, 41, 46, 0.4)', dark: 'rgba(204, 204, 220, 0.3)' };
   // Gray has no Grafana name; dashboards use gray 500, which the CSS turns into the gray fill.
   var GRAY = step('gray', 500);
   // palette-classic: five series hues at 500, then gray 500 for every further series.
@@ -147,6 +149,14 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
       css += bar + '{background:' + fill + ' !important;border-color:' + fill + ' !important}\n';
       css += ctext + ',' + ctext + ' *{color:' + step(hue, CTEXT[mode]) + ' !important;font-weight:600 !important}\n';
     });
+  });
+  // The toolbar buttons on the right of the dashboard controls (time range, refresh,
+  // share, edit) look like the dashboard link buttons on the left: transparent with
+  // the strong border and 12 px text; Grafana's hover background stays.
+  ['light', 'dark'].forEach(function (mode) {
+    var btn = 'html[data-atlas-theme="' + mode + '"] [data-testid="data-testid dashboard controls"] button[class*="toolbar-button"]';
+    css += btn + '{border-color:' + BORDER[mode] + ' !important;font-size:12px !important}\n';
+    css += btn + ':not(:hover){background:transparent !important}\n';
   });
   // A colour-background cell without a colour (a transparent step) keeps the theme text.
   // Grafana resolves "transparent" to rgba(0, 0, 0, 0) in dark and rgba(255, 255, 255, 0) in light.
