@@ -50,7 +50,7 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
     dark: { canvas: '#020918', page: '#020918', primary: '#020918' }
   };
   // Grafana's named hue -> Atlas hue (CONVENTIONS.md section 4).
-  var HUE = { green: 'emerald', yellow: 'amber', red: 'red', blue: 'sky', purple: 'purple', orange: 'orange' };
+  var HUE = { green: 'emerald', yellow: 'amber', red: 'red', blue: 'sky', purple: 'violet', orange: 'orange' };
   // Grafana shade -> Atlas step. The base name is the role fill: 400 light, 600 dark.
   var SHADE = {
     light: { 'super-light': 200, light: 300, base: 400, 'semi-dark': 500, dark: 700 },
@@ -59,6 +59,8 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
   var FILL = { light: 400, dark: 600 };
   var TEXT = { light: '#020918', dark: '#ffffff' };
   var PILL = { light: { bg: 200, fg: 800 }, dark: { bg: 800, fg: 200 } };
+  // Table colour-text cells: the role colour as text, 800 light, 200 dark.
+  var CTEXT = { light: 800, dark: 200 };
   // Gray has no Grafana name; dashboards use gray 500, which the CSS turns into the gray fill.
   var GRAY = step('gray', 500);
   // palette-classic: five series hues at 500, then gray 500 for every further series.
@@ -126,6 +128,7 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
       var cell = pre + '[data-testid^="table-panel-"] [role="gridcell"][style*="background: rgb(' + key + ')"]';
       var pill = pre + '[data-testid^="table-panel-"] [role="gridcell"] span[style*="background-color: rgb(' + key + ')"]';
       var bar = pre + '[style*="background: rgba(' + key + ', 0.35)"][style*="2px solid rgb(' + key + ')"]';
+      var ctext = pre + '[data-testid^="table-panel-"] [role="gridcell"][style*="color: rgb(' + key + ')"]:not([style*="background"])';
       css += tile + '{' + bg + 'border-radius:6px !important;overflow:hidden !important}\n';
       css += tile + ',' + tile + ' *{color:' + TEXT[mode] + ' !important}\n';
       if (bg) { css += cell + '{' + bg + '}\n'; }
@@ -134,6 +137,7 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
         ' !important;box-shadow:inset 0 0 0 1px ' + fill + ' !important;border-radius:4px !important}\n';
       // Bar gauges and table gauge cells (basic mode) draw the bar at 35 % alpha; draw it solid.
       css += bar + '{background:' + fill + ' !important;border-color:' + fill + ' !important}\n';
+      css += ctext + ',' + ctext + ' *{color:' + step(hue, CTEXT[mode]) + ' !important}\n';
     });
   });
   // A colour-background cell without a colour (a transparent step) keeps the theme text.
