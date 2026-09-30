@@ -129,7 +129,7 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
   }
   function apply() {
     var current = runtime.config.theme2;
-    if (current && !current.atlas) { publish(current); } else { restyle(current); }
+    if (current && !current.atlas) { stale = true; publish(current); } else { restyle(current); }
   }
   function resetSchemes() {
     NAMED_SCHEMES.forEach(function (id) {
