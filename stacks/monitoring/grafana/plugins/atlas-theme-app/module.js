@@ -18,6 +18,8 @@
  * 4. Theme switch: whenever an Atlas theme replaces a stock one (on load, on a switch), resets
  *    Grafana's cached continuous colour schemes and makes every panel of the open dashboard
  *    process its field config again; otherwise both keep the previous colours until a reload.
+ * 5. Live editor: ?atlasEditor=1 opens a drawer to edit both files in the browser; edits apply
+ *    at once and stay in this browser's localStorage until "Reset to files".
  *
  * All of it uses undocumented Grafana behaviour: publishing ThemeChangedEvent with a
  * replacement theme, the inline styles and data-testid attributes Grafana 13.2.3 renders,
@@ -50,10 +52,14 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
   var stale = true;
 
   // ---- References: atlas.<key> is a palette colour, atlas.<key>/<alpha> the same with alpha.
+  var reported = {};
   function ref(value) {
     return value.replace(/atlas\.([a-z]+[0-9]*)(?:\/([0-9.]+))?/g, function (match, key, alpha) {
-      var hex = THEME.palette[key];
-      if (!hex) { console.error('atlas-theme: unknown palette key ' + key); return match; }
+      var hex = own(THEME.palette, key);
+      if (!hex) {
+        if (!own(reported, key)) { reported[key] = true; console.error('atlas-theme: unknown palette key ' + key); }
+        return match;
+      }
       if (alpha === undefined) { return hex; }
       return 'rgba(' + channels(hex).join(', ') + ', ' + alpha + ')';
     });
@@ -231,10 +237,12 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
     var holder = document.createElement('div');
     holder.innerHTML = svg + '</defs></svg>';
     holder.firstChild.id = 'atlas-theme-filters';
+    var old = document.getElementById('atlas-theme-filters');
+    if (old) { old.remove(); }
     document.body.appendChild(holder.firstChild);
   }
-  var style = document.createElement('style');
-  style.id = 'atlas-theme-css';
+  var style_ = document.createElement('style');
+  style_.id = 'atlas-theme-css';
   function restyle(theme) {
     if (!theme || !theme.colors) { return; }
     MODE = modeOf(theme);
@@ -246,7 +254,8 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
       setTimeout(reprocessPanels, 0);
     }
     var css = generate(theme);
-    if (css !== style.textContent) { style.textContent = css; }
+    if (css !== style_.textContent) { style_.textContent = css; }
+    paint(theme);
   }
 
   // ---- 3. Canvas
@@ -255,6 +264,8 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
   function canvasMaps() {
     var axes = STYLE.canvas.axes;
     MODES.forEach(function (mode) {
+      CANVAS[mode] = {};
+      RING[mode] = {};
       axes[mode].forEach(function (r) { CANVAS[mode][ref(r.from)] = ref(r.to); });
       if (!STYLE.canvas.timeline.ring) { return; }
       Object.keys(STYLE.roles).forEach(function (name) {
@@ -300,11 +311,22 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
   }
 
   // ---- Start
-  function start() {
+  // Applies a theme and a style spec: the files, or the live editor's local override.
+  function activate(theme, style) {
+    THEME = theme;
+    STYLE = style;
+    canvasMaps();
+    sparkFilters();
+    stale = true;
+    publish(runtime.config.theme2);
+  }
+  function start(theme, style) {
+    THEME = theme;
+    STYLE = style;
     canvasMaps();
     wrapCanvas();
     sparkFilters();
-    document.head.appendChild(style);
+    document.head.appendChild(style_);
     runtime.getAppEvents().subscribe(runtime.ThemeChangedEvent, function (event) {
       restyle(event.payload);
       if (event.payload && !event.payload.atlas) { setTimeout(function () { publish(event.payload); }, 0); }
@@ -317,16 +339,185 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
       [100, 1000].forEach(function (ms) { setTimeout(apply, ms); });
     });
   }
+
+  // ---- 5. Live editor: ?atlasEditor=1 on any page opens a drawer with both files. Valid edits
+  // apply at once and are kept in this browser's localStorage (a local override) until
+  // "Reset to files"; "Copy both" copies them for the repository. Other browsers and users
+  // keep seeing the files.
+  var OVERRIDE_KEY = 'atlas-theme-override';
+  var FILES = { theme: '', style: '' };
+  function readOverride() {
+    try {
+      var o = JSON.parse(window.localStorage.getItem(OVERRIDE_KEY) || 'null');
+      return o && typeof o.theme === 'string' && typeof o.style === 'string' ? o : null;
+    } catch (e) { return null; }
+  }
+  function parsePair(themeText, styleText) {
+    var theme = JSON.parse(themeText);
+    var style = JSON.parse(styleText);
+    if (!theme.palette || !theme.themes || !theme.names || !style.slots || !style.components) {
+      throw new Error('atlas-theme.json needs palette, themes, and names; atlas-style.json needs slots and components');
+    }
+    return [theme, style];
+  }
+  function unknownKeys(text, palette) {
+    var out = [];
+    text.replace(/atlas\.([a-z]+[0-9]*)/g, function (m, key) {
+      if (!own(palette, key) && out.indexOf(key) < 0) { out.push(key); }
+      return m;
+    });
+    return out;
+  }
+  var editor = null;
+  var badge = null;
+  function updateBadge() {
+    var o = readOverride();
+    if (!o) { if (badge) { badge.remove(); badge = null; } return; }
+    if (!badge) {
+      badge = document.createElement('button');
+      badge.type = 'button';
+      badge.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:1400;padding:4px 10px;border-radius:6px;' +
+        'font:500 12px/20px sans-serif;cursor:pointer;border:1px solid;';
+      badge.addEventListener('click', openEditor);
+      document.body.appendChild(badge);
+    }
+    badge.textContent = 'Atlas theme: local override' + (o.version !== VERSION ? ' (files are now ' + VERSION + ')' : '');
+    paint();
+  }
+  // The drawer and badge take their colours from the active theme.
+  function paint(theme) {
+    var t = theme || runtime.config.theme2;
+    if (!t || !t.colors) { return; }
+    [editor, badge].forEach(function (el) {
+      if (!el) { return; }
+      el.style.background = t.colors.background.primary;
+      el.style.color = t.colors.text.primary;
+      el.style.borderColor = t.colors.border.medium;
+    });
+  }
+  function openEditor() {
+    if (editor) { return; }
+    var o = readOverride();
+    var texts = { theme: o ? o.theme : FILES.theme, style: o ? o.style : FILES.style };
+    var tab = 'theme';
+    var timer = null;
+    editor = document.createElement('div');
+    editor.id = 'atlas-theme-editor';
+    editor.style.cssText = 'position:fixed;top:0;right:0;bottom:0;width:560px;z-index:1400;display:flex;' +
+      'flex-direction:column;border-left:1px solid;box-shadow:0 0 24px rgba(0,0,0,.25);font:13px/1.4 sans-serif';
+    editor.innerHTML =
+      '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px">' +
+      '<strong style="flex:1">Atlas theme editor</strong>' +
+      '<button data-a="reset">Reset to files</button><button data-a="copy">Copy both</button>' +
+      '<button data-a="close" aria-label="Close">✕</button></div>' +
+      '<div style="display:flex;gap:4px;padding:0 12px"><button data-tab="theme">atlas-theme.json</button>' +
+      '<button data-tab="style">atlas-style.json</button></div>' +
+      '<div data-el="palette" style="display:grid;grid-template-columns:repeat(9,1fr);gap:2px;padding:8px 12px"></div>' +
+      '<div data-el="status" style="padding:0 12px 6px;min-height:18px"></div>' +
+      '<textarea data-el="text" spellcheck="false" style="flex:1;margin:0 12px 12px;padding:8px;resize:none;' +
+      'font:12px/1.45 ui-monospace,Menlo,monospace;background:transparent;color:inherit;border:1px solid;' +
+      'border-color:inherit;border-radius:4px;tab-size:2;white-space:pre"></textarea>';
+    document.body.appendChild(editor);
+    editor.querySelectorAll('button').forEach(function (b) {
+      b.style.cssText = 'padding:3px 8px;border-radius:4px;border:1px solid;border-color:inherit;background:transparent;' +
+        'color:inherit;font:inherit;cursor:pointer';
+    });
+    var area = editor.querySelector('[data-el="text"]');
+    var status = editor.querySelector('[data-el="status"]');
+    function palette() {
+      var box = editor.querySelector('[data-el="palette"]');
+      box.innerHTML = '';
+      Object.keys(THEME.palette).filter(function (k) { return /[0-9]00$/.test(k); }).forEach(function (key) {
+        var sw = document.createElement('button');
+        sw.type = 'button';
+        sw.title = 'atlas.' + key + ' ' + THEME.palette[key] + ' (click inserts it)';
+        sw.style.cssText = 'height:16px;border:0;border-radius:2px;padding:0;cursor:pointer;background:' + THEME.palette[key];
+        sw.addEventListener('click', function () {
+          var a = area.selectionStart, b = area.selectionEnd, ins = 'atlas.' + key;
+          area.value = area.value.slice(0, a) + ins + area.value.slice(b);
+          area.selectionStart = area.selectionEnd = a + ins.length;
+          area.focus();
+          changed();
+        });
+        box.appendChild(sw);
+      });
+    }
+    function show(t) {
+      tab = t;
+      area.value = texts[t];
+      editor.querySelectorAll('[data-tab]').forEach(function (b) { b.style.fontWeight = b.getAttribute('data-tab') === t ? '700' : '400'; });
+    }
+    function say(text, bad) { status.textContent = text; status.style.color = bad ? '#ea5a53' : ''; }
+    function changed() {
+      texts[tab] = area.value;
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        var pair;
+        try { pair = parsePair(texts.theme, texts.style); } catch (e) { say((e && e.message) || String(e), true); return; }
+        var unknown = unknownKeys(texts.theme + texts.style, pair[0].palette);
+        window.localStorage.setItem(OVERRIDE_KEY, JSON.stringify({ version: VERSION, theme: texts.theme, style: texts.style }));
+        activate(pair[0], pair[1]);
+        palette();
+        updateBadge();
+        say(unknown.length ? 'Applied; unknown palette keys: ' + unknown.join(', ') : 'Applied (local override in this browser)', unknown.length > 0);
+      }, 300);
+    }
+    area.addEventListener('input', changed);
+    // Keep Grafana's keyboard shortcuts out of the editor; Tab indents.
+    area.addEventListener('keydown', function (e) {
+      e.stopPropagation();
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        var a = area.selectionStart;
+        area.value = area.value.slice(0, a) + '  ' + area.value.slice(area.selectionEnd);
+        area.selectionStart = area.selectionEnd = a + 2;
+        changed();
+      }
+    });
+    editor.addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b) { return; }
+      if (b.getAttribute('data-tab')) { texts[tab] = area.value; show(b.getAttribute('data-tab')); return; }
+      var a = b.getAttribute('data-a');
+      if (a === 'close') { editor.remove(); editor = null; return; }
+      if (a === 'copy') {
+        navigator.clipboard.writeText('// atlas-theme.json\n' + texts.theme.trim() + '\n\n// atlas-style.json\n' + texts.style.trim() + '\n')
+          .then(function () { say('Copied both files'); }, function () { say('Copying failed; select the text instead', true); });
+      }
+      if (a === 'reset') {
+        window.localStorage.removeItem(OVERRIDE_KEY);
+        texts = { theme: FILES.theme, style: FILES.style };
+        activate(JSON.parse(FILES.theme), JSON.parse(FILES.style));
+        show(tab);
+        palette();
+        updateBadge();
+        say('Back to the files (' + VERSION + ')');
+      }
+    });
+    palette();
+    show('theme');
+    paint();
+    say(o ? 'Local override active' + (o.version !== VERSION ? '; it was made on ' + o.version + ', the files are now ' + VERSION : '') : 'Editing a copy of the files (' + VERSION + ')', !!(o && o.version !== VERSION));
+  }
+  function editorRequested() { return /[?&]atlasEditor=1(&|$)/.test(window.location.search); }
+
   function load(name) {
     return fetch(BASE + name + '?_cache=' + VERSION).then(function (r) {
       if (!r.ok) { throw new Error(name + ': HTTP ' + r.status); }
-      return r.json();
+      return r.text();
     });
   }
   Promise.all([load('atlas-theme.json'), load('atlas-style.json')]).then(function (files) {
-    THEME = files[0];
-    STYLE = files[1];
-    start();
+    FILES = { theme: files[0], style: files[1] };
+    var pair = parsePair(FILES.theme, FILES.style);
+    var o = readOverride();
+    if (o) {
+      try { pair = parsePair(o.theme, o.style); } catch (e) { console.error('atlas-theme: local override ignored', e); }
+    }
+    start(pair[0], pair[1]);
+    updateBadge();
+    if (editorRequested()) { openEditor(); }
+    runtime.locationService.getHistory().listen(function () { if (editorRequested()) { openEditor(); } });
   }).catch(function (e) { console.error('atlas-theme: not applied', e); });
 
   return { plugin: new data.AppPlugin() };
