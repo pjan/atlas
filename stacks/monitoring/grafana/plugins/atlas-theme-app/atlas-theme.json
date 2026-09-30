@@ -1,0 +1,750 @@
+{
+  "$comment": "Atlas theme: Grafana theme definitions (schema: grafana-theme.schema.json) plus colour names Grafana has no slot for. atlas.<key> refers to the palette, atlas.<key>/<alpha> to the same colour with that alpha. Dark steps mirror light: 1000 - step.",
+  "palette": {
+    "ink": "#010206",
+    "white": "#ffffff",
+    "page": "#f4f7fa",
+    "gray100": "#ededed",
+    "gray200": "#dadad9",
+    "gray300": "#c6c8c5",
+    "gray400": "#b1b5b2",
+    "gray500": "#9aa2a0",
+    "gray600": "#848e8e",
+    "gray700": "#6d777b",
+    "gray800": "#555e65",
+    "gray900": "#3b404a",
+    "red100": "#ffe8e5",
+    "red200": "#fecfca",
+    "red300": "#fcb6ae",
+    "red400": "#ff978d",
+    "red500": "#ff736a",
+    "red600": "#ea5a53",
+    "red700": "#ba554e",
+    "red800": "#8c4943",
+    "red900": "#5e3330",
+    "orange100": "#fee9e0",
+    "orange200": "#ffd0bd",
+    "orange300": "#fdb799",
+    "orange400": "#fa9c74",
+    "orange500": "#f57e46",
+    "orange600": "#d66d3d",
+    "orange700": "#b35d36",
+    "orange800": "#884d33",
+    "orange900": "#5c3525",
+    "amber100": "#f9ebdb",
+    "amber200": "#f4d5b2",
+    "amber300": "#eebf87",
+    "amber400": "#eaa74f",
+    "amber500": "#d59236",
+    "amber600": "#ba7f2d",
+    "amber700": "#9d6b25",
+    "amber800": "#7c541e",
+    "amber900": "#553a18",
+    "emerald100": "#e0f1e3",
+    "emerald200": "#bfe3c7",
+    "emerald300": "#9bd5a8",
+    "emerald400": "#6fc686",
+    "emerald500": "#46b469",
+    "emerald600": "#439c5e",
+    "emerald700": "#42834b",
+    "emerald800": "#3c6639",
+    "emerald900": "#274727",
+    "sky100": "#deeffd",
+    "sky200": "#bbdffa",
+    "sky300": "#8dceff",
+    "sky400": "#59bcfe",
+    "sky500": "#25a8f3",
+    "sky600": "#0092d9",
+    "sky700": "#257bb0",
+    "sky800": "#276187",
+    "sky900": "#1d435c",
+    "indigo100": "#e4edff",
+    "indigo200": "#c9dbff",
+    "indigo300": "#aec8ff",
+    "indigo400": "#91b3ff",
+    "indigo500": "#739dff",
+    "indigo600": "#6189e4",
+    "indigo700": "#5273c0",
+    "indigo800": "#415b97",
+    "indigo900": "#303f61",
+    "purple100": "#f6e8f8",
+    "purple200": "#f0d0f5",
+    "purple300": "#e8b7ef",
+    "purple400": "#df9cea",
+    "purple500": "#d57fe2",
+    "purple600": "#b970c5",
+    "purple700": "#9c5ea6",
+    "purple800": "#7a4b82",
+    "purple900": "#513655",
+    "violet100": "#efeaff",
+    "violet200": "#dfd4ff",
+    "violet300": "#cfbefc",
+    "violet400": "#c0a6fd",
+    "violet500": "#b08dfa",
+    "violet600": "#997bd9",
+    "violet700": "#8069b2",
+    "violet800": "#645488",
+    "violet900": "#443a5e",
+    "lime100": "#ebefdb",
+    "lime200": "#d7dfb0",
+    "lime300": "#c3ce84",
+    "lime400": "#b0bc53",
+    "lime500": "#9ca739",
+    "lime600": "#889232",
+    "lime700": "#727b28",
+    "lime800": "#5a611e",
+    "lime900": "#3e4316",
+    "teal100": "#daf2ec",
+    "teal200": "#aae6d8",
+    "teal300": "#7ad8c4",
+    "teal400": "#1ec9b1",
+    "teal500": "#03b39f",
+    "teal600": "#009d81",
+    "teal700": "#03846a",
+    "teal800": "#006850",
+    "teal900": "#084839",
+    "cyan100": "#d9f1f5",
+    "cyan200": "#b0e3eb",
+    "cyan300": "#80d4e1",
+    "cyan400": "#3bc4d6",
+    "cyan500": "#06afc1",
+    "cyan600": "#0198b2",
+    "cyan700": "#037f9d",
+    "cyan800": "#016479",
+    "cyan900": "#00464e",
+    "pink100": "#fde7ef",
+    "pink200": "#fbcede",
+    "pink300": "#f9b4ce",
+    "pink400": "#f697bd",
+    "pink500": "#e282a9",
+    "pink600": "#cc6e8e",
+    "pink700": "#ac5c76",
+    "pink800": "#87495e",
+    "pink900": "#5a3443",
+    "green100": "#e5f0df",
+    "green200": "#c8e2ba",
+    "green300": "#abd396",
+    "green400": "#8ec270",
+    "green500": "#7aae5c",
+    "green600": "#6a9850",
+    "green700": "#598043",
+    "green800": "#476536",
+    "green900": "#2e4621"
+  },
+  "themes": {
+    "light": {
+      "name": "Atlas Light",
+      "id": "atlas-light",
+      "colors": {
+        "mode": "light",
+        "background": {
+          "canvas": "atlas.page",
+          "page": "atlas.page",
+          "primary": "atlas.white",
+          "secondary": "atlas.gray100",
+          "elevated": "atlas.white"
+        },
+        "text": {
+          "primary": "atlas.gray900",
+          "secondary": "atlas.gray700",
+          "disabled": "atlas.gray500",
+          "link": "atlas.indigo700",
+          "maxContrast": "atlas.ink"
+        },
+        "border": {
+          "weak": "atlas.gray900/0.12",
+          "medium": "atlas.gray900/0.3",
+          "strong": "atlas.gray900/0.4"
+        },
+        "primary": {
+          "main": "atlas.gray900",
+          "shade": "atlas.gray800",
+          "text": "atlas.gray900",
+          "border": "atlas.gray900",
+          "contrastText": "atlas.white"
+        },
+        "secondary": {
+          "main": "atlas.white",
+          "shade": "atlas.gray900/0.08",
+          "text": "atlas.gray900",
+          "contrastText": "atlas.gray900",
+          "border": "atlas.gray900/0.3",
+          "borderEmphasis": "atlas.gray900/0.4"
+        },
+        "accent": {
+          "main": "atlas.indigo600",
+          "shade": "atlas.indigo700",
+          "text": "atlas.indigo700",
+          "border": "atlas.indigo600",
+          "contrastText": "atlas.white"
+        },
+        "info": {
+          "main": "atlas.sky400",
+          "shade": "atlas.sky500",
+          "text": "atlas.sky700",
+          "border": "atlas.sky400",
+          "contrastText": "atlas.ink"
+        },
+        "success": {
+          "main": "atlas.emerald400",
+          "shade": "atlas.emerald500",
+          "text": "atlas.emerald700",
+          "border": "atlas.emerald400",
+          "contrastText": "atlas.ink"
+        },
+        "warning": {
+          "main": "atlas.amber400",
+          "shade": "atlas.amber500",
+          "text": "atlas.amber700",
+          "border": "atlas.amber400",
+          "contrastText": "atlas.ink"
+        },
+        "error": {
+          "main": "atlas.red400",
+          "shade": "atlas.red500",
+          "text": "atlas.red700",
+          "border": "atlas.red400",
+          "contrastText": "atlas.ink"
+        },
+        "action": {
+          "hover": "atlas.gray900/0.08",
+          "selected": "atlas.gray900/0.06",
+          "focus": "atlas.gray900/0.08",
+          "selectedBorder": "atlas.indigo600"
+        },
+        "gradients": {
+          "brandHorizontal": "linear-gradient(90deg, atlas.indigo600 0%, atlas.indigo600 100%)",
+          "brandVertical": "linear-gradient(0deg, atlas.indigo600 0%, atlas.indigo600 100%)"
+        }
+      },
+      "visualization": {
+        "hues": [
+          {
+            "name": "green",
+            "shades": [
+              {
+                "name": "super-light-green",
+                "color": "atlas.emerald200"
+              },
+              {
+                "name": "light-green",
+                "color": "atlas.emerald300"
+              },
+              {
+                "name": "green",
+                "color": "atlas.emerald400",
+                "primary": true
+              },
+              {
+                "name": "semi-dark-green",
+                "color": "atlas.emerald500"
+              },
+              {
+                "name": "dark-green",
+                "color": "atlas.emerald700"
+              }
+            ]
+          },
+          {
+            "name": "yellow",
+            "shades": [
+              {
+                "name": "super-light-yellow",
+                "color": "atlas.amber200"
+              },
+              {
+                "name": "light-yellow",
+                "color": "atlas.amber300"
+              },
+              {
+                "name": "yellow",
+                "color": "atlas.amber400",
+                "primary": true
+              },
+              {
+                "name": "semi-dark-yellow",
+                "color": "atlas.amber500"
+              },
+              {
+                "name": "dark-yellow",
+                "color": "atlas.amber700"
+              }
+            ]
+          },
+          {
+            "name": "red",
+            "shades": [
+              {
+                "name": "super-light-red",
+                "color": "atlas.red200"
+              },
+              {
+                "name": "light-red",
+                "color": "atlas.red300"
+              },
+              {
+                "name": "red",
+                "color": "atlas.red400",
+                "primary": true
+              },
+              {
+                "name": "semi-dark-red",
+                "color": "atlas.red500"
+              },
+              {
+                "name": "dark-red",
+                "color": "atlas.red700"
+              }
+            ]
+          },
+          {
+            "name": "blue",
+            "shades": [
+              {
+                "name": "super-light-blue",
+                "color": "atlas.sky200"
+              },
+              {
+                "name": "light-blue",
+                "color": "atlas.sky300"
+              },
+              {
+                "name": "blue",
+                "color": "atlas.sky400",
+                "primary": true
+              },
+              {
+                "name": "semi-dark-blue",
+                "color": "atlas.sky500"
+              },
+              {
+                "name": "dark-blue",
+                "color": "atlas.sky700"
+              }
+            ]
+          },
+          {
+            "name": "purple",
+            "shades": [
+              {
+                "name": "super-light-purple",
+                "color": "atlas.purple200"
+              },
+              {
+                "name": "light-purple",
+                "color": "atlas.purple300"
+              },
+              {
+                "name": "purple",
+                "color": "atlas.purple400",
+                "primary": true
+              },
+              {
+                "name": "semi-dark-purple",
+                "color": "atlas.purple500"
+              },
+              {
+                "name": "dark-purple",
+                "color": "atlas.purple700"
+              }
+            ]
+          },
+          {
+            "name": "orange",
+            "shades": [
+              {
+                "name": "super-light-orange",
+                "color": "atlas.orange200"
+              },
+              {
+                "name": "light-orange",
+                "color": "atlas.orange300"
+              },
+              {
+                "name": "orange",
+                "color": "atlas.orange400",
+                "primary": true
+              },
+              {
+                "name": "semi-dark-orange",
+                "color": "atlas.orange500"
+              },
+              {
+                "name": "dark-orange",
+                "color": "atlas.orange700"
+              }
+            ]
+          }
+        ],
+        "palette": [
+          "atlas.lime600",
+          "atlas.violet600",
+          "atlas.cyan600",
+          "atlas.orange600",
+          "atlas.pink800",
+          "atlas.teal800",
+          "atlas.pink600",
+          "atlas.indigo700",
+          "atlas.cyan700",
+          "atlas.lime700",
+          "atlas.indigo600",
+          "atlas.orange700",
+          "atlas.lime800",
+          "atlas.indigo800",
+          "atlas.teal600",
+          "atlas.pink700",
+          "atlas.violet700",
+          "atlas.teal700",
+          "atlas.orange800",
+          "atlas.violet800",
+          "atlas.cyan800"
+        ]
+      }
+    },
+    "dark": {
+      "name": "Atlas Dark",
+      "id": "atlas-dark",
+      "colors": {
+        "mode": "dark",
+        "background": {
+          "canvas": "atlas.ink",
+          "page": "atlas.ink",
+          "primary": "atlas.ink",
+          "secondary": "atlas.gray900",
+          "elevated": "atlas.gray900"
+        },
+        "text": {
+          "primary": "atlas.gray100",
+          "secondary": "atlas.gray300",
+          "disabled": "atlas.gray500",
+          "link": "atlas.indigo300",
+          "maxContrast": "atlas.white"
+        },
+        "border": {
+          "weak": "atlas.gray100/0.12",
+          "medium": "atlas.gray100/0.2",
+          "strong": "atlas.gray100/0.3"
+        },
+        "primary": {
+          "main": "atlas.gray100",
+          "shade": "atlas.gray200",
+          "text": "atlas.gray100",
+          "border": "atlas.gray100",
+          "contrastText": "atlas.ink"
+        },
+        "secondary": {
+          "main": "atlas.ink",
+          "shade": "atlas.gray100/0.1",
+          "text": "atlas.gray100",
+          "contrastText": "atlas.gray100",
+          "border": "atlas.gray100/0.2",
+          "borderEmphasis": "atlas.gray100/0.3"
+        },
+        "accent": {
+          "main": "atlas.indigo400",
+          "shade": "atlas.indigo300",
+          "text": "atlas.indigo300",
+          "border": "atlas.indigo400",
+          "contrastText": "atlas.ink"
+        },
+        "info": {
+          "main": "atlas.sky600",
+          "shade": "atlas.sky500",
+          "text": "atlas.sky300",
+          "border": "atlas.sky600",
+          "contrastText": "atlas.white"
+        },
+        "success": {
+          "main": "atlas.emerald600",
+          "shade": "atlas.emerald500",
+          "text": "atlas.emerald300",
+          "border": "atlas.emerald600",
+          "contrastText": "atlas.white"
+        },
+        "warning": {
+          "main": "atlas.amber600",
+          "shade": "atlas.amber500",
+          "text": "atlas.amber300",
+          "border": "atlas.amber600",
+          "contrastText": "atlas.white"
+        },
+        "error": {
+          "main": "atlas.red600",
+          "shade": "atlas.red500",
+          "text": "atlas.red300",
+          "border": "atlas.red600",
+          "contrastText": "atlas.white"
+        },
+        "action": {
+          "hover": "atlas.gray100/0.1",
+          "selected": "atlas.gray100/0.08",
+          "focus": "atlas.gray100/0.1",
+          "selectedBorder": "atlas.indigo400"
+        },
+        "gradients": {
+          "brandHorizontal": "linear-gradient(90deg, atlas.indigo400 0%, atlas.indigo400 100%)",
+          "brandVertical": "linear-gradient(0deg, atlas.indigo400 0%, atlas.indigo400 100%)"
+        }
+      },
+      "visualization": {
+        "hues": [
+          {
+            "name": "green",
+            "shades": [
+              {
+                "name": "super-light-green",
+                "color": "atlas.emerald800"
+              },
+              {
+                "name": "light-green",
+                "color": "atlas.emerald700"
+              },
+              {
+                "name": "green",
+                "color": "atlas.emerald600",
+                "primary": true
+              },
+              {
+                "name": "semi-dark-green",
+                "color": "atlas.emerald500"
+              },
+              {
+                "name": "dark-green",
+                "color": "atlas.emerald300"
+              }
+            ]
+          },
+          {
+            "name": "yellow",
+            "shades": [
+              {
+                "name": "super-light-yellow",
+                "color": "atlas.amber800"
+              },
+              {
+                "name": "light-yellow",
+                "color": "atlas.amber700"
+              },
+              {
+                "name": "yellow",
+                "color": "atlas.amber600",
+                "primary": true
+              },
+              {
+                "name": "semi-dark-yellow",
+                "color": "atlas.amber500"
+              },
+              {
+                "name": "dark-yellow",
+                "color": "atlas.amber300"
+              }
+            ]
+          },
+          {
+            "name": "red",
+            "shades": [
+              {
+                "name": "super-light-red",
+                "color": "atlas.red800"
+              },
+              {
+                "name": "light-red",
+                "color": "atlas.red700"
+              },
+              {
+                "name": "red",
+                "color": "atlas.red600",
+                "primary": true
+              },
+              {
+                "name": "semi-dark-red",
+                "color": "atlas.red500"
+              },
+              {
+                "name": "dark-red",
+                "color": "atlas.red300"
+              }
+            ]
+          },
+          {
+            "name": "blue",
+            "shades": [
+              {
+                "name": "super-light-blue",
+                "color": "atlas.sky800"
+              },
+              {
+                "name": "light-blue",
+                "color": "atlas.sky700"
+              },
+              {
+                "name": "blue",
+                "color": "atlas.sky600",
+                "primary": true
+              },
+              {
+                "name": "semi-dark-blue",
+                "color": "atlas.sky500"
+              },
+              {
+                "name": "dark-blue",
+                "color": "atlas.sky300"
+              }
+            ]
+          },
+          {
+            "name": "purple",
+            "shades": [
+              {
+                "name": "super-light-purple",
+                "color": "atlas.purple800"
+              },
+              {
+                "name": "light-purple",
+                "color": "atlas.purple700"
+              },
+              {
+                "name": "purple",
+                "color": "atlas.purple600",
+                "primary": true
+              },
+              {
+                "name": "semi-dark-purple",
+                "color": "atlas.purple500"
+              },
+              {
+                "name": "dark-purple",
+                "color": "atlas.purple300"
+              }
+            ]
+          },
+          {
+            "name": "orange",
+            "shades": [
+              {
+                "name": "super-light-orange",
+                "color": "atlas.orange800"
+              },
+              {
+                "name": "light-orange",
+                "color": "atlas.orange700"
+              },
+              {
+                "name": "orange",
+                "color": "atlas.orange600",
+                "primary": true
+              },
+              {
+                "name": "semi-dark-orange",
+                "color": "atlas.orange500"
+              },
+              {
+                "name": "dark-orange",
+                "color": "atlas.orange300"
+              }
+            ]
+          }
+        ],
+        "palette": [
+          "atlas.lime400",
+          "atlas.violet400",
+          "atlas.cyan400",
+          "atlas.orange400",
+          "atlas.pink200",
+          "atlas.teal200",
+          "atlas.pink400",
+          "atlas.indigo300",
+          "atlas.cyan300",
+          "atlas.lime300",
+          "atlas.indigo400",
+          "atlas.orange300",
+          "atlas.lime200",
+          "atlas.indigo200",
+          "atlas.teal400",
+          "atlas.pink300",
+          "atlas.violet300",
+          "atlas.teal300",
+          "atlas.orange200",
+          "atlas.violet200",
+          "atlas.cyan200"
+        ]
+      }
+    }
+  },
+  "names": {
+    "light": {
+      "super-light-gray": "atlas.gray200",
+      "light-gray": "atlas.gray300",
+      "gray": "atlas.gray400",
+      "semi-dark-gray": "atlas.gray500",
+      "dark-gray": "atlas.gray700",
+      "super-light-indigo": "atlas.indigo200",
+      "light-indigo": "atlas.indigo300",
+      "indigo": "atlas.indigo400",
+      "semi-dark-indigo": "atlas.indigo500",
+      "dark-indigo": "atlas.indigo700",
+      "super-light-violet": "atlas.violet200",
+      "light-violet": "atlas.violet300",
+      "violet": "atlas.violet400",
+      "semi-dark-violet": "atlas.violet500",
+      "dark-violet": "atlas.violet700",
+      "super-light-lime": "atlas.lime200",
+      "light-lime": "atlas.lime300",
+      "lime": "atlas.lime400",
+      "semi-dark-lime": "atlas.lime500",
+      "dark-lime": "atlas.lime700",
+      "super-light-teal": "atlas.teal200",
+      "light-teal": "atlas.teal300",
+      "teal": "atlas.teal400",
+      "semi-dark-teal": "atlas.teal500",
+      "dark-teal": "atlas.teal700",
+      "super-light-cyan": "atlas.cyan200",
+      "light-cyan": "atlas.cyan300",
+      "cyan": "atlas.cyan400",
+      "semi-dark-cyan": "atlas.cyan500",
+      "dark-cyan": "atlas.cyan700",
+      "super-light-pink": "atlas.pink200",
+      "light-pink": "atlas.pink300",
+      "pink": "atlas.pink400",
+      "semi-dark-pink": "atlas.pink500",
+      "dark-pink": "atlas.pink700"
+    },
+    "dark": {
+      "super-light-gray": "atlas.gray800",
+      "light-gray": "atlas.gray700",
+      "gray": "atlas.gray600",
+      "semi-dark-gray": "atlas.gray500",
+      "dark-gray": "atlas.gray300",
+      "super-light-indigo": "atlas.indigo800",
+      "light-indigo": "atlas.indigo700",
+      "indigo": "atlas.indigo600",
+      "semi-dark-indigo": "atlas.indigo500",
+      "dark-indigo": "atlas.indigo300",
+      "super-light-violet": "atlas.violet800",
+      "light-violet": "atlas.violet700",
+      "violet": "atlas.violet600",
+      "semi-dark-violet": "atlas.violet500",
+      "dark-violet": "atlas.violet300",
+      "super-light-lime": "atlas.lime800",
+      "light-lime": "atlas.lime700",
+      "lime": "atlas.lime600",
+      "semi-dark-lime": "atlas.lime500",
+      "dark-lime": "atlas.lime300",
+      "super-light-teal": "atlas.teal800",
+      "light-teal": "atlas.teal700",
+      "teal": "atlas.teal600",
+      "semi-dark-teal": "atlas.teal500",
+      "dark-teal": "atlas.teal300",
+      "super-light-cyan": "atlas.cyan800",
+      "light-cyan": "atlas.cyan700",
+      "cyan": "atlas.cyan600",
+      "semi-dark-cyan": "atlas.cyan500",
+      "dark-cyan": "atlas.cyan300",
+      "super-light-pink": "atlas.pink800",
+      "light-pink": "atlas.pink700",
+      "pink": "atlas.pink600",
+      "semi-dark-pink": "atlas.pink500",
+      "dark-pink": "atlas.pink300"
+    }
+  }
+}

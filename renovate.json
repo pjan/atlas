@@ -130,6 +130,15 @@
         "YQ_IMAGE = \"(?<depName>[^:\"]+):(?<currentValue>[^@\"]+)@(?<currentDigest>sha256:[a-f0-9]+)\""
       ],
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Update the pinned Playwright image the manual Grafana theme probe runs in.",
+      "managerFilePatterns": ["/^scripts\\/theme-probe\\.sh$/"],
+      "matchStrings": [
+        "PLAYWRIGHT_IMAGE='(?<depName>[^:']+):(?<currentValue>[^@']+)@(?<currentDigest>sha256:[a-f0-9]+)'"
+      ],
+      "datasourceTemplate": "docker"
     }
   ]
 }

@@ -1,172 +1,333 @@
 /*
- * Atlas theme: a preload app plugin, hand-written AMD without a build step.
- * The rules it implements are pjan/atlas-dashboards CONVENTIONS.md sections 1-4.
+ * Atlas theme engine: a preload app plugin, hand-written AMD without a build step.
+ * It has no colours of its own; it applies two data files from this directory:
+ *   atlas-theme.json  Grafana theme definitions ("Atlas Light", "Atlas Dark") in Grafana's
+ *                     theme-definition format, plus colour names Grafana has no slot for;
+ *   atlas-style.json  what a theme cannot express: per-component CSS and canvas colours.
+ * The rules they implement are pjan/atlas-dashboards CONVENTIONS.md.
  *
- * 1. Replaces Grafana's active theme with one built by createTheme() on load, on
- *    every theme change, and again after 200 ms, 1 s, and 3 s (Grafana may still
- *    publish its own theme while starting). The theme sets:
- *    - the page and panel backgrounds;
- *    - Grafana's named colours, remapped per theme onto the Atlas palette
- *      (green = emerald, yellow = amber, red, blue = sky, purple, orange), so
- *      dashboards keep theme-independent names and every panel, DOM or canvas,
- *      follows the theme;
- *    - the palette-classic series order.
- * 2. Adds one stylesheet for what a theme cannot express: text colour, weight,
- *    and radius of stat tiles and table state cells, the pill style, the gray
- *    fills (dashboards use #95a49f for gray), and solid bar gauge bars. Rules are
- *    keyed on the per-theme resolved fills and switched by html[data-atlas-theme],
- *    which this plugin keeps in sync with the active theme.
+ * 1. Theme: builds the theme with createTheme() and publishes it as the active theme on
+ *    load, on every theme change, and again after 200 ms, 1 s, and 3 s (Grafana may still
+ *    publish its own theme while starting). The built theme also resolves the extra colour
+ *    names (gray, teal, ...) and gives state-timeline values the cell or pill text colour.
+ * 2. Stylesheet: one rule set per mode under html[data-atlas-theme], keyed on the colours
+ *    Grafana writes into inline styles. Keys come from both modes, so elements that still
+ *    carry the previous theme's colours after a switch are restyled too.
+ * 3. Canvas: remaps the grid, tick, and axis-label colours uPlot panels draw, and the
+ *    state-timeline outline (the pill ring), by wrapping the canvas colour setters.
+ * 4. Theme switch: whenever an Atlas theme replaces a stock one (on load, on a switch), resets
+ *    Grafana's cached continuous colour schemes and makes every panel of the open dashboard
+ *    process its field config again; otherwise both keep the previous colours until a reload.
  *
- * Both parts use undocumented Grafana behaviour: publishing ThemeChangedEvent
- * with a replacement theme, and CSS selectors on the inline styles and
- * data-testid attributes Grafana 13.2.2 renders. After a Grafana upgrade, check
- * in both themes (and after switching theme) that backgrounds, stat tiles, table
- * state cells, pills, bar gauge and gauge-cell bars, and state timelines show the
- * Atlas colours; then compare these inline styles with the new release:
- *   stat tile        [data-testid^="stat-panel-"] ... style "display: flex; background: rgb(...)"
- *   table cell       [data-testid^="table-panel-"] [role="gridcell"] style "background: rgb(...)"
- *   pill             ... [role="gridcell"] span style "background-color: rgb(...)"
- *   bar gauge bar    style "background: rgba(..., 0.35); border-...: 2px solid rgb(...)"
- * Without the plugin every dashboard still works, with Grafana's stock colours.
+ * All of it uses undocumented Grafana behaviour: publishing ThemeChangedEvent with a
+ * replacement theme, the inline styles and data-testid attributes Grafana 13.2.3 renders,
+ * the colours uPlot is given, FieldColorSchemeMode's cache fields, and the dashboard scene's
+ * panels (window.__grafanaSceneContext, clearFieldConfigCache). After a Grafana
+ * upgrade, run scripts/theme-probe.sh (README.md, Monitoring).
+ * Without the plugin (it does not load for viewers without an org role, such as public
+ * dashboards) the dashboards work with Grafana's stock colours, except the extra names:
+ * super-light-gray timeline segments render black, gray ones in Grafana's CSS gray.
  *
- * Bump info.version in plugin.json with every change: Grafana loads this file as
- * module.js?_cache=<version>, so browsers keep the old file until the version changes.
+ * Bump info.version in plugin.json with every change to this directory: Grafana loads this
+ * file as module.js?_cache=<version>, and this file loads the JSON files with the same key.
  */
 define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
-  // Atlas palette, steps 100 to 900 (CONVENTIONS.md section 2).
-  var PAL = {
-    gray: ['#ededed', '#dadbd7', '#c5c9c3', '#aeb6b0', '#95a49f', '#7c908f', '#647a7f', '#4c606d', '#344154'],
-    red: ['#ffe8e5', '#fed0ca', '#fcb6ae', '#ff978e', '#ff746b', '#ea5a53', '#bb564f', '#8c4944', '#60332f'],
-    orange: ['#fee9e0', '#ffd0bd', '#fdb799', '#fa9c74', '#f57e46', '#d66e3d', '#b35d36', '#884d33', '#5e3523'],
-    amber: ['#f9ebdb', '#f4d5b2', '#eebf87', '#eaa74f', '#d59236', '#bb7f2d', '#9e6b25', '#7c551f', '#563a14'],
-    emerald: ['#e0f1e3', '#c0e3c7', '#9bd5a8', '#6fc686', '#46b469', '#439d5e', '#43834c', '#3c673a', '#274727'],
-    sky: ['#deeffd', '#bbdffa', '#8dcfff', '#5abcff', '#26a8f3', '#0192d9', '#257bb1', '#286188', '#1a435e'],
-    indigo: ['#e5edff', '#cadbff', '#aec8ff', '#91b3ff', '#739dff', '#6189e4', '#5273c0', '#415b97', '#2f3f63'],
-    purple: ['#f6e8f8', '#f0d0f5', '#e8b7ef', '#df9cea', '#d580e3', '#ba70c5', '#9d5ea6', '#7b4b82', '#523657'],
-    violet: ['#efeaff', '#dfd4ff', '#cfbefc', '#c0a6fd', '#b08dfa', '#997bd9', '#8069b2', '#645588', '#453a60'],
-    lime: ['#ebefdb', '#d7dfb0', '#c3ce84', '#b0bc57', '#9ca73c', '#889232', '#737b2a', '#5a6121', '#3e4316'],
-    teal: ['#daf2ec', '#aae6d8', '#7bd8c5', '#1ec9b1', '#04b39f', '#019d81', '#04846a', '#016951', '#094839']
-  };
-  function step(hue, n) { return PAL[hue][n / 100 - 1]; }
+  var ID = 'atlas-theme-app';
+  var VERSION = ((runtime.config.apps || {})[ID] || {}).version || '0';
+  var BASE = (runtime.config.appSubUrl || '') + '/public/plugins/' + ID + '/';
+  // Grafana's continuous schemes built from colour names (fieldColor.ts); the d3 schemes
+  // (viridis, magma, ...) have fixed colours and are left alone.
+  var NAMED_SCHEMES = ['continuous-GrYlRd', 'continuous-RdYlGr', 'continuous-BlYlRd', 'continuous-YlRd',
+    'continuous-BlPu', 'continuous-YlBl', 'continuous-blues', 'continuous-reds', 'continuous-greens',
+    'continuous-purples'];
+  var MODES = ['light', 'dark'];
 
-  var BG = {
-    light: { canvas: '#f4f7fa', page: '#f4f7fa', primary: '#ffffff' },
-    dark: { canvas: '#020918', page: '#020918', primary: '#020918' }
-  };
-  // Grafana's named hue -> Atlas hue (CONVENTIONS.md section 4).
-  var HUE = { green: 'emerald', yellow: 'amber', red: 'red', blue: 'sky', purple: 'violet', orange: 'orange' };
-  // Grafana shade -> Atlas step. The base name is the role fill: 400 light, 600 dark.
-  // super-light-* is the pill fill (200 light, 800 dark), used by state timelines.
-  var SHADE = {
-    light: { 'super-light': 200, light: 300, base: 400, 'semi-dark': 500, dark: 700 },
-    dark: { 'super-light': 800, light: 300, base: 600, 'semi-dark': 500, dark: 700 }
-  };
-  var FILL = { light: 400, dark: 600 };
-  var TEXT = { light: '#020918', dark: '#ffffff' };
-  // Stat tiles in light: the 300 fill with the 900 as text (dark keeps the role fill and TEXT).
-  var TILE = { light: { bg: 300, fg: 900 } };
-  var PILL = { light: { bg: 200, fg: 800 }, dark: { bg: 800, fg: 200 } };
-  // Table colour-text cells: the role colour as bold text, 700 light, 200 dark.
-  var CTEXT = { light: 700, dark: 200 };
-  // Grafana's strong border colour per theme: the dashboard link buttons use it.
-  var BORDER = { light: 'rgba(36, 41, 46, 0.4)', dark: 'rgba(204, 204, 220, 0.3)' };
-  // Gray has no Grafana name; dashboards use gray 500, which the CSS turns into the gray fill.
-  var GRAY = step('gray', 500);
-  // palette-classic: five series hues at 500, then gray 500 for every further series.
-  var PALETTE = [step('sky', 500), step('orange', 500), step('purple', 500), step('lime', 500), step('indigo', 500)];
-  while (PALETTE.length < 50) { PALETTE.push(GRAY); }
+  var THEME = null;
+  var STYLE = null;
+  var MODE = 'dark';
+  // True until an Atlas theme is active, and again whenever Grafana puts a stock theme in
+  // place: panels processed meanwhile hold stock colours.
+  var stale = true;
 
-  function hues(mode) {
-    return Object.keys(HUE).map(function (name) {
-      return {
-        name: name,
-        shades: ['super-light', 'light', 'base', 'semi-dark', 'dark'].map(function (shade) {
-          var s = { name: shade === 'base' ? name : shade + '-' + name, color: step(HUE[name], SHADE[mode][shade]) };
-          if (shade === 'base') { s.primary = true; }
-          return s;
-        })
-      };
+  // ---- References: atlas.<key> is a palette colour, atlas.<key>/<alpha> the same with alpha.
+  function ref(value) {
+    return value.replace(/atlas\.([a-z]+[0-9]*)(?:\/([0-9.]+))?/g, function (match, key, alpha) {
+      var hex = THEME.palette[key];
+      if (!hex) { console.error('atlas-theme: unknown palette key ' + key); return match; }
+      if (alpha === undefined) { return hex; }
+      return 'rgba(' + channels(hex).join(', ') + ', ' + alpha + ')';
     });
   }
+  function resolve(node) {
+    if (typeof node === 'string') { return ref(node); }
+    if (Array.isArray(node)) { return node.map(resolve); }
+    if (node && typeof node === 'object') {
+      var out = {};
+      Object.keys(node).forEach(function (k) { if (k[0] !== '$') { out[k] = resolve(node[k]); } });
+      return out;
+    }
+    return node;
+  }
+  function channels(hex) { return [1, 3, 5].map(function (i) { return parseInt(hex.substr(i, 2), 16); }); }
+  function rgb(hex) { return 'rgb(' + channels(hex).join(', ') + ')'; }
+  function hex6(color) {
+    if (typeof color !== 'string') { return null; }
+    if (color[0] === '#') { return color.slice(0, 7).toLowerCase(); }
+    var m = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(color);
+    return m ? '#' + [m[1], m[2], m[3]].map(function (n) { return ('0' + (+n).toString(16)).slice(-2); }).join('') : null;
+  }
+  // A slot value: a number is that step of the hue, a string a colour or reference.
+  function slot(hue, mode, name) {
+    var v = STYLE.slots[mode][name];
+    return typeof v === 'number' ? THEME.palette[hue + v] : ref(v);
+  }
+  function modeOf(theme) { return theme && theme.colors && theme.colors.mode === 'light' ? 'light' : 'dark'; }
+  // Lookups in maps keyed by colours or names, without inherited keys such as "constructor".
+  function own(map, key) { return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : undefined; }
+  // The series palette of a mode: the other mode's role colours that are also series colours
+  // here (orange 400 and 600) are not treated as roles in this mode.
+  function series(mode) {
+    var out = {};
+    resolve(THEME.themes[mode].visualization.palette).forEach(function (c) { out[c.toLowerCase()] = true; });
+    return out;
+  }
+  function otherModeKey(mode, m, color) { return m !== mode && own(series(mode), color.toLowerCase()); }
 
-  // 1. Theme replacement.
-  function build(base) {
-    var mode = base.colors.mode === 'light' ? 'light' : 'dark';
-    var theme = data.createTheme({
-      name: base.name,
-      colors: { mode: mode, background: BG[mode] },
-      visualization: { hues: hues(mode), palette: PALETTE }
+  // ---- 1. Theme
+  // State timelines ask getContrastText for the text on each segment: on a role fill the state
+  // cell text, on a pill fill the pill text (fills of either mode, for leftovers of a switch).
+  function contrastMap(mode) {
+    var out = {};
+    Object.keys(STYLE.roles).forEach(function (name) {
+      var hue = STYLE.roles[name];
+      MODES.forEach(function (m) {
+        [['fill', 'cell-fg'], ['pill-bg', 'pill-fg']].forEach(function (pair) {
+          var bg = slot(hue, m, pair[0]);
+          if (!otherModeKey(mode, m, bg)) { out[bg] = slot(hue, mode, pair[1]); }
+        });
+      });
     });
+    return out;
+  }
+  function build(base) {
+    var mode = modeOf(base);
+    var theme = data.createTheme(resolve(THEME.themes[mode]));
     theme.flags = Object.assign({}, base.flags);
     theme.atlas = true;
+    var names = resolve(THEME.names[mode]);
+    var byName = theme.visualization.getColorByName;
+    theme.visualization.getColorByName = function (name) { return (name && own(names, name)) || byName(name); };
+    var contrast = contrastMap(mode);
+    var contrastText = theme.colors.getContrastText;
+    theme.colors.getContrastText = function (background, threshold) {
+      return own(contrast, hex6(background)) || contrastText(background, threshold);
+    };
     return theme;
   }
   function publish(base) {
     runtime.getAppEvents().publish(new runtime.ThemeChangedEvent(build(base)));
   }
-  function setThemeAttr(theme) {
-    if (theme && theme.colors) { document.documentElement.setAttribute('data-atlas-theme', theme.colors.mode); }
-  }
   function apply() {
     var current = runtime.config.theme2;
-    if (current && !current.atlas) { publish(current); }
+    if (current && !current.atlas) { publish(current); } else { restyle(current); }
   }
-  runtime.getAppEvents().subscribe(runtime.ThemeChangedEvent, function (event) {
-    setThemeAttr(event.payload);
-    if (event.payload && !event.payload.atlas) {
-      setTimeout(function () { publish(event.payload); }, 0);
-    }
-  });
-  setThemeAttr(runtime.config.theme2);
-  apply();
-  [200, 1000, 3000].forEach(function (ms) { setTimeout(apply, ms); });
-
-  // 2. CSS keyed on the colours Grafana writes into inline styles.
-  function rgb(hex) {
-    return [1, 3, 5].map(function (i) { return parseInt(hex.substr(i, 2), 16); }).join(', ');
-  }
-  var css = '';
-  ['light', 'dark'].forEach(function (mode) {
-    var pre = 'html[data-atlas-theme="' + mode + '"] ';
-    Object.keys(HUE).map(function (name) { return HUE[name]; }).concat(['gray']).forEach(function (hue) {
-      var fill = step(hue, FILL[mode]);
-      // What Grafana renders: the resolved named colour, or #95a49f for gray.
-      var key = rgb(hue === 'gray' ? GRAY : fill);
-      var bg = hue === 'gray' ? 'background:' + fill + ' !important;' : '';
-      var tile = pre + '[data-testid^="stat-panel-"] [style*="display: flex; background: rgb(' + key + ')"]';
-      var cell = pre + '[data-testid^="table-panel-"] [role="gridcell"][style*="background: rgb(' + key + ')"]';
-      var pill = pre + '[data-testid^="table-panel-"] [role="gridcell"] span[style*="background-color: rgb(' + key + ')"]';
-      var bar = pre + '[style*="background: rgba(' + key + ', 0.35)"][style*="2px solid rgb(' + key + ')"]';
-      var ctext = pre + '[data-testid^="table-panel-"] [role="gridcell"][style*="color: rgb(' + key + ')"]:not([style*="background"])';
-      var tileBg = TILE[mode] ? 'background:' + step(hue, TILE[mode].bg) + ' !important;' : bg;
-      var tileFg = TILE[mode] ? step(hue, TILE[mode].fg) : TEXT[mode];
-      css += tile + '{' + tileBg + 'border-radius:6px !important;overflow:hidden !important}\n';
-      css += tile + ',' + tile + ' *{color:' + tileFg + ' !important}\n';
-      if (bg) { css += cell + '{' + bg + '}\n'; }
-      css += cell + ',' + cell + ' *{color:' + TEXT[mode] + ' !important;font-weight:600 !important}\n';
-      css += pill + '{background-color:' + step(hue, PILL[mode].bg) + ' !important;color:' + step(hue, PILL[mode].fg) +
-        ' !important;box-shadow:inset 0 0 0 1px ' + fill + ' !important;border-radius:4px !important}\n';
-      // Bar gauges and table gauge cells (basic mode) draw the bar at 35 % alpha; draw it solid.
-      css += bar + '{background:' + fill + ' !important;border-color:' + fill + ' !important}\n';
-      css += ctext + ',' + ctext + ' *{color:' + step(hue, CTEXT[mode]) + ' !important;font-weight:600 !important}\n';
+  function resetSchemes() {
+    NAMED_SCHEMES.forEach(function (id) {
+      var scheme = data.fieldColorModeRegistry.getIfExists(id);
+      if (scheme) { scheme.interpolator = undefined; scheme.colorCache = undefined; scheme.colorCacheTheme = undefined; }
     });
-  });
-  // The toolbar buttons on the right of the dashboard controls (time range, refresh,
-  // share, edit) look like the dashboard link buttons on the left: transparent with
-  // the strong border and 12 px text; Grafana's hover background stays.
-  ['light', 'dark'].forEach(function (mode) {
-    var btn = 'html[data-atlas-theme="' + mode + '"] [data-testid="data-testid dashboard controls"] button[class*="toolbar-button"]';
-    css += btn + '{border-color:' + BORDER[mode] + ' !important;font-size:12px !important}\n';
-    css += btn + ':not(:hover){background:transparent !important}\n';
-  });
-  // A colour-background cell without a colour (a transparent step) keeps the theme text.
-  // Grafana resolves "transparent" to rgba(0, 0, 0, 0) in dark and rgba(255, 255, 255, 0) in light.
-  css += '[data-testid^="table-panel-"] [role="gridcell"][style*="background: rgba(0, 0, 0, 0)"],' +
-    '[data-testid^="table-panel-"] [role="gridcell"][style*="background: rgba(255, 255, 255, 0)"]{color:inherit !important}\n';
+  }
+
+  // Panels keep the colours they resolved with the previous theme: each panel caches its
+  // processed field config, and state timelines keep their chart until that changes. Clearing
+  // the cache, as Grafana does when a variable changes, re-processes every panel of the open
+  // dashboard (window.__grafanaSceneContext is the active dashboard scene) with the new theme.
+  // Annotation colours are resolved when the annotation queries return, so the dashboard is
+  // also refreshed once.
+  function reprocessPanels() {
+    var scene = window.__grafanaSceneContext;
+    (function visit(obj) {
+      if (!obj) { return; }
+      if (typeof obj.clearFieldConfigCache === 'function' && typeof obj.forceRender === 'function') {
+        obj.clearFieldConfigCache();
+        obj.forceRender();
+      }
+      if (typeof obj.forEachChild === 'function') { obj.forEachChild(visit); }
+    })(scene);
+    var range = scene && scene.state && scene.state.$timeRange;
+    if (range && typeof range.onRefresh === 'function') { range.onRefresh(); }
+  }
+
+  // ---- 2. Stylesheet
+  function get(obj, path) { return path.split('.').reduce(function (o, k) { return o == null ? o : o[k]; }, obj); }
+  function decls(set) {
+    return Object.keys(set).map(function (p) { return p + ':' + set[p] + ' !important'; }).join(';');
+  }
+  // Grafana name -> the rendered colours to match: its resolved colour in both modes (except
+  // where the other mode's colour is a series colour in this one).
+  function keys(mode) {
+    var out = {};
+    Object.keys(STYLE.roles).forEach(function (name) {
+      out[name] = [];
+      MODES.forEach(function (m) {
+        var color = own(resolve(THEME.names[m]), name) || nameColor(m, name);
+        if (!otherModeKey(mode, m, color) && out[name].indexOf(rgb(color)) < 0) { out[name].push(rgb(color)); }
+      });
+    });
+    return out;
+  }
+  function nameColor(mode, name) {
+    var found = null;
+    resolve(THEME.themes[mode]).visualization.hues.forEach(function (hue) {
+      hue.shades.forEach(function (s) { if (s.name === name) { found = s.color; } });
+    });
+    if (!found) { console.error('atlas-theme: no colour for ' + name + ' in ' + mode); }
+    return found || '#000000';
+  }
+  function generate(theme) {
+    var mode = modeOf(theme);
+    var K = keys(mode);
+    var names = Object.keys(K);
+    var pre = 'html[data-atlas-theme="' + mode + '"] ';
+    var root = Object.keys(STYLE.tokens).map(function (n) { return '--atlas-' + n + ':' + get(theme, STYLE.tokens[n]); });
+    var css = ':root{' + root.join(';') + '}\n';
+    function sels(match, name) {
+      return K[name].map(function (k) { return pre + match.split('{c}').join(k); });
+    }
+    // Per name: bind the slot variables (--c-*) on every element that renders it.
+    names.forEach(function (name) {
+      var hue = STYLE.roles[name];
+      var all = [];
+      STYLE.components.forEach(function (c) { all = all.concat(sels(c.match, name)); });
+      all = all.concat(sels(STYLE.sparkline.match, name));
+      css += all.join(',') + '{' + Object.keys(STYLE.slots[mode]).map(function (s) {
+        return '--c-' + s + ':' + slot(hue, mode, s);
+      }).join(';') + '}\n';
+    });
+    // Per component: its declarations, once.
+    STYLE.components.forEach(function (c) {
+      var all = [];
+      names.forEach(function (name) { all = all.concat(sels(c.match, name)); });
+      css += '/* ' + c.name + ' */\n' + all.join(',') + '{' + decls(c.set) + '}\n';
+      if (c.deep) { css += all.map(function (s) { return s + ' *'; }).join(',') + '{' + decls(c.deep) + '}\n'; }
+    });
+    STYLE['static'].forEach(function (r) { css += '/* ' + r.name + ' */\n' + r.match + '{' + decls(r.set) + '}\n'; });
+    // Sparklines on coloured stat tiles: recoloured to the slot colour by an SVG filter.
+    names.forEach(function (name) {
+      css += sels(STYLE.sparkline.match, name).join(',') + '{filter:url(#atlas-spark-' + mode + '-' + name + ') !important;opacity:' +
+        STYLE.sparkline.opacity + ' !important}\n';
+    });
+    return css;
+  }
+  function sparkFilters() {
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true"><defs>';
+    MODES.forEach(function (mode) {
+      Object.keys(STYLE.roles).forEach(function (name) {
+        var c = channels(slot(STYLE.roles[name], mode, STYLE.sparkline.slot)).map(function (n) { return (n / 255).toFixed(4); });
+        svg += '<filter id="atlas-spark-' + mode + '-' + name + '" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="' +
+          '0 0 0 0 ' + c[0] + ' 0 0 0 0 ' + c[1] + ' 0 0 0 0 ' + c[2] + ' 0 0 0 1 0"/></filter>';
+      });
+    });
+    var holder = document.createElement('div');
+    holder.innerHTML = svg + '</defs></svg>';
+    holder.firstChild.id = 'atlas-theme-filters';
+    document.body.appendChild(holder.firstChild);
+  }
   var style = document.createElement('style');
   style.id = 'atlas-theme-css';
-  style.textContent = css;
-  document.head.appendChild(style);
+  function restyle(theme) {
+    if (!theme || !theme.colors) { return; }
+    MODE = modeOf(theme);
+    document.documentElement.setAttribute('data-atlas-theme', MODE);
+    if (!theme.atlas) { stale = true; return; }
+    if (stale) {
+      stale = false;
+      resetSchemes();
+      setTimeout(reprocessPanels, 0);
+    }
+    var css = generate(theme);
+    if (css !== style.textContent) { style.textContent = css; }
+  }
+
+  // ---- 3. Canvas
+  var CANVAS = { light: {}, dark: {} };
+  var RING = { light: {}, dark: {} };
+  function canvasMaps() {
+    var axes = STYLE.canvas.axes;
+    MODES.forEach(function (mode) {
+      axes[mode].forEach(function (r) { CANVAS[mode][ref(r.from)] = ref(r.to); });
+      if (!STYLE.canvas.timeline.ring) { return; }
+      Object.keys(STYLE.roles).forEach(function (name) {
+        var hue = STYLE.roles[name];
+        MODES.forEach(function (m) {
+          var bg = slot(hue, m, 'pill-bg');
+          if (!otherModeKey(mode, m, bg)) { RING[mode][bg] = slot(hue, mode, 'pill-ring'); }
+        });
+      });
+    });
+  }
+  var SCOPE = new WeakMap();
+  function scopeOf(canvas) {
+    var s = SCOPE.get(canvas);
+    if (s !== undefined) { return s; }
+    if (!canvas || !canvas.closest) { return null; }
+    var panel = canvas.closest('[data-plugin-id]');
+    s = { axes: !!canvas.closest(STYLE.canvas.axes.scope),
+      timeline: !!panel && /^(state-timeline|status-history)$/.test(panel.getAttribute('data-plugin-id')) };
+    if (canvas.isConnected) { SCOPE.set(canvas, s); }
+    return s;
+  }
+  function wrapCanvas() {
+    var proto = CanvasRenderingContext2D.prototype;
+    ['strokeStyle', 'fillStyle'].forEach(function (prop) {
+      var d = Object.getOwnPropertyDescriptor(proto, prop);
+      Object.defineProperty(proto, prop, {
+        configurable: true, enumerable: d.enumerable, get: d.get,
+        set: function (v) {
+          if (typeof v === 'string') {
+            var axis = own(CANVAS[MODE], v);
+            // Grafana gives timeline strokes as #rrggbb, sometimes with an alpha suffix.
+            var ring = prop === 'strokeStyle' && v[0] === '#' && own(RING[MODE], v.slice(0, 7).toLowerCase());
+            if (axis || ring) {
+              var s = scopeOf(this.canvas);
+              if (s && s.axes && axis) { v = axis; } else if (s && s.timeline && ring) { v = ring; }
+            }
+          }
+          d.set.call(this, v);
+        }
+      });
+    });
+  }
+
+  // ---- Start
+  function start() {
+    canvasMaps();
+    wrapCanvas();
+    sparkFilters();
+    document.head.appendChild(style);
+    runtime.getAppEvents().subscribe(runtime.ThemeChangedEvent, function (event) {
+      restyle(event.payload);
+      if (event.payload && !event.payload.atlas) { setTimeout(function () { publish(event.payload); }, 0); }
+    });
+    apply();
+    [200, 1000, 3000].forEach(function (ms) { setTimeout(apply, ms); });
+    // With the "system" theme preference, Grafana follows the OS light/dark switch by putting a
+    // stock theme in place without a ThemeChangedEvent.
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+      [100, 1000].forEach(function (ms) { setTimeout(apply, ms); });
+    });
+  }
+  function load(name) {
+    return fetch(BASE + name + '?_cache=' + VERSION).then(function (r) {
+      if (!r.ok) { throw new Error(name + ': HTTP ' + r.status); }
+      return r.json();
+    });
+  }
+  Promise.all([load('atlas-theme.json'), load('atlas-style.json')]).then(function (files) {
+    THEME = files[0];
+    STYLE = files[1];
+    start();
+  }).catch(function (e) { console.error('atlas-theme: not applied', e); });
 
   return { plugin: new data.AppPlugin() };
 });

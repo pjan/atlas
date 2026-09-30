@@ -31,6 +31,16 @@ ALERT_RULES_DIRECTORY = MONITORING_ROOT / "prometheus" / "rules"
 ALERT_RULE_TESTS_DIRECTORY = MONITORING_ROOT / "prometheus-tests"
 ALERTMANAGER_DIRECTORY = MONITORING_ROOT / "alertmanager"
 ALERT_MESSAGE_FIXTURES_DIRECTORY = MONITORING_ROOT / "alertmanager-tests"
+# The Grafana theme plugin and its schemas (outside the directory Grafana serves).
+THEME_PLUGIN_DIRECTORY = MONITORING_ROOT / "grafana" / "plugins" / "atlas-theme-app"
+THEME_SCHEMA_DIRECTORY = MONITORING_ROOT / "grafana-tests"
+THEME_MODES = ("light", "dark")
+PALETTE_KEY_PATTERN = re.compile(r"[a-z]+[0-9]*")
+PALETTE_STEP_KEY_PATTERN = re.compile(r"(?P<hue>[a-z]+)(?P<step>[1-9]00)")
+PALETTE_REFERENCE_PATTERN = re.compile(
+    r"atlas\.(?P<key>[a-z]+[0-9]*)(?:/(?P<alpha>[0-9.]+))?"
+)
+HEX_COLOR_PATTERN = re.compile(r"#[0-9a-f]{6}")
 # Reads the alerting YAML files (the standard library has no YAML parser).
 # renovate: datasource=docker depName=mikefarah/yq
 YQ_IMAGE = "mikefarah/yq:4.53.6@sha256:cfc4eee658595834ef304eadb0c3ea721f3b7cb6404ad8b7cb909cc5b5145b23"
@@ -1264,6 +1274,227 @@ def discord_message_problems(embeds: object, alerts: list[dict]) -> list[str]:
     return problems
 
 
+def schema_problems(value: object, schema: dict, root: dict, path: str) -> list[str]:
+    """The JSON Schema keywords Grafana's theme schema and atlas-style.schema.json use."""
+    if "$ref" in schema:
+        target: object = root
+        for part in schema["$ref"].removeprefix("#/").split("/"):
+            target = target[part]  # type: ignore[index]
+        return schema_problems(value, target, root, path)  # type: ignore[arg-type]
+    if "anyOf" in schema:
+        if all(schema_problems(value, option, root, path) for option in schema["anyOf"]):
+            return [f"{path}: matches none of the allowed forms"]
+        return []
+    if "const" in schema and value != schema["const"]:
+        return [f"{path}: must be {schema['const']!r}"]
+    if "enum" in schema and value not in schema["enum"]:
+        return [f"{path}: must be one of {schema['enum']}"]
+    types = {
+        "object": dict, "array": list, "string": str, "boolean": bool,
+        "number": (int, float), "integer": int,
+    }
+    expected = schema.get("type")
+    if expected and (
+        not isinstance(value, types[expected])
+        or (expected in ("number", "integer") and isinstance(value, bool))
+    ):
+        return [f"{path}: must be a {expected}"]
+    problems: list[str] = []
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if "minimum" in schema and value < schema["minimum"]:
+            problems.append(f"{path}: must be at least {schema['minimum']}")
+        if "maximum" in schema and value > schema["maximum"]:
+            problems.append(f"{path}: must be at most {schema['maximum']}")
+        if "exclusiveMinimum" in schema and value <= schema["exclusiveMinimum"]:
+            problems.append(f"{path}: must be above {schema['exclusiveMinimum']}")
+    if isinstance(value, dict):
+        properties = schema.get("properties", {})
+        for key in schema.get("required", []):
+            if key not in value:
+                problems.append(f"{path}: missing {key}")
+        for key, item in value.items():
+            if key in properties:
+                problems += schema_problems(item, properties[key], root, f"{path}.{key}")
+            elif schema.get("additionalProperties") is False:
+                problems.append(f"{path}: unknown key {key}")
+            elif isinstance(schema.get("additionalProperties"), dict):
+                problems += schema_problems(
+                    item, schema["additionalProperties"], root, f"{path}.{key}"
+                )
+    if isinstance(value, list) and "items" in schema:
+        for index, item in enumerate(value):
+            problems += schema_problems(item, schema["items"], root, f"{path}[{index}]")
+    return problems
+
+
+def palette_references(node: object, path: str) -> list[tuple[str, str, str | None]]:
+    """(path, key, alpha) for every atlas.<key> or atlas.<key>/<alpha> in a JSON tree."""
+    if isinstance(node, str):
+        return [
+            (path, match["key"], match["alpha"])
+            for match in PALETTE_REFERENCE_PATTERN.finditer(node)
+        ]
+    if isinstance(node, dict):
+        return [
+            reference
+            for key, item in node.items()
+            for reference in palette_references(item, f"{path}.{key}")
+        ]
+    if isinstance(node, list):
+        return [
+            reference
+            for index, item in enumerate(node)
+            for reference in palette_references(item, f"{path}[{index}]")
+        ]
+    return []
+
+
+def palette_steps(value: str) -> list[tuple[str, int]]:
+    """The stepped palette references in a string: "atlas.emerald400" -> [("emerald", 400)]."""
+    steps = []
+    for match in PALETTE_REFERENCE_PATTERN.finditer(value):
+        step = PALETTE_STEP_KEY_PATTERN.fullmatch(match["key"])
+        if step and not match["alpha"]:
+            steps.append((step["hue"], int(step["step"])))
+    return steps
+
+
+def mirroring_problems(light: object, dark: object, where: str) -> list[str]:
+    """The mirroring rule: in dark, every stepped colour is the same hue at 1000 - the light
+    step. Values without palette steps (backgrounds, alphas, CSS) are not compared."""
+    if isinstance(light, dict) and isinstance(dark, dict):
+        problems = []
+        if set(light) != set(dark):
+            problems.append(f"{where} has different keys in light and dark")
+        for key in sorted(set(light) & set(dark)):
+            problems += mirroring_problems(light[key], dark[key], f"{where}.{key}")
+        return problems
+    if isinstance(light, list) and isinstance(dark, list):
+        problems = []
+        if len(light) != len(dark):
+            problems.append(f"{where} has different lengths in light and dark")
+        for index, (a, b) in enumerate(zip(light, dark)):
+            problems += mirroring_problems(a, b, f"{where}[{index}]")
+        return problems
+    if isinstance(light, int) and isinstance(dark, int) and not isinstance(light, bool):
+        if dark != 1000 - light:
+            return [f"{where} is {light} in light, so {1000 - light} in dark (not {dark})"]
+        return []
+    if isinstance(light, str) and isinstance(dark, str):
+        a, b = palette_steps(light), palette_steps(dark)
+        expected = [(hue, 1000 - step) for hue, step in a]
+        if a and b and b != expected:
+            wanted = ", ".join(f"atlas.{hue}{step}" for hue, step in expected)
+            return [f"{where} is {light} in light, so {wanted} in dark (not {dark})"]
+    return []
+
+
+def validate_theme_plugin(validation: Validation) -> None:
+    """atlas-theme.json against Grafana's theme schema, atlas-style.json against its own,
+    every palette reference resolves, and dark steps mirror light ones (1000 - step)."""
+    documents = {}
+    for name in ("atlas-theme.json", "atlas-style.json"):
+        path = THEME_PLUGIN_DIRECTORY / name
+        try:
+            documents[name] = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            validation.require(False, f"{relative(path)}: {error}")
+            return
+    theme, style = documents["atlas-theme.json"], documents["atlas-style.json"]
+    theme_file = relative(THEME_PLUGIN_DIRECTORY / "atlas-theme.json")
+    style_file = relative(THEME_PLUGIN_DIRECTORY / "atlas-style.json")
+    grafana_schema = json.loads(
+        (THEME_SCHEMA_DIRECTORY / "grafana-theme.schema.json").read_text(encoding="utf-8")
+    )
+    style_schema = json.loads(
+        (THEME_SCHEMA_DIRECTORY / "atlas-style.schema.json").read_text(encoding="utf-8")
+    )
+
+    validation.require(
+        set(theme) == {"$comment", "palette", "themes", "names"},
+        f"{theme_file}: top-level keys must be $comment, palette, themes, names",
+    )
+    palette = theme.get("palette", {})
+    for key, color in palette.items():
+        validation.require(
+            bool(PALETTE_KEY_PATTERN.fullmatch(key))
+            and bool(HEX_COLOR_PATTERN.fullmatch(color)),
+            f"{theme_file}: palette.{key} must be a lowercase #rrggbb colour "
+            "with a [a-z]+[0-9]* key",
+        )
+    themes = theme.get("themes", {})
+    for mode in THEME_MODES:
+        definition = themes.get(mode, {})
+        for problem in schema_problems(
+            definition, grafana_schema, grafana_schema, f"themes.{mode}"
+        ):
+            validation.require(False, f"{theme_file}: {problem}")
+        validation.require(
+            definition.get("colors", {}).get("mode") == mode,
+            f"{theme_file}: themes.{mode}.colors.mode must be {mode}",
+        )
+    for problem in schema_problems(style, style_schema, style_schema, "style"):
+        validation.require(False, f"{style_file}: {problem}")
+
+    for file_name, document in ((theme_file, theme), (style_file, style)):
+        for path, key, alpha in palette_references(document, "$"):
+            validation.require(
+                key in palette, f"{file_name}: {path} refers to unknown palette key {key}"
+            )
+            validation.require(
+                alpha is None or bool(re.fullmatch(r"0|1|0?\.[0-9]+", alpha)),
+                f"{file_name}: {path} has alpha {alpha}; use a number from 0 to 1",
+            )
+
+    names = theme.get("names", {})
+    slots = style.get("slots", {})
+    axes = style.get("canvas", {}).get("axes", {})
+    for file_name, where, light, dark in (
+        (theme_file, "themes.*", themes.get("light", {}), themes.get("dark", {})),
+        (theme_file, "names.*", names.get("light", {}), names.get("dark", {})),
+        (style_file, "slots.*", slots.get("light", {}), slots.get("dark", {})),
+        (style_file, "canvas.axes.*", axes.get("light", []), axes.get("dark", [])),
+    ):
+        for problem in mirroring_problems(light, dark, where):
+            validation.require(False, f"{file_name}: {problem}")
+
+    # Every role hue has every slot step, and the theme draws the role in that hue.
+    slot_steps = {
+        value
+        for mode in THEME_MODES
+        for value in slots.get(mode, {}).values()
+        if isinstance(value, int)
+    }
+    drawn_as = {
+        shade["name"]: shade["color"]
+        for hue in themes.get("light", {}).get("visualization", {}).get("hues", [])
+        for shade in hue.get("shades", [])
+    } | names.get("light", {})
+    for name, hue in style.get("roles", {}).items():
+        for step in sorted(slot_steps):
+            validation.require(
+                f"{hue}{step}" in palette,
+                f"{style_file}: roles.{name} ({hue}) has no {hue}{step} in the palette",
+            )
+        drawn = palette_steps(drawn_as.get(name, ""))
+        validation.require(
+            len(drawn) == 1 and drawn[0][0] == hue,
+            f"{style_file}: roles.{name} is {hue}, but {theme_file} draws {name} "
+            f"as {drawn_as.get(name)}",
+        )
+    # Every slot a rule uses exists, and every component matches on a colour.
+    slot_names = set(slots.get("light", {}))
+    used = set(re.findall(r"var\(--c-([a-z-]+)\)", json.dumps(style)))
+    used.add(style.get("sparkline", {}).get("slot", ""))
+    for name in sorted(used - slot_names):
+        validation.require(False, f"{style_file}: slot {name} is used but not defined")
+    for rule in style.get("components", []) + [style.get("sparkline", {})]:
+        validation.require(
+            "{c}" in rule.get("match", ""),
+            f"{style_file}: {rule.get('name', 'sparkline')} has no {{c}} in match",
+        )
+
+
 def validate_alert_messages(
     documents: dict[Path, dict], validation: Validation
 ) -> None:
@@ -1340,6 +1571,7 @@ def main() -> None:
     validate_alert_messages(alerting_documents, validation)
     validate_tracked_files(tracked, validation)
     validate_komodo_compose(validation)
+    validate_theme_plugin(validation)
     validate_required_compose_inputs(
         STACKS_ROOT / "recyclarr" / "compose.yaml",
         ("SONARR_API_KEY", "RADARR_API_KEY"),

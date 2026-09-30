@@ -1,0 +1,95 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "Schema of stacks/monitoring/grafana/plugins/atlas-theme-app/atlas-style.json, checked by scripts/validate-repository.py.",
+  "type": "object",
+  "required": ["roles", "slots", "tokens", "components", "static", "sparkline", "canvas"],
+  "additionalProperties": false,
+  "properties": {
+    "$comment": {"type": "string"},
+    "roles": {"type": "object", "additionalProperties": {"type": "string"}},
+    "slots": {
+      "type": "object",
+      "required": ["light", "dark"],
+      "additionalProperties": false,
+      "properties": {
+        "light": {"$ref": "#/definitions/slots"},
+        "dark": {"$ref": "#/definitions/slots"}
+      }
+    },
+    "tokens": {"type": "object", "additionalProperties": {"type": "string"}},
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "match", "set"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string"},
+          "match": {"type": "string"},
+          "set": {"type": "object", "additionalProperties": {"type": "string"}},
+          "deep": {"type": "object", "additionalProperties": {"type": "string"}}
+        }
+      }
+    },
+    "static": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "match", "set"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string"},
+          "match": {"type": "string"},
+          "set": {"type": "object", "additionalProperties": {"type": "string"}}
+        }
+      }
+    },
+    "sparkline": {
+      "type": "object",
+      "required": ["match", "slot", "opacity"],
+      "additionalProperties": false,
+      "properties": {
+        "match": {"type": "string"},
+        "slot": {"type": "string"},
+        "opacity": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "canvas": {
+      "type": "object",
+      "required": ["axes", "timeline"],
+      "additionalProperties": false,
+      "properties": {
+        "axes": {
+          "type": "object",
+          "required": ["scope", "light", "dark"],
+          "additionalProperties": false,
+          "properties": {
+            "scope": {"type": "string"},
+            "light": {"type": "array", "items": {"$ref": "#/definitions/replacement"}},
+            "dark": {"type": "array", "items": {"$ref": "#/definitions/replacement"}}
+          }
+        },
+        "timeline": {
+          "type": "object",
+          "required": ["ring"],
+          "additionalProperties": false,
+          "properties": {"ring": {"type": "boolean"}}
+        }
+      }
+    }
+  },
+  "definitions": {
+    "slots": {
+      "$comment": "A number is that step of the role's hue, a string a colour or palette reference. The engine itself uses fill, cell-fg, pill-bg, pill-fg, and pill-ring; rules may use more.",
+      "type": "object",
+      "required": ["fill", "cell-fg", "pill-bg", "pill-fg", "pill-ring"],
+      "additionalProperties": {"anyOf": [{"enum": [100, 200, 300, 400, 500, 600, 700, 800, 900]}, {"type": "string"}]}
+    },
+    "replacement": {
+      "type": "object",
+      "required": ["name", "from", "to"],
+      "additionalProperties": false,
+      "properties": {"name": {"type": "string"}, "from": {"type": "string"}, "to": {"type": "string"}}
+    }
+  }
+}

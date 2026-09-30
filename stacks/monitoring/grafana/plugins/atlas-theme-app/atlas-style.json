@@ -1,0 +1,158 @@
+{
+  "$comment": "Atlas style spec: what a Grafana theme cannot express. The engine (module.js) turns it into one stylesheet and a few canvas mappings. {c} is a colour as Grafana writes it into inline styles (rgb(r, g, b)); var(--c-<slot>) is that colour's hue at the slot's step; var(--atlas-<token>) is a theme value.",
+  "roles": {
+    "green": "emerald",
+    "yellow": "amber",
+    "red": "red",
+    "blue": "sky",
+    "purple": "purple",
+    "orange": "orange",
+    "gray": "gray"
+  },
+  "slots": {
+    "light": {
+      "fill": 400,
+      "cell-fg": "atlas.ink",
+      "tile-bg": 300,
+      "tile-fg": 900,
+      "pill-bg": 200,
+      "pill-fg": 800,
+      "pill-ring": 400,
+      "ctext": 700,
+      "spark": 900
+    },
+    "dark": {
+      "fill": 600,
+      "cell-fg": "atlas.white",
+      "tile-bg": 700,
+      "tile-fg": 100,
+      "pill-bg": 800,
+      "pill-fg": 200,
+      "pill-ring": 600,
+      "ctext": 300,
+      "spark": 100
+    }
+  },
+  "tokens": {
+    "font-sm": "typography.bodySmall.fontSize"
+  },
+  "components": [
+    {
+      "name": "stat tile",
+      "match": "[data-testid^=\"stat-panel-\"] [style*=\"display: flex; background: {c}\"]",
+      "set": {
+        "background": "var(--c-tile-bg)",
+        "color": "var(--c-tile-fg)",
+        "border-radius": "6px",
+        "overflow": "hidden"
+      },
+      "deep": {
+        "color": "var(--c-tile-fg)"
+      }
+    },
+    {
+      "name": "table state cell",
+      "match": "[data-testid^=\"table-panel-\"] [role=\"gridcell\"][style*=\"background: {c}\"]",
+      "set": {
+        "background": "var(--c-fill)",
+        "color": "var(--c-cell-fg)",
+        "font-weight": "600"
+      },
+      "deep": {
+        "color": "var(--c-cell-fg)",
+        "font-weight": "600"
+      }
+    },
+    {
+      "name": "pill",
+      "match": "[data-testid^=\"table-panel-\"] [role=\"gridcell\"] span[style*=\"background-color: {c}\"]",
+      "set": {
+        "background-color": "var(--c-pill-bg)",
+        "color": "var(--c-pill-fg)",
+        "box-shadow": "inset 0 0 0 1px var(--c-pill-ring)",
+        "border-radius": "4px"
+      }
+    },
+    {
+      "name": "bar gauge bar (bar gauges and table gauge cells draw it at 35 % alpha)",
+      "match": "div[style*=\"2px solid {c}\"]",
+      "set": {
+        "background": "var(--c-fill)",
+        "border-color": "var(--c-fill)"
+      }
+    },
+    {
+      "name": "coloured table text",
+      "match": "[data-testid^=\"table-panel-\"] [role=\"gridcell\"][style*=\"color: {c}\"]:not([style*=\"background\"])",
+      "set": {
+        "color": "var(--c-ctext)",
+        "font-weight": "600"
+      },
+      "deep": {
+        "color": "var(--c-ctext)",
+        "font-weight": "600"
+      }
+    }
+  ],
+  "static": [
+    {
+      "name": "dashboard controls: buttons use the selector's text size",
+      "match": "[data-testid=\"data-testid dashboard controls\"] button[class*=\"toolbar-button\"]",
+      "set": {
+        "font-size": "var(--atlas-font-sm)"
+      }
+    },
+    {
+      "name": "table state cell without a colour (a transparent step) keeps the theme text",
+      "match": "[data-testid^=\"table-panel-\"] [role=\"gridcell\"]:is([style*=\"background: rgba(0, 0, 0, 0)\"], [style*=\"background: rgba(255, 255, 255, 0)\"])",
+      "set": {
+        "color": "inherit"
+      }
+    },
+    {
+      "name": "pill without a colour (a transparent step) is plain theme text",
+      "match": "[data-testid^=\"table-panel-\"] [role=\"gridcell\"] span:is([style*=\"background-color: rgba(0, 0, 0, 0)\"], [style*=\"background-color: rgba(255, 255, 255, 0)\"])",
+      "set": {
+        "border": "none",
+        "color": "inherit"
+      }
+    }
+  ],
+  "sparkline": {
+    "match": "[data-testid^=\"stat-panel-\"] [style*=\"display: flex; background: {c}\"] canvas",
+    "slot": "spark",
+    "opacity": 0.45
+  },
+  "canvas": {
+    "axes": {
+      "scope": ".uplot",
+      "light": [
+        {
+          "name": "grid lines and ticks",
+          "from": "rgba(0, 10, 23, 0.09)",
+          "to": "atlas.gray200"
+        },
+        {
+          "name": "axis labels (Grafana draws them in the text colour)",
+          "from": "atlas.gray900",
+          "to": "atlas.gray700"
+        }
+      ],
+      "dark": [
+        {
+          "name": "grid lines and ticks",
+          "from": "rgba(240, 250, 255, 0.09)",
+          "to": "atlas.gray800"
+        },
+        {
+          "name": "axis labels (Grafana draws them in the text colour)",
+          "from": "atlas.gray100",
+          "to": "atlas.gray300"
+        }
+      ]
+    },
+    "timeline": {
+      "ring": true
+    }
+  }
+}
