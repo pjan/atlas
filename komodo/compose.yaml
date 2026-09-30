@@ -63,6 +63,14 @@ services:
       # - /path/to/root_ca.crt:/usr/local/share/ca-certificates/root_ca.crt
     mem_limit: 128m
     logging: *default-logging
+    # /version is served without auth or database access: it proves the API
+    # server answers, not that Mongo or Periphery are reachable.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:9120/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     labels:
       komodo.skip: # Prevent Komodo from stopping with StopAllContainers
 
@@ -100,6 +108,16 @@ services:
       # - /path/to/root_ca.crt:/usr/local/share/ca-certificates/root_ca.crt
     mem_limit: 256m
     logging: *default-logging
+    # Periphery dials Core (PERIPHERY_CORE_ADDRESS=ws://core:9120) and serves
+    # no port of its own. Healthy means an established TCP connection to port
+    # 9120 (hex 23A0) exists; Periphery closes it when login fails. /proc is the
+    # host's, but /proc/net follows the reading process's network namespace.
+    healthcheck:
+      test: ["CMD", "grep", "-qsE", "^ *[0-9]+: [0-9A-F]+:[0-9A-F]{4} [0-9A-F]+:23A0 01 ", "/proc/net/tcp", "/proc/net/tcp6"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
 volumes:
   # Mongo

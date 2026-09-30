@@ -27,6 +27,32 @@ services:
           create_host_path: false
     networks:
       - media_network
+    healthcheck:
+      # Kometa rotates meta.log at the start of every run, so it always holds the
+      # current or latest run. 93600 s = 26 h (daily run + slack); 21600 s = 6 h.
+      test:
+        - CMD-SHELL
+        - |-
+          log=/config/logs/meta.log
+          now=$$(date +%s)
+          up=$$(awk -v t="$$(cut -d ' ' -f 22 /proc/1/stat)" '{ print int($$1 - t / 100) }' /proc/uptime)
+          if [ -f "$$log" ]; then
+            age=$$((now - $$(stat -c %Y "$$log")))
+            if grep -qF -e '[CRITICAL]' -e 'Library Connection Failed' "$$log"; then
+              echo "last run failed, see $$log"; exit 1
+            fi
+            if grep -qE '[|] +Finished [^|]*Run +[|]' "$$log"; then
+              [ "$$age" -le 93600 ] && { echo "last run succeeded $$((age / 60)) min ago"; exit 0; }
+            else
+              [ "$$age" -le 21600 ] && { echo "run in progress"; exit 0; }
+            fi
+          fi
+          [ "$$up" -lt 93600 ] && { echo "container up $$((up / 60)) min, next run may not be due yet"; exit 0; }
+          echo "no successful run in the last 26 h, or current run stalled"; exit 1
+      interval: 5m
+      timeout: 10s
+      retries: 1
+      start_period: 60s
     mem_limit: 768m
     pids_limit: 256
     logging:
