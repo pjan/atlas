@@ -1,0 +1,2 @@
+# Vendored release files (scripts/update-grafana-plugin.py) must stay byte-identical to their recorded SHA-256.
+stacks/monitoring/grafana/plugins/pjan-statetimeline-panel/** -text
