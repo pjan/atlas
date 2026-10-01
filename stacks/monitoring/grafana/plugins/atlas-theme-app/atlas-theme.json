@@ -241,7 +241,7 @@
               },
               {
                 "name": "dark-green",
-                "color": "atlas.emerald700"
+                "color": "atlas.emerald800"
               }
             ]
           },
@@ -267,7 +267,7 @@
               },
               {
                 "name": "dark-yellow",
-                "color": "atlas.amber700"
+                "color": "atlas.amber800"
               }
             ]
           },
@@ -293,7 +293,7 @@
               },
               {
                 "name": "dark-red",
-                "color": "atlas.red700"
+                "color": "atlas.red800"
               }
             ]
           },
@@ -319,7 +319,7 @@
               },
               {
                 "name": "dark-blue",
-                "color": "atlas.sky700"
+                "color": "atlas.sky800"
               }
             ]
           },
@@ -345,7 +345,7 @@
               },
               {
                 "name": "dark-purple",
-                "color": "atlas.purple700"
+                "color": "atlas.purple800"
               }
             ]
           },
@@ -371,7 +371,7 @@
               },
               {
                 "name": "dark-orange",
-                "color": "atlas.orange700"
+                "color": "atlas.orange800"
               }
             ]
           }
@@ -510,7 +510,7 @@
               },
               {
                 "name": "dark-green",
-                "color": "atlas.emerald300"
+                "color": "atlas.emerald200"
               }
             ]
           },
@@ -536,7 +536,7 @@
               },
               {
                 "name": "dark-yellow",
-                "color": "atlas.amber300"
+                "color": "atlas.amber200"
               }
             ]
           },
@@ -562,7 +562,7 @@
               },
               {
                 "name": "dark-red",
-                "color": "atlas.red300"
+                "color": "atlas.red200"
               }
             ]
           },
@@ -588,7 +588,7 @@
               },
               {
                 "name": "dark-blue",
-                "color": "atlas.sky300"
+                "color": "atlas.sky200"
               }
             ]
           },
@@ -614,7 +614,7 @@
               },
               {
                 "name": "dark-purple",
-                "color": "atlas.purple300"
+                "color": "atlas.purple200"
               }
             ]
           },
@@ -640,7 +640,7 @@
               },
               {
                 "name": "dark-orange",
-                "color": "atlas.orange300"
+                "color": "atlas.orange200"
               }
             ]
           }
@@ -677,74 +677,74 @@
       "light-gray": "atlas.gray300",
       "gray": "atlas.gray400",
       "semi-dark-gray": "atlas.gray500",
-      "dark-gray": "atlas.gray700",
+      "dark-gray": "atlas.gray800",
       "super-light-indigo": "atlas.indigo200",
       "light-indigo": "atlas.indigo300",
       "indigo": "atlas.indigo400",
       "semi-dark-indigo": "atlas.indigo500",
-      "dark-indigo": "atlas.indigo700",
+      "dark-indigo": "atlas.indigo800",
       "super-light-violet": "atlas.violet200",
       "light-violet": "atlas.violet300",
       "violet": "atlas.violet400",
       "semi-dark-violet": "atlas.violet500",
-      "dark-violet": "atlas.violet700",
+      "dark-violet": "atlas.violet800",
       "super-light-lime": "atlas.lime200",
       "light-lime": "atlas.lime300",
       "lime": "atlas.lime400",
       "semi-dark-lime": "atlas.lime500",
-      "dark-lime": "atlas.lime700",
+      "dark-lime": "atlas.lime800",
       "super-light-teal": "atlas.teal200",
       "light-teal": "atlas.teal300",
       "teal": "atlas.teal400",
       "semi-dark-teal": "atlas.teal500",
-      "dark-teal": "atlas.teal700",
+      "dark-teal": "atlas.teal800",
       "super-light-cyan": "atlas.cyan200",
       "light-cyan": "atlas.cyan300",
       "cyan": "atlas.cyan400",
       "semi-dark-cyan": "atlas.cyan500",
-      "dark-cyan": "atlas.cyan700",
+      "dark-cyan": "atlas.cyan800",
       "super-light-pink": "atlas.pink200",
       "light-pink": "atlas.pink300",
       "pink": "atlas.pink400",
       "semi-dark-pink": "atlas.pink500",
-      "dark-pink": "atlas.pink700"
+      "dark-pink": "atlas.pink800"
     },
     "dark": {
       "super-light-gray": "atlas.gray800",
       "light-gray": "atlas.gray700",
       "gray": "atlas.gray600",
       "semi-dark-gray": "atlas.gray500",
-      "dark-gray": "atlas.gray300",
+      "dark-gray": "atlas.gray200",
       "super-light-indigo": "atlas.indigo800",
       "light-indigo": "atlas.indigo700",
       "indigo": "atlas.indigo600",
       "semi-dark-indigo": "atlas.indigo500",
-      "dark-indigo": "atlas.indigo300",
+      "dark-indigo": "atlas.indigo200",
       "super-light-violet": "atlas.violet800",
       "light-violet": "atlas.violet700",
       "violet": "atlas.violet600",
       "semi-dark-violet": "atlas.violet500",
-      "dark-violet": "atlas.violet300",
+      "dark-violet": "atlas.violet200",
       "super-light-lime": "atlas.lime800",
       "light-lime": "atlas.lime700",
       "lime": "atlas.lime600",
       "semi-dark-lime": "atlas.lime500",
-      "dark-lime": "atlas.lime300",
+      "dark-lime": "atlas.lime200",
       "super-light-teal": "atlas.teal800",
       "light-teal": "atlas.teal700",
       "teal": "atlas.teal600",
       "semi-dark-teal": "atlas.teal500",
-      "dark-teal": "atlas.teal300",
+      "dark-teal": "atlas.teal200",
       "super-light-cyan": "atlas.cyan800",
       "light-cyan": "atlas.cyan700",
       "cyan": "atlas.cyan600",
       "semi-dark-cyan": "atlas.cyan500",
-      "dark-cyan": "atlas.cyan300",
+      "dark-cyan": "atlas.cyan200",
       "super-light-pink": "atlas.pink800",
       "light-pink": "atlas.pink700",
       "pink": "atlas.pink600",
       "semi-dark-pink": "atlas.pink500",
-      "dark-pink": "atlas.pink300"
+      "dark-pink": "atlas.pink200"
     }
   }
 }
