@@ -64,8 +64,8 @@ Chart panels draw on a `<canvas>`, which CSS can't style, so the plugin reads th
 |---|---|---|
 | `--atlas-grid` | Grid lines and axis ticks | Every chart panel: time series, bar chart, state timeline, status history, histogram, heatmap, trend, candlestick (XY chart unverified) |
 | `--atlas-axis-text` | Axis labels. In bar charts also the value labels on the bars, which Grafana draws in the same colour. | Same panels |
-| `--atlas-<role>-outline` | The outline of a segment in that state | State timeline, status history |
-| `--atlas-<role>-text` | The value text on a segment in that state | State timeline, status history |
+| `--atlas-<role>-outline` | The outline of a segment in that state | State timeline, status history, and `pjan-statetimeline-panel` |
+| `--atlas-<role>-text` | The value text on a segment in that state | State timeline, status history, and `pjan-statetimeline-panel` |
 | `--atlas-<role>-sparkline` | The sparkline line on a stat tile coloured in that state (`colorMode: background_solid`) | Stat |
 | `--atlas-<role>-sparkline-fill` | The area under that sparkline | Stat |
 

@@ -250,6 +250,9 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
   }
 
   // ---- 3. Canvas
+  // Panel types that draw state timelines: the core ones and pjan-statetimeline-panel, the
+  // drop-in replacement from ~/Sources/grafana-plugins.
+  var TIMELINE_PANELS = ['state-timeline', 'status-history', 'pjan-statetimeline-panel'];
   var SCOPE = new WeakMap();
   function scopeOf(canvas) {
     var s = SCOPE.get(canvas);
@@ -257,7 +260,7 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
     if (!canvas || !canvas.closest) { return null; }
     var panel = canvas.closest('[data-plugin-id]');
     var type = panel ? panel.getAttribute('data-plugin-id') : '';
-    s = { axes: !!canvas.closest('.uplot'), timeline: type === 'state-timeline' || type === 'status-history', stat: type === 'stat' };
+    s = { axes: !!canvas.closest('.uplot'), timeline: TIMELINE_PANELS.indexOf(type) >= 0, stat: type === 'stat' };
     if (canvas.isConnected) { SCOPE.set(canvas, s); }
     return s;
   }
