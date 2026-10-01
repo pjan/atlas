@@ -1,0 +1,12 @@
+# Changelog
+
+## 1.0.0 (2026-10-01)
+
+- Named **State timeline ++** in Grafana (was "State timeline (pjan)"); the plugin id stays `pjan-statetimeline-panel`.
+- **Corner radius** (panel option, 0–12 px, not set by default): rounds every box and its line, clamped to half the box's width and height, and the hover highlight. Pill sets no radius; the two combine.
+- Pill's line: **Line width** applies under Pill when it is above 0; 0 (core's default, saved on new panels) or not set keeps Pill's 1 px line.
+- Day boundaries: the 00:00 line is drawn over the boxes, across the whole plot (it was a grid line, behind them).
+- Styling (opt-in; with nothing set the panel looks like core and saves nothing): a **Look** (Grafana, or Pill: the softest shade as an opaque fill, a 1 px line in the base shade, the value in the strongest shade, values that don't fit hidden), **Value overflow** (truncate or hide; not set, as the look), **Line color**, **Fill color**, **Value color** and **Row name color** per row through field overrides, **Grid line color**, **Axis text color**, and **Day boundaries** (a stronger line and a bold label at 00:00, with an optional colour). Colours are Grafana colour names and the colour picker; shades are ranked by contrast with the panel background in the active theme, and text colours fall back to best contrast below 4.5:1. Legend and tooltip swatches show the fill drawn. Colours the styling sets are drawn as `rgb()`, so theme plugins that recolour Grafana's canvas colours leave them alone.
+- Documentation: switching a panel back to core keeps the plugin's panel options but drops its field options (including "Annotation key").
+- Per-row annotations (opt-in, off by default): "Show on matching rows" in the Annotations options draws an annotation on the timeline row whose key (display name, a label, or the per-row "Annotation key" override) matches an annotation field (`tags` when not set). Points get a marker at the top of the row and a dashed line over the row, regions a bar along it; clustering works per row; Ctrl/Cmd-click on a row adds an annotation tagged with the row key. Annotations of rows not drawn (other pages, hidden rows) are left out. Unmatched annotations, and all of them with the option off, are drawn as in the core panel; a panel that doesn't use the option saves no setting for it.
+- Port of Grafana's core state-timeline panel from grafana/grafana v13.2.3, as a drop-in replacement: same options, defaults, migrations, rendering, and interaction. See `UPSTREAM.md` for what was copied, changed, and pruned.

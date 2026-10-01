@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -34,6 +35,9 @@ ALERT_MESSAGE_FIXTURES_DIRECTORY = MONITORING_ROOT / "alertmanager-tests"
 # The Grafana theme plugin and its schemas (outside the directory Grafana serves).
 THEME_PLUGIN_DIRECTORY = MONITORING_ROOT / "grafana" / "plugins" / "atlas-theme-app"
 THEME_SCHEMA_DIRECTORY = MONITORING_ROOT / "grafana-tests"
+# Plugins vendored from pjan/grafana-plugins releases by scripts/update-grafana-plugin.py.
+GRAFANA_PLUGINS_DIRECTORY = MONITORING_ROOT / "grafana" / "plugins"
+PLUGIN_RELEASES_FILE = MONITORING_ROOT / "grafana" / "plugin-releases.json"
 THEME_MODES = ("light", "dark")
 PALETTE_KEY_PATTERN = re.compile(r"[a-z]+[0-9]*")
 PALETTE_STEP_KEY_PATTERN = re.compile(r"(?P<hue>[a-z]+)(?P<step>[1-9]00)")
@@ -1524,6 +1528,57 @@ def validate_alert_messages(
             )
 
 
+def validate_vendored_plugins(validation: Validation) -> None:
+    """Each plugin in plugin-releases.json matches its release: the same files with the same
+    SHA-256, and plugin.json's id and version; Grafana allows it as an unsigned plugin."""
+    try:
+        releases = json.loads(PLUGIN_RELEASES_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        validation.require(False, f"plugin releases: {error}")
+        return
+    compose = (MONITORING_ROOT / "compose.yaml").read_text(encoding="utf-8")
+    allowed = re.search(r"GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=(\S+)", compose)
+    allowed_ids = set(allowed.group(1).split(",")) if allowed else set()
+    for plugin_id, release in sorted(releases.items()):
+        directory = GRAFANA_PLUGINS_DIRECTORY / plugin_id
+        label = f"vendored plugin {plugin_id}"
+        files = {
+            path.relative_to(directory).as_posix(): path
+            for path in directory.rglob("*")
+            if path.is_file() and path.name != ".DS_Store"
+        }
+        recorded = release.get("files", {})
+        validation.require(
+            set(files) == set(recorded),
+            f"{label}: files differ from its release: {sorted(set(files) ^ set(recorded))} "
+            "(run scripts/update-grafana-plugin.py)",
+        )
+        for name in sorted(set(files) & set(recorded)):
+            digest = hashlib.sha256(files[name].read_bytes()).hexdigest()
+            validation.require(
+                digest == recorded[name],
+                f"{label}: {name} differs from its release (run scripts/update-grafana-plugin.py)",
+            )
+        try:
+            manifest = json.loads((directory / "plugin.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            validation.require(False, f"{label}: plugin.json: {error}")
+            continue
+        validation.require(manifest.get("id") == plugin_id, f"{label}: plugin.json id is {manifest.get('id')}")
+        validation.require(
+            manifest.get("info", {}).get("version") == release.get("version"),
+            f"{label}: plugin.json version differs from plugin-releases.json",
+        )
+        validation.require(
+            release.get("tag") == f"{plugin_id}/v{release.get('version')}",
+            f"{label}: tag {release.get('tag')} does not match its version",
+        )
+        validation.require(
+            plugin_id in allowed_ids,
+            f"{label}: not in GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS",
+        )
+
+
 def main() -> None:
     os.chdir(REPO_ROOT)
     validation = Validation()
@@ -1557,6 +1612,7 @@ def main() -> None:
     validate_tracked_files(tracked, validation)
     validate_komodo_compose(validation)
     validate_theme_plugin(validation)
+    validate_vendored_plugins(validation)
     validate_required_compose_inputs(
         STACKS_ROOT / "recyclarr" / "compose.yaml",
         ("SONARR_API_KEY", "RADARR_API_KEY"),

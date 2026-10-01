@@ -1,0 +1,38 @@
+{
+    "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+    "type": "panel",
+    "name": "State timeline ++",
+    "id": "pjan-statetimeline-panel",
+    "info": {
+        "keywords": [
+            "panel",
+            "state timeline"
+        ],
+        "description": "Grafana's core state timeline as a panel plugin (drop-in replacement); with opt-in annotations on matching rows and styling",
+        "author": {
+            "name": "pjan"
+        },
+        "logos": {
+            "small": "img/timeline.svg",
+            "large": "img/timeline.svg"
+        },
+        "links": [
+            {
+                "name": "Documentation",
+                "url": "https://grafana.com/docs/grafana/latest/panels-visualizations/visualizations/state-timeline/"
+            },
+            {
+                "name": "Source code",
+                "url": "https://github.com/pjan/grafana-plugins"
+            }
+        ],
+        "screenshots": [],
+        "version": "1.0.0",
+        "updated": "2026-10-01"
+    },
+    "dependencies": {
+        "grafanaDependency": "^13.2.0",
+        "plugins": []
+    },
+    "buildMode": "production"
+}

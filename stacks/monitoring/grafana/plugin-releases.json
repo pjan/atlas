@@ -1,0 +1,22 @@
+{
+  "pjan-statetimeline-panel": {
+    "commit": "f6f9890568a8cb584fc925582d6162f9c8476cbf",
+    "files": {
+      "342.js": "7d3371aeb40bd88a2dce56a199629e570492b80d1ec955ffdc7807f89a3c8588",
+      "CHANGELOG.md": "73821f95383700c3801e3f93c8163086c27c8eb2aac046aeb8a1c2c46afc2cfb",
+      "LICENSE": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0",
+      "LICENSE_APACHE2": "7486ea148c36b1bd8608aeba83584f242acd880d97db00fa657c88a962316777",
+      "NOTICE.md": "78cf8b70fbfde43dbc26e91f9b9039b52afcbc5ca0b5b3dcdfb226d275849ee4",
+      "README.md": "a4fde23c9f216dabccab6603e10cff5357396133b7fb246ebbfeeaf43e62a5e9",
+      "THIRD_PARTY_NOTICES.txt": "21558532edf4ee0e48357dac6e90f08ed2febf48dfe982f34ac5725e4b9c8b63",
+      "UPSTREAM.md": "ada890cb940bd6212bea0e3000e0f389638cdcb36537968c4f2f85a990d29621",
+      "img/timeline.svg": "eef06f51abd38bd1a3d12c253a2c08c71c67a2e541f2977fa81e424f692238ac",
+      "module.js": "6d0d12030b4edabfae6a032c85850db9c17f8e3d8094f9f9e195a521404f0fd4",
+      "plugin.json": "f799d846328fe6072c8dbb1e148c938bcab8e935c7acd1714b4606c669b6bf99"
+    },
+    "release": "https://github.com/pjan/grafana-plugins/releases/tag/pjan-statetimeline-panel/v1.0.0",
+    "tag": "pjan-statetimeline-panel/v1.0.0",
+    "version": "1.0.0",
+    "zipSha256": "d505c9f33fb4e24cc0cd660294fa017dac9ac8d20a27755f057b7453c337b0e2"
+  }
+}

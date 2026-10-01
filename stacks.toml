@@ -1263,6 +1263,17 @@ config_files = [
   { path = "grafana/plugins/atlas-theme-app/atlas-theme.json", services = ["grafana"], requires = "Restart" },
   { path = "grafana/plugins/atlas-theme-app/atlas.css", services = ["grafana"], requires = "Restart" },
   { path = "grafana/plugins/atlas-theme-app/README.md", services = ["grafana"], requires = "None" },
+  { path = "grafana/plugins/pjan-statetimeline-panel/342.js", services = ["grafana"], requires = "Restart" },
+  { path = "grafana/plugins/pjan-statetimeline-panel/CHANGELOG.md", services = ["grafana"], requires = "Restart" },
+  { path = "grafana/plugins/pjan-statetimeline-panel/LICENSE", services = ["grafana"], requires = "Restart" },
+  { path = "grafana/plugins/pjan-statetimeline-panel/LICENSE_APACHE2", services = ["grafana"], requires = "Restart" },
+  { path = "grafana/plugins/pjan-statetimeline-panel/NOTICE.md", services = ["grafana"], requires = "Restart" },
+  { path = "grafana/plugins/pjan-statetimeline-panel/README.md", services = ["grafana"], requires = "Restart" },
+  { path = "grafana/plugins/pjan-statetimeline-panel/THIRD_PARTY_NOTICES.txt", services = ["grafana"], requires = "Restart" },
+  { path = "grafana/plugins/pjan-statetimeline-panel/UPSTREAM.md", services = ["grafana"], requires = "Restart" },
+  { path = "grafana/plugins/pjan-statetimeline-panel/img/timeline.svg", services = ["grafana"], requires = "Restart" },
+  { path = "grafana/plugins/pjan-statetimeline-panel/module.js", services = ["grafana"], requires = "Restart" },
+  { path = "grafana/plugins/pjan-statetimeline-panel/plugin.json", services = ["grafana"], requires = "Restart" },
 ]
 pre_deploy.path = "."
 pre_deploy.command = """
