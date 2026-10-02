@@ -608,35 +608,6 @@ CONF_DIR = [[APPDATA_DIR]]/adguard/conf
 """
 
 [[stack]]
-name = "uptime-kuma"
-description = "Uptime Kuma monitoring"
-# Deploy manually; Resource Sync must not start it until its future is decided.
-deploy = false
-tags = ["infra", "monitoring"]
-
-[stack.config]
-server = "atlas"
-repo = "pjan/atlas"
-branch = "main"
-run_directory = "stacks/uptime-kuma"
-file_paths = ["compose.yaml"]
-auto_pull = true
-poll_for_updates = true
-links = ["http://uptime.atlas.local"]
-pre_deploy.path = "."
-pre_deploy.command = """
-set -eu
-sh ../../scripts/ensure-docker-network.sh proxy_network
-sh ../../scripts/atlas-hostfs.sh ensure-dir \
-  "[[APPDATA_DIR]]/uptime-kuma" 1000 1000 0700
-"""
-pre_deploy.shell_mode = true
-environment = """
-TZ = [[TZ]]
-CONFIG_DIR = [[APPDATA_DIR]]/uptime-kuma
-"""
-
-[[stack]]
 name = "roonserver"
 description = "RoonServer"
 deploy = true
@@ -1065,69 +1036,6 @@ CONFIG_DIR = [[APPDATA_DIR]]/speedtest-tracker
 """
 
 [[stack]]
-name = "homepage"
-description = "Homepage dashboard"
-# Deploy manually; Resource Sync must not start it until its future is decided.
-deploy = false
-tags = ["infra", "dashboard"]
-
-[stack.config]
-server = "atlas"
-repo = "pjan/atlas"
-branch = "main"
-run_directory = "stacks/homepage"
-file_paths = ["compose.yaml"]
-auto_pull = true
-poll_for_updates = true
-links = ["http://homepage.atlas.local"]
-config_files = [
-  { path = "config/settings.yaml", services = ["homepage"], requires = "None" },
-  { path = "config/services.yaml", services = ["homepage"], requires = "None" },
-  { path = "config/widgets.yaml", services = ["homepage"], requires = "None" },
-  { path = "config/bookmarks.yaml", services = ["homepage"], requires = "None" },
-  { path = "config/docker.yaml", services = ["homepage"], requires = "None" },
-  { path = "config/kubernetes.yaml", services = ["homepage"], requires = "None" },
-  { path = "config/proxmox.yaml", services = ["homepage"], requires = "None" },
-  { path = "config/custom.css", services = ["homepage"], requires = "None" },
-  { path = "config/custom.js", services = ["homepage"], requires = "None" },
-]
-pre_deploy.path = "."
-pre_deploy.command = """
-set -eu
-sh ../../scripts/ensure-docker-network.sh proxy_network
-"""
-pre_deploy.shell_mode = true
-environment = """
-PUID = [[PUID]]
-PGID = [[PGID]]
-TZ = [[TZ]]
-LOG_TARGETS = stdout
-HOMEPAGE_ALLOWED_HOSTS = homepage.atlas.local,homepage.atlas.vandaele.io
-HOMEPAGE_ADGUARD_USERNAME = [[HOMEPAGE_ADGUARD_USERNAME]]
-HOMEPAGE_ADGUARD_PASSWORD = [[HOMEPAGE_ADGUARD_PASSWORD]]
-BAZARR_API_KEY = [[BAZARR_API_KEY]]
-CLOUDFLARE_ACCOUNT_ID = [[CLOUDFLARE_ACCOUNT_ID]]
-HOMEPAGE_CLOUDFLARE_API_TOKEN = [[HOMEPAGE_CLOUDFLARE_API_TOKEN]]
-CLOUDFLARE_TUNNEL_ID = [[CLOUDFLARE_TUNNEL_ID]]
-GLUETUN_CONTROL_API_KEY = [[GLUETUN_CONTROL_API_KEY]]
-HOMEPAGE_KOMODO_API_KEY = [[HOMEPAGE_KOMODO_API_KEY]]
-HOMEPAGE_KOMODO_API_SECRET = [[HOMEPAGE_KOMODO_API_SECRET]]
-LIDARR_API_KEY = [[LIDARR_API_KEY]]
-PLEX_SERVER_TOKEN = [[PLEX_SERVER_TOKEN]]
-PROWLARR_API_KEY = [[PROWLARR_API_KEY]]
-QBITTORRENT_API_KEY = [[QBITTORRENT_API_KEY]]
-RADARR_API_KEY = [[RADARR_API_KEY]]
-SABNZBD_API_KEY = [[SABNZBD_API_KEY]]
-SEERR_API_KEY = [[SEERR_API_KEY]]
-SLSKD_API_KEY = [[SLSKD_API_KEY]]
-SONARR_API_KEY = [[SONARR_API_KEY]]
-HOMEPAGE_SPEEDTEST_TRACKER_API_KEY = [[HOMEPAGE_SPEEDTEST_TRACKER_API_KEY]]
-HOMEPAGE_UNIFI_API_KEY = [[HOMEPAGE_UNIFI_API_KEY]]
-UNIFI_URL = [[UNIFI_URL]]
-UPTIME_KUMA_SLUG = [[UPTIME_KUMA_SLUG]]
-"""
-
-[[stack]]
 name = "cloudflared"
 description = "Cloudflare Tunnel connector"
 deploy = true
@@ -1339,7 +1247,6 @@ config_files = [
   { path = "conf/sites/bazarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/caddy.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/grafana.caddy", services = ["caddy"], requires = "Restart" },
-  { path = "conf/sites/homepage.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/houndarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/komodo.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/plex.caddy", services = ["caddy"], requires = "Restart" },
@@ -1356,7 +1263,6 @@ config_files = [
   { path = "conf/sites/prowlarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/lidarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/metrics.caddy", services = ["caddy"], requires = "Restart" },
-  { path = "conf/sites/uptime-kuma.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/ugos.caddy", services = ["caddy"], requires = "Restart" },
 ]
 pre_deploy.path = "."

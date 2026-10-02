@@ -457,7 +457,7 @@ Volume 2 holds Docker, the Komodo bootstrap directory, Periphery's workspace, an
 
    Execute the Resource Sync only once every stack that should run is running; it should then find nothing to deploy.
 
-9. If application state could not be restored, note that restored secrets that Atlas passes to an application stay valid, for example the Proton VPN key, the Gluetun control key, slskd and Spottarr credentials, the Cloudflare tunnel token, the Speedtest Tracker app key, and the Homepage Komodo API key. Keys that an application generates itself do not: after each first-run setup, copy the new Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, SABnzbd, qBittorrent, Seerr, Plex server, and Speedtest Tracker API keys or tokens into their Komodo variables before deploying the stacks that consume them.
+9. If application state could not be restored, note that restored secrets that Atlas passes to an application stay valid, for example the Proton VPN key, the Gluetun control key, slskd and Spottarr credentials, the Cloudflare tunnel token, and the Speedtest Tracker app key. Keys that an application generates itself do not: after each first-run setup, copy the new Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, SABnzbd, and qBittorrent API keys into their Komodo variables before deploying the stacks that consume them.
 10. For Roon, choose `Restore a backup` on the first start of the new core, select `/RoonBackups`, and unauthorize the old core when prompted.
 
 ## Host Filesystem Provisioning
@@ -581,8 +581,6 @@ Shared stack values managed in Komodo:
 
 ```text
 BAZARR_API_KEY
-CLOUDFLARE_ACCOUNT_ID
-CLOUDFLARE_TUNNEL_ID
 CLOUDFLARE_TUNNEL_TOKEN
 DISCORD_ALERTS_WEBHOOK_URL
 GLUETUN_CONTROL_API_KEY
@@ -591,25 +589,16 @@ GRAFANA_SECRETS_MANAGER_KEY
 GRAFANA_SECRET_KEY
 HEALTHCHECKS_APPDATA_PING_URL
 HEALTHCHECKS_WATCHDOG_PING_URL
-HOMEPAGE_ADGUARD_PASSWORD
-HOMEPAGE_ADGUARD_USERNAME
-HOMEPAGE_CLOUDFLARE_API_TOKEN
-HOMEPAGE_KOMODO_API_KEY
-HOMEPAGE_KOMODO_API_SECRET
-HOMEPAGE_SPEEDTEST_TRACKER_API_KEY
-HOMEPAGE_UNIFI_API_KEY
 KOMETA_PLEX_TOKEN
 KOMETA_TMDB_API_KEY
 KOMODO_MONITORING_API_KEY
 KOMODO_MONITORING_API_SECRET
 LIDARR_API_KEY
-PLEX_SERVER_TOKEN
 PROTONVPN_WIREGUARD_PRIVATE_KEY
 PROWLARR_API_KEY
 QBITTORRENT_API_KEY
 RADARR_API_KEY
 SABNZBD_API_KEY
-SEERR_API_KEY
 SLSKD_API_KEY
 SLSKD_JWT_KEY
 SLSKD_SLSK_PASSWORD
@@ -622,15 +611,11 @@ SPOTTARR_NEWZNAB_API_KEY
 SPOTTARR_USENET_HOSTNAME
 SPOTTARR_USENET_PASSWORD
 SPOTTARR_USENET_USERNAME
-UNIFI_URL
-UPTIME_KUMA_SLUG
 ```
 
 Komodo variables use uppercase snake case and are named for the service or
 resource that owns the value. Compose files translate those names to any
-upstream-specific environment names. Homepage's required `HOMEPAGE_VAR_*`
-prefix therefore appears only inside the Homepage container environment and
-its configuration placeholders, not in Komodo variable names or stack inputs.
+upstream-specific environment names.
 
 Mark every variable that holds a key, password, token, or webhook URL as
 secret in Komodo. Komodo redacts only secret variables in logs and in the
@@ -639,8 +624,9 @@ retrieve, including the monitoring service user.
 
 Generate `QBITTORRENT_API_KEY` in qBittorrent under `Options > WebUI >
 Authentication > API Key`, then store the complete `qbt_...` value in Komodo.
-Homepage uses this key for stateless Web API access; it does not replace the
-qBittorrent WebUI username and password used for interactive login.
+The monitoring stack (json-exporter) uses this key for stateless Web API access;
+it does not replace the qBittorrent WebUI username and password used for
+interactive login.
 
 Optional or temporary values:
 
@@ -721,39 +707,6 @@ The repository-managed `config.yml`, `collections/movies.yml`, and `collections/
 
 Do not repair Kometa with an unrestricted recursive `chown`. Stop the container, audit `/volume2/appdata/kometa`, and use `repair-tree-owner` only when the private-tree audit reports ownership mismatches.
 
-### Plex Token For Homepage
-
-The Homepage Plex widget needs a Plex auth token. For Atlas, the simplest source is the `PlexOnlineToken` stored in Plex's `Preferences.xml` after the server has been claimed and signed in to your Plex account.
-
-Run this on the NAS:
-
-```sh
-docker exec plex sh -lc 'sed -n '\''s/.*PlexOnlineToken="\([^"]*\)".*/\1/p'\'' "/config/Library/Application Support/Plex Media Server/Preferences.xml"'
-```
-
-Expected result: a single token value with no surrounding XML.
-
-If you want to read it directly from the host-mounted config directory instead of through the container, run:
-
-```sh
-sed -n 's/.*PlexOnlineToken="\([^"]*\)".*/\1/p' "/volume2/appdata/plex/Library/Application Support/Plex Media Server/Preferences.xml"
-```
-
-Set the returned value in Komodo as:
-
-```text
-PLEX_SERVER_TOKEN
-```
-
-Then redeploy `homepage` so the updated environment variable is injected into the container.
-
-Notes:
-
-- This only works after Plex has been successfully claimed and signed in to your Plex account.
-- If the command returns nothing, first confirm Plex is claimed and the server is visible in your Plex account.
-- Plex documents a browser-based way to obtain an `X-Plex-Token` from the Plex Web App XML view. The `Preferences.xml` method above is the more direct Atlas-specific approach for the Homepage variable.
-- If you reset your Plex password and sign out connected devices, Plex tokens can be invalidated. If the Homepage Plex widget stops working after an account security change, fetch the token again and update `PLEX_SERVER_TOKEN`.
-
 ### Seerr
 
 The `seerr` stack runs Seerr behind Caddy at:
@@ -809,9 +762,8 @@ http://bazarr.atlas.local
 Deploy order:
 
 1. Deploy `bazarr`.
-2. Deploy or redeploy `homepage` if the dashboard entry is not hot-reloaded.
-3. Deploy or redeploy `caddy`.
-4. Complete first-run setup.
+2. Deploy or redeploy `caddy`.
+3. Complete first-run setup.
 
 On first setup, configure these services inside Bazarr:
 
@@ -874,8 +826,7 @@ Deploy order:
 1. Create the required Komodo secrets.
 2. Deploy or redeploy `gluetun`.
 3. Deploy `spottarr`.
-4. Deploy or redeploy `homepage` if the dashboard entry is not hot-reloaded.
-5. Deploy or redeploy `caddy`.
+4. Deploy or redeploy `caddy`.
 
 Required Komodo secrets:
 
@@ -972,9 +923,8 @@ Deploy order:
 
 1. Confirm `gluetun`, `sonarr`, `radarr`, and `lidarr` are deployed and healthy.
 2. Deploy `houndarr`.
-3. Deploy or redeploy `homepage` if the dashboard entry is not hot-reloaded.
-4. Deploy or redeploy `caddy`.
-5. Create the Houndarr administrator account immediately and add the Arr instances.
+3. Deploy or redeploy `caddy`.
+4. Create the Houndarr administrator account immediately and add the Arr instances.
 
 Use the existing Arr API keys with these internal URLs:
 
@@ -1079,7 +1029,7 @@ Do not add slskd as a Lidarr download client or create a Lidarr remote path mapp
 
 Do not configure an slskd shared directory without an explicit sharing policy: a configured shared directory is indexed and offered to Soulseek peers. In particular, do not mount the managed music library as a share. Keep slskd remote configuration disabled because it could expose stored credentials.
 
-For monitoring, configure Uptime Kuma against slskd's authenticated API only with `X-API-Key`; an unauthenticated UI `401` is not a health signal. Soularr's Docker healthcheck, shown in the dashboard's Health column, reads `/volume2/appdata/soularr/soularr.log` rather than probing a port, because Soularr runs as a scheduled script every `SCRIPT_INTERVAL` (900 seconds) and has no API with its UI disabled. Healthy means the most recent completed run ended normally ("No releases wanted", "Soularr finished", or "releases failed to find a match … still wanted") without a Lidarr or slskd connection error, and the next run is not overdue by more than 300 seconds. While a run is in progress, the previous run's result stands, unless the current run has already logged a connection error or has written nothing for two hours, which usually means a hung slskd request. Unhealthy therefore means Lidarr or slskd was unreachable, Lidarr rejected the API key, the run crashed, or the scheduler loop stopped. Nothing to download and albums that are not found on Soulseek both count as healthy. Individual peer, download, and import failures are not health failures, so still review the log for acquisition results, and watch the independent `slskd` and shared `gluetun` logs for VPN failures. A failed run stays unhealthy until the next run succeeds, up to 15 minutes later; restart Soularr after fixing a dependency to recheck immediately.
+Soularr's Docker healthcheck, shown in the dashboard's Health column, reads `/volume2/appdata/soularr/soularr.log` rather than probing a port, because Soularr runs as a scheduled script every `SCRIPT_INTERVAL` (900 seconds) and has no API with its UI disabled. Healthy means the most recent completed run ended normally ("No releases wanted", "Soularr finished", or "releases failed to find a match … still wanted") without a Lidarr or slskd connection error, and the next run is not overdue by more than 300 seconds. While a run is in progress, the previous run's result stands, unless the current run has already logged a connection error or has written nothing for two hours, which usually means a hung slskd request. Unhealthy therefore means Lidarr or slskd was unreachable, Lidarr rejected the API key, the run crashed, or the scheduler loop stopped. Nothing to download and albums that are not found on Soulseek both count as healthy. Individual peer, download, and import failures are not health failures, so still review the log for acquisition results, and watch the independent `slskd` and shared `gluetun` logs for VPN failures. A failed run stays unhealthy until the next run succeeds, up to 15 minutes later; restart Soularr after fixing a dependency to recheck immediately.
 
 ### Gluetun And VPN-Bound Media Services
 
@@ -1098,7 +1048,7 @@ GLUETUN_CONTROL_API_KEY
 
 Generate this key from a Proton VPN WireGuard configuration. Use a paid Proton VPN plan if you want port forwarding, select a P2P server, and enable the Proton NAT-PMP/port-forwarding option when generating the WireGuard config. Do not enable Moderate NAT on that Proton config if you want port forwarding.
 
-Generate `GLUETUN_CONTROL_API_KEY` with `docker run --rm qmcgaw/gluetun:v3.41.1 genkey` or another high-entropy secret generator. The same Komodo secret is passed to Gluetun for control-server API authentication and to Homepage for its Gluetun widget.
+Generate `GLUETUN_CONTROL_API_KEY` with `docker run --rm qmcgaw/gluetun:v3.41.1 genkey` or another high-entropy secret generator. The same Komodo secret is passed to Gluetun for control-server API authentication and to the monitoring stack (json-exporter) for its VPN and port-forward checks.
 
 The VPN country and Proton server filters are configurable through Komodo variables:
 
@@ -1131,8 +1081,7 @@ Deploy order matters:
 13. Deploy or redeploy `recyclarr`.
 14. Deploy or redeploy `houndarr`.
 15. Deploy or redeploy `unpackerr`.
-16. Deploy or redeploy `homepage`.
-17. Deploy or redeploy `caddy`.
+16. Deploy or redeploy `caddy`.
 
 If Gluetun is recreated, every container sharing its network namespace must be recreated, not merely restarted, so it reattaches to the current namespace. That includes Autobrr, qBittorrent, SABnzbd, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, FlareSolverr, Spottarr, and slskd. The repo encodes this with `after = ["gluetun"]`-style dependencies and `extra_args = ["--force-recreate"]` on each VPN-bound stack.
 
@@ -1236,7 +1185,7 @@ API key: copied from Lidarr
 
 Proton VPN provides Gluetun-managed VPN port forwarding on supported paid-plan servers. qBittorrent's listening port is updated through Gluetun's `VPN_PORT_FORWARDING_UP_COMMAND` and reset through `VPN_PORT_FORWARDING_DOWN_COMMAND` when forwarding is removed.
 
-Homepage reads Gluetun through the internal control server at `http://downloaders-vpn:8000` using `GLUETUN_CONTROL_API_KEY`. The control server is exposed only on Docker networks, not through Caddy or a host port.
+The monitoring stack (json-exporter) reads Gluetun through the internal control server at `http://downloaders-vpn:8000` using `GLUETUN_CONTROL_API_KEY`. The control server is exposed only on Docker networks, not through Caddy or a host port.
 
 Gluetun logs the successful qBittorrent port update as `ERROR [port forwarding] ... URL:http://127.0.0.1:8080/api/v2/app/setPreferences [0/0] -> "-" [1]` because `wget -nv` writes its success line to stderr. Confirm the result with `docker exec gluetun cat /tmp/gluetun/forwarded_port` and qBittorrent's listening port. Proton servers intermittently refuse NAT-PMP mappings (`read udp ...:5351: recvfrom: connection refused`); reconnect the VPN to try another server.
 
@@ -1271,9 +1220,8 @@ Deploy order:
 1. Deploy `gluetun`.
 2. Deploy or redeploy `qbittorrent`.
 3. Deploy `autobrr`.
-4. Deploy or redeploy `homepage` if the dashboard entry is not hot-reloaded.
-5. Deploy or redeploy `caddy`.
-6. Create the Autobrr administrator account immediately, then configure only the indexers and actions you intend to use.
+4. Deploy or redeploy `caddy`.
+5. Create the Autobrr administrator account immediately, then configure only the indexers and actions you intend to use.
 
 Because Autobrr and the download applications share Gluetun's network namespace, use loopback URLs for Atlas services in that namespace:
 
@@ -1371,54 +1319,6 @@ Operational notes:
 - Do not use the UI self-update flow. Upgrade `rclone` by bumping the image tag in this repository.
 - The upstream UI still shows `Mounts` and `Serves`. This stack does not provision FUSE mount support, and it does not publish or route `rclone serve` listeners beyond the main UI hostname.
 
-### Uptime Kuma
-
-The `uptime-kuma` stack runs Uptime Kuma behind Caddy at:
-
-```text
-http://uptime.atlas.local
-```
-
-Deploy order:
-
-1. Deploy `uptime-kuma`.
-2. Deploy or redeploy `caddy`.
-
-On first login, create the Uptime Kuma admin user and enable two-factor authentication. There is no Caddy Basic Auth gate; protect `uptime.atlas.vandaele.io` with Cloudflare Access. LAN and tailnet traffic to the local hostname remains HTTP, while Cloudflare terminates public TLS at the edge.
-
-This stack intentionally does not mount `/var/run/docker.sock`. Docker socket access is effectively host-level Docker control if Uptime Kuma is compromised. Monitor Atlas through HTTP routes, DNS checks, TCP checks, and push monitors instead.
-
-Recommended initial monitors:
-
-```text
-HTTP: http://komodo.atlas.local
-HTTP: http://sonarr.atlas.local
-HTTP: http://radarr.atlas.local
-HTTP: http://prowlarr.atlas.local
-HTTP: http://lidarr.atlas.local
-HTTP: http://seerr.atlas.local
-HTTP: http://seerr.atlas.local/api/v1/settings/public
-HTTP: http://sabnzbd.atlas.local
-HTTP: http://adguard.atlas.local
-HTTP: http://uptime.atlas.local
-HTTP: http://homepage.atlas.local
-HTTP: http://speedtest.atlas.local
-HTTP: http://rclone.atlas.local/
-TCP: 192.168.2.200:53
-DNS: sonarr.atlas.local against resolver 192.168.2.200, expected 192.168.2.200
-DNS: komodo.atlas.local against resolver 192.168.2.200, expected 192.168.2.200
-Push: future backup jobs or stack-health poller
-```
-
-Use 60-second intervals for core infra, 120-second intervals for media apps, and at least two retries to avoid noisy alerts during stack redeploys.
-
-Operational notes:
-
-- The Uptime Kuma image runs as UID/GID `1000:1000` because the image ships with a `node` user at that ID and `/app/data` is owned by that user.
-- `[[APPDATA_DIR]]/uptime-kuma` contains monitor config, credentials, notification tokens, and database state. It is provisioned with `0700` permissions and should be backed up.
-- Browser/Chromium monitors are not validated in this stack. The full image is used so they remain available for later testing, but HTTP, TCP, DNS, and push monitors are the supported baseline.
-- The recommended monitor list above is manual Uptime Kuma UI state, not repo-backed configuration.
-
 ### Speedtest Tracker
 
 Speedtest Tracker runs behind Caddy at:
@@ -1436,10 +1336,6 @@ echo -n 'base64:'; openssl rand -base64 32
 After first login, change Speedtest Tracker's default application credentials.
 
 The stack uses SQLite under `[[APPDATA_DIR]]/speedtest-tracker`, runs a scheduled test every six hours by default with `SPEEDTEST_TRACKER_SCHEDULE=6 */6 * * *`, and prunes results older than 365 days by default. Set `SPEEDTEST_TRACKER_SERVERS` to a comma-separated list of Ookla server IDs if you want pinned test servers; otherwise Speedtest Tracker will choose automatically.
-
-For the Homepage widget, log in to Speedtest Tracker, create a bearer token at `/admin/api-tokens` with `Read Results`, and save it in Komodo as `HOMEPAGE_SPEEDTEST_TRACKER_API_KEY`.
-
-The Homepage widget calls Speedtest Tracker's latest-result API. On a fresh install it will log 404s until at least one speedtest result exists; run an initial test manually from the Speedtest Tracker UI or wait for the first scheduled run.
 
 ### Cloudflared
 
@@ -1475,37 +1371,6 @@ http://speedtest.atlas.local, http://speedtest.atlas.vandaele.io {
 Cloudflare's origin HTTP Host Header override can also route a public hostname to an existing `atlas.local` site block, but use it carefully. Some apps generate redirects, callback URLs, CSRF origins, or absolute links from the Host header they receive.
 
 Use Cloudflare Access policies on the public hostnames for admin-facing services. The tunnel removes inbound port exposure, but it does not replace application authentication.
-
-### Homepage
-
-The `homepage` stack runs Homepage behind Caddy at:
-
-```text
-http://homepage.atlas.local
-```
-
-Homepage config is managed declaratively in:
-
-```text
-stacks/homepage/config/
-```
-
-Deploy order:
-
-1. Create or populate the Homepage widget variables in Komodo.
-2. Deploy `homepage`.
-3. Deploy or redeploy `caddy`.
-
-Operational notes:
-
-- Homepage is exposed through Caddy only. There is no direct Homepage host port.
-- Homepage does not mount `/var/run/docker.sock` and does not use Docker label discovery in the baseline setup.
-- `HOMEPAGE_ALLOWED_HOSTS` contains both canonical hosts: `homepage.atlas.local` and `homepage.atlas.vandaele.io`.
-- Homepage widget credentials stay in canonical Komodo variables. The Compose adapter maps them into Homepage's required `HOMEPAGE_VAR_*` container variables; that upstream-only prefix is not used for Komodo variables or stack inputs.
-- `LOG_TARGETS=stdout` keeps Homepage from trying to create `/app/config/logs` inside the read-only config mount.
-- Resource Sync updates `stacks/homepage/config/*` through `config_files` with `requires = "None"`, so normal YAML, CSS, and JS edits do not force a container restart.
-- After Homepage config file changes land through Resource Sync, use Homepage's refresh icon to regenerate the static UI. A `homepage` redeploy is only needed for environment-variable changes or when adding new local static assets.
-- Caddy route changes still require an explicit `caddy` deploy or redeploy after Resource Sync so the Caddy `post_deploy` reload hook updates the live config.
 
 ## Monitoring
 

@@ -137,30 +137,6 @@ DEPRECATED_VARIABLE_NAMES = {
     "UNPACKERR_RADARR_API_KEY",
     "UNPACKERR_SONARR_API_KEY",
 }
-HOMEPAGE_REQUIRED_INPUTS = (
-    "BAZARR_API_KEY",
-    "CLOUDFLARE_ACCOUNT_ID",
-    "CLOUDFLARE_TUNNEL_ID",
-    "GLUETUN_CONTROL_API_KEY",
-    "HOMEPAGE_ADGUARD_PASSWORD",
-    "HOMEPAGE_ADGUARD_USERNAME",
-    "HOMEPAGE_CLOUDFLARE_API_TOKEN",
-    "HOMEPAGE_KOMODO_API_KEY",
-    "HOMEPAGE_KOMODO_API_SECRET",
-    "HOMEPAGE_SPEEDTEST_TRACKER_API_KEY",
-    "HOMEPAGE_UNIFI_API_KEY",
-    "LIDARR_API_KEY",
-    "PLEX_SERVER_TOKEN",
-    "PROWLARR_API_KEY",
-    "QBITTORRENT_API_KEY",
-    "RADARR_API_KEY",
-    "SABNZBD_API_KEY",
-    "SEERR_API_KEY",
-    "SLSKD_API_KEY",
-    "SONARR_API_KEY",
-    "UNIFI_URL",
-    "UPTIME_KUMA_SLUG",
-)
 
 VALIDATION_VALUES = {
     "ALERTMANAGER_DATA_DIR": "/volume2/appdata/alertmanager",
@@ -182,9 +158,6 @@ VALIDATION_VALUES = {
     "GRAFANA_DATA_DIR": "/volume2/appdata/grafana",
     "GRAFANA_SECRET_KEY": "validation-only-secret-key",
     "GRAFANA_SECRETS_MANAGER_KEY": "validation-only-secrets-manager-key",
-    "HOMEPAGE_ALLOWED_HOSTS": (
-        "homepage.atlas.local,homepage.atlas.vandaele.io"
-    ),
     "HTTP_BIND_IP": "127.0.0.1",
     "HTTP_PORT": "18080",
     "KOMETA_TIMES": "03:00",
@@ -775,24 +748,6 @@ def validate_caddy(stacks_by_name: dict[str, dict], validation: Validation) -> N
         local_route_names - LOCAL_ONLY_CADDY_ROUTES == public_route_names,
         "Caddy routes must define matching local and public hostnames: "
         f"{sorted((local_route_names - LOCAL_ONLY_CADDY_ROUTES) ^ public_route_names)}",
-    )
-
-    homepage_services = (
-        STACKS_ROOT / "homepage" / "config" / "services.yaml"
-    ).read_text(encoding="utf-8")
-    homepage_hostnames = {
-        hostname
-        for hostname in re.findall(
-            r"(?m)^\s*href:\s+https?://([^/\s]+)", homepage_services
-        )
-        if hostname.endswith(".atlas.local")
-        or hostname.endswith(".atlas.vandaele.io")
-    }
-    missing_homepage_routes = homepage_hostnames - caddy_hostnames
-    validation.require(
-        not missing_homepage_routes,
-        "Homepage Atlas URLs lack Caddy routes: "
-        f"{sorted(missing_homepage_routes)}",
     )
 
     for item in config.get("config_files", []):
@@ -1585,11 +1540,6 @@ def main() -> None:
     validate_required_compose_inputs(
         STACKS_ROOT / "unpackerr" / "compose.yaml",
         ("SONARR_API_KEY", "RADARR_API_KEY", "LIDARR_API_KEY"),
-        validation,
-    )
-    validate_required_compose_inputs(
-        STACKS_ROOT / "homepage" / "compose.yaml",
-        HOMEPAGE_REQUIRED_INPUTS,
         validation,
     )
     validation.finish()
