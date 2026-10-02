@@ -12,6 +12,7 @@ services:
       - TZ=${TZ}
       - PORT=8191
     mem_limit: 1024m
+    cpus: 2
     pids_limit: 512
     logging:
       driver: json-file

@@ -31,6 +31,7 @@ services:
           create_host_path: false
     stop_grace_period: 1m
     mem_limit: 768m
+    cpus: 4
     pids_limit: 512
     logging:
       driver: json-file

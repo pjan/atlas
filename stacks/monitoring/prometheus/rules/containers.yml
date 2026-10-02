@@ -97,6 +97,38 @@ groups:
           max by (container_id) (container_memory_working_set_bytes / (container_spec_memory_limit_bytes > 0))
           * on (container_id) group_left (container, stack, compose_service, stack_id) atlas:container_names
 
+      # mem_limit in bytes; absent for a container without one.
+      - record: atlas:container_memory_limit_bytes
+        expr: |
+          max by (container_id) (container_spec_memory_limit_bytes > 0)
+          * on (container_id) group_left (container, stack, compose_service, stack_id) atlas:container_names
+
+      # CPU as a share of the cpus limit (quota / period); absent for a
+      # container without a limit (cAdvisor reports no quota).
+      - record: atlas:container_cpu_limit_ratio
+        expr: |
+          max by (container_id) (
+            sum by (container_id) (rate(container_cpu_usage_seconds_total[2m]))
+            / on (container_id)
+            (max by (container_id) (container_spec_cpu_quota > 0) / max by (container_id) (container_spec_cpu_period))
+          )
+          * on (container_id) group_left (container, stack, compose_service, stack_id) atlas:container_names
+
+      # The cpus limit in cores; absent for a container without one.
+      - record: atlas:container_cpu_limit_cores
+        expr: |
+          (max by (container_id) (container_spec_cpu_quota > 0) / max by (container_id) (container_spec_cpu_period))
+          * on (container_id) group_left (container, stack, compose_service, stack_id) atlas:container_names
+
+      # Share of CFS periods in which the container was throttled at its cpus
+      # limit: above a few percent, the limit slows it down.
+      - record: atlas:container_cpu_throttled_ratio
+        expr: |
+          max by (container_id) (
+            rate(container_cpu_cfs_throttled_periods_total[2m]) / (rate(container_cpu_cfs_periods_total[2m]) > 0)
+          )
+          * on (container_id) group_left (container, stack, compose_service, stack_id) atlas:container_names
+
       # Threads as a share of pids_limit; absent for a container without a
       # limit (cAdvisor reports 0).
       - record: atlas:container_pids_limit_ratio

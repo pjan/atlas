@@ -58,7 +58,7 @@ scrape_configs:
           instance: atlas
     metric_relabel_configs:
       - source_labels: [__name__]
-        regex: 'container_(cpu_usage_seconds_total|memory_working_set_bytes|memory_rss|spec_memory_limit_bytes|oom_events_total|blkio_device_usage_total|start_time_seconds|last_seen|pressure_(cpu|memory|io)_waiting_seconds_total|threads|threads_max)'
+        regex: 'container_(cpu_usage_seconds_total|memory_working_set_bytes|memory_rss|spec_memory_limit_bytes|spec_cpu_quota|spec_cpu_period|cpu_cfs_throttled_periods_total|cpu_cfs_periods_total|oom_events_total|blkio_device_usage_total|start_time_seconds|last_seen|pressure_(cpu|memory|io)_waiting_seconds_total|threads|threads_max)'
         action: keep
       - source_labels: [id]
         regex: '/system\.slice/docker-([0-9a-f]{64})\.scope'

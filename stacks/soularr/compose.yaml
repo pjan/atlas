@@ -34,6 +34,7 @@ services:
     networks:
       - media_network
     mem_limit: 512m
+    cpus: 1
     pids_limit: 256
     logging:
       driver: json-file

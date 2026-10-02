@@ -50,6 +50,7 @@ services:
       - media_network
       - monitoring_network
     mem_limit: 1g
+    cpus: 4
     pids_limit: 256
     stop_grace_period: 30s
     logging:

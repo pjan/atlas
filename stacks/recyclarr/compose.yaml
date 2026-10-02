@@ -61,6 +61,7 @@ services:
       retries: 3
       start_period: 60s
     mem_limit: 384m
+    cpus: 1
     pids_limit: 128
     logging:
       driver: json-file

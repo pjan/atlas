@@ -43,6 +43,7 @@ services:
       - media_network
       - proxy_network
     mem_limit: 2g
+    cpus: 4
     pids_limit: 512
     stop_grace_period: 2m
     logging:

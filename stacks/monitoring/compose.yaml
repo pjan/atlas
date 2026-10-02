@@ -43,6 +43,7 @@ services:
     networks:
       - monitoring_network
     mem_limit: 1g
+    cpus: 2
     pids_limit: 256
     stop_grace_period: 1m
     logging:
@@ -99,6 +100,7 @@ services:
     networks:
       - monitoring_network
     mem_limit: 64m
+    cpus: 0.5
     pids_limit: 64
     logging:
       driver: json-file
@@ -145,6 +147,7 @@ services:
     networks:
       - monitoring_network
     mem_limit: 64m
+    cpus: 0.5
     pids_limit: 64
     logging:
       driver: json-file
@@ -184,6 +187,7 @@ services:
     networks:
       - monitoring_network
     mem_limit: 64m
+    cpus: 0.5
     pids_limit: 64
     logging:
       driver: json-file
@@ -231,6 +235,7 @@ services:
     networks:
       - monitoring_network
     mem_limit: 64m
+    cpus: 0.5
     pids_limit: 64
     logging:
       driver: json-file
@@ -285,6 +290,7 @@ services:
     networks:
       - monitoring_network
     mem_limit: 128m
+    cpus: 1
     pids_limit: 64
     logging:
       driver: json-file
@@ -321,6 +327,7 @@ services:
       - media_network
       - monitoring_network
     mem_limit: 128m
+    cpus: 0.5
     pids_limit: 64
     logging:
       driver: json-file
@@ -348,6 +355,7 @@ services:
       - media_network
       - monitoring_network
     mem_limit: 128m
+    cpus: 0.5
     pids_limit: 64
     logging:
       driver: json-file
@@ -375,6 +383,7 @@ services:
       - media_network
       - monitoring_network
     mem_limit: 128m
+    cpus: 0.5
     pids_limit: 64
     logging:
       driver: json-file
@@ -402,6 +411,7 @@ services:
       - media_network
       - monitoring_network
     mem_limit: 128m
+    cpus: 0.5
     pids_limit: 64
     logging:
       driver: json-file
@@ -429,6 +439,7 @@ services:
       - media_network
       - monitoring_network
     mem_limit: 128m
+    cpus: 0.5
     pids_limit: 64
     logging:
       driver: json-file
@@ -456,6 +467,7 @@ services:
       - media_network
       - monitoring_network
     mem_limit: 128m
+    cpus: 0.5
     pids_limit: 64
     logging:
       driver: json-file
@@ -498,6 +510,7 @@ services:
       - media_network
       - monitoring_network
     mem_limit: 64m
+    cpus: 0.5
     pids_limit: 64
     logging:
       driver: json-file
@@ -580,6 +593,7 @@ services:
       - monitoring_network
       - proxy_network
     mem_limit: 512m
+    cpus: 2
     pids_limit: 256
     stop_grace_period: 30s
     logging:

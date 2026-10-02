@@ -18,6 +18,7 @@ services:
         bind:
           create_host_path: false
     mem_limit: 384m
+    cpus: 2
     pids_limit: 256
     logging:
       driver: json-file

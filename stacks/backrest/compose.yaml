@@ -70,6 +70,7 @@ services:
     networks:
       - proxy_network
     mem_limit: 1g
+    cpus: 2
     pids_limit: 256
     stop_grace_period: 2m
     logging:

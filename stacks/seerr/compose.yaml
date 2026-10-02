@@ -25,6 +25,7 @@ services:
       - media_network
       - proxy_network
     mem_limit: 768m
+    cpus: 2
     pids_limit: 256
     logging:
       driver: json-file

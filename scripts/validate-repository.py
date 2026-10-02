@@ -597,6 +597,7 @@ def validate_service_policy(
     )
     validation.require(bool(service.get("mem_limit")), f"{context} has no mem_limit")
     validation.require(bool(service.get("pids_limit")), f"{context} has no pids_limit")
+    validation.require(bool(service.get("cpus")), f"{context} has no cpus limit")
     validation.require(
         "no-new-privileges:true" in service.get("security_opt", []),
         f"{context} must enable no-new-privileges",

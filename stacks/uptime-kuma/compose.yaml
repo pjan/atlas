@@ -25,6 +25,7 @@ services:
     networks:
       - proxy_network
     mem_limit: 1g
+    cpus: 2
     pids_limit: 512
     logging:
       driver: json-file

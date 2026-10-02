@@ -189,6 +189,55 @@ tests:
           - labels: 'atlas:container_restarted_unexpectedly{container="sonarr", container_id="aaaa", stack="sonarr", compose_service="sonarr", stack_id="s1"}'
             value: 1
 
+  # sonarr has cpus 2 and mem_limit 512 MiB, uses 0.5 cores, and is
+  # throttled in 1 of 10 CFS periods; radarr has no limits.
+  - name: cpu and memory limits
+    interval: 30s
+    input_series:
+      - series: 'komodo_container_info{container="sonarr", container_id="aaaa", stack="sonarr", compose_service="sonarr", stack_id="s1", state="running"}'
+        values: '1x20'
+      - series: 'komodo_container_info{container="radarr", container_id="bbbb", stack="radarr", compose_service="radarr", stack_id="s2", state="running"}'
+        values: '1x20'
+      - series: 'container_cpu_usage_seconds_total{container_id="aaaa", id="/system.slice/docker-aaaa.scope"}'
+        values: '0+15x20'
+      - series: 'container_cpu_usage_seconds_total{container_id="bbbb", id="/system.slice/docker-bbbb.scope"}'
+        values: '0+15x20'
+      - series: 'container_spec_cpu_quota{container_id="aaaa", id="/system.slice/docker-aaaa.scope"}'
+        values: '200000x20'
+      - series: 'container_spec_cpu_period{container_id="aaaa", id="/system.slice/docker-aaaa.scope"}'
+        values: '100000x20'
+      - series: 'container_spec_cpu_period{container_id="bbbb", id="/system.slice/docker-bbbb.scope"}'
+        values: '100000x20'
+      - series: 'container_spec_memory_limit_bytes{container_id="aaaa", id="/system.slice/docker-aaaa.scope"}'
+        values: '536870912x20'
+      - series: 'container_spec_memory_limit_bytes{container_id="bbbb", id="/system.slice/docker-bbbb.scope"}'
+        values: '0x20'
+      - series: 'container_cpu_cfs_periods_total{container_id="aaaa", id="/system.slice/docker-aaaa.scope"}'
+        values: '0+300x20'
+      - series: 'container_cpu_cfs_throttled_periods_total{container_id="aaaa", id="/system.slice/docker-aaaa.scope"}'
+        values: '0+30x20'
+    promql_expr_test:
+      - expr: round(atlas:container_cpu_limit_ratio * 100)
+        eval_time: 5m
+        exp_samples:
+          - labels: '{container="sonarr", container_id="aaaa", stack="sonarr", compose_service="sonarr", stack_id="s1"}'
+            value: 25
+      - expr: atlas:container_cpu_limit_cores
+        eval_time: 5m
+        exp_samples:
+          - labels: 'atlas:container_cpu_limit_cores{container="sonarr", container_id="aaaa", stack="sonarr", compose_service="sonarr", stack_id="s1"}'
+            value: 2
+      - expr: atlas:container_memory_limit_bytes
+        eval_time: 5m
+        exp_samples:
+          - labels: 'atlas:container_memory_limit_bytes{container="sonarr", container_id="aaaa", stack="sonarr", compose_service="sonarr", stack_id="s1"}'
+            value: 536870912
+      - expr: atlas:container_cpu_throttled_ratio
+        eval_time: 5m
+        exp_samples:
+          - labels: 'atlas:container_cpu_throttled_ratio{container="sonarr", container_id="aaaa", stack="sonarr", compose_service="sonarr", stack_id="s1"}'
+            value: 0.1
+
   # Every container state and health, one container each.
   - name: container state codes
     interval: 1m

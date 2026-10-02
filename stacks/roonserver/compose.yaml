@@ -27,6 +27,7 @@ services:
         bind:
           create_host_path: false
     mem_limit: 4g
+    cpus: 4
     pids_limit: 512
     stop_grace_period: 2m
     logging:

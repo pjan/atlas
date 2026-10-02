@@ -43,6 +43,7 @@ services:
     networks:
       - rclone_network
     mem_limit: 512m
+    cpus: 2
     pids_limit: 256
     logging:
       driver: json-file
