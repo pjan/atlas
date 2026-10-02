@@ -194,7 +194,7 @@ The Komodo variable `TZ` (declared in `stacks.toml`) is the single source of loc
 
 Two places cannot read the Komodo variable and must be changed by hand when `TZ` changes:
 
-- Komodo Core's own procedures use `TZ` in `/volume2/docker/komodo/.env`. Update it and run `docker compose --env-file .env -f compose.yaml up -d` in `/volume2/docker/komodo`.
+- Komodo Core's own procedures and the `appdata-backup` Action's schedule use `TZ` in `/volume2/docker/komodo/.env` (Komodo does not interpolate variables in schedules). Update it and run `docker compose --env-file .env -f compose.yaml up -d` in `/volume2/docker/komodo`.
 - Schedules configured inside application UIs: the Plex maintenance window (`Settings > Scheduled Tasks`) and the Roon scheduled backup (`Settings > Backups`).
 
 Changing `TZ` in `stacks.toml` only updates the Komodo variable. Stack configurations contain the literal `TZ = [[TZ]]`, and Resource Sync compares raw configuration, so executing the sync does not redeploy any stack. Containers keep the old timezone until their stack is redeployed. Redeploy `gluetun` first and wait until it is healthy, then redeploy the remaining running stacks. Do not redeploy Gluetun in the same batch as the VPN-bound stacks: their pre-deploy check could pass against the old Gluetun container before it is replaced.
@@ -208,7 +208,7 @@ Nightly schedule in local time:
 03:00  Kometa run (KOMETA_TIMES)                        (TZ)
 04:00  Roon scheduled backup                            (Roon UI)
 04:15  Recyclarr sync (CRON_SCHEDULE)                   (TZ)
-05:00  Komodo Action: appdata-backup (APPDATA_BACKUP_HOUR, see Backups)   (TZ)
+05:00  Komodo Action: appdata-backup (see Backups)    (Core .env TZ)
 06:00  Komodo procedure: Rotate Server Keys             (Core .env TZ)
 ```
 
@@ -220,7 +220,7 @@ Keep new scheduled work out of the 04:30–06:30 window, which is reserved for t
 
 | Data | Local copy | Written by |
 |---|---|---|
-| Application state (`/volume2/appdata`) and the Komodo bootstrap directory (`/volume2/docker/komodo`) | `/volume1/backups/appdata` | `appdata-backup` Action, daily at `APPDATA_BACKUP_HOUR` |
+| Application state (`/volume2/appdata`) and the Komodo bootstrap directory (`/volume2/docker/komodo`) | `/volume1/backups/appdata` | `appdata-backup` Action, daily at 05:00 |
 | Komodo database | `/volume1/backups/komodo` | Komodo procedure "Backup Core Database", daily at 01:00, 14 kept |
 | Plex database | `/volume1/backups/plex` | Plex scheduled task, every three days |
 | Roon database | `/volume1/backups/roonserver` | Roon scheduled backup, daily at 04:00 |
@@ -231,9 +231,9 @@ The appdata copy excludes `roonserver` (covered by Roon's own backups), monitori
 
 ### Nightly Appdata Snapshot
 
-The `appdata-backup` Komodo Action is defined in `stacks.toml`. It runs every hour and acts only when the local hour in `TZ` equals `APPDATA_BACKUP_HOUR`:
+The `appdata-backup` Komodo Action is defined in `stacks.toml`. It runs daily at 05:00 in Core's timezone (`schedule = "0 0 5 * * *"`; Komodo does not interpolate variables in schedules, so the hour is written in the Action):
 
-1. Restart any stacks that an interrupted run left stopped. The list is kept in the runtime Komodo variable `APPDATA_BACKUP_STOPPED_STACKS`, which the Action creates itself and which must not be added to `stacks.toml`. `run_at_startup` repeats this recovery whenever Core starts.
+1. Run the `appdata-backup-recover` Action, which restarts any stacks that an interrupted run left stopped. The list is kept in the runtime Komodo variable `APPDATA_BACKUP_STOPPED_STACKS`, which the recover Action creates itself and which must not be added to `stacks.toml`. The recover Action also runs whenever Core starts (`run_at_startup`), and first waits up to 5 minutes for Periphery, which may connect after Core when the NAS boots.
 2. Run the `prepare` service, which creates `/volume1/backups/appdata` (`0700`), its `snapshots` directory, and `/volume1/backups/.metrics`.
 3. Run `backup check` before anything is stopped. It fails unless the sentinel `/volume2/appdata/.atlas-backup-source` exists and the source holds at least 500 files and at least 60% of the previous snapshot's file count.
 4. Record every running stack except `appdata-backup`, `backrest`, `caddy`, `cloudflared`, `flaresolverr`, `gluetun`, `monitoring`, and `roonserver`, then stop them in parallel.
@@ -251,7 +251,7 @@ touch /volume2/appdata/.atlas-backup-source
 
 The sentinel is part of every snapshot, so restoring appdata from a snapshot restores it too.
 
-To run a backup immediately, run the `appdata-backup-now` Action in Komodo. The Komodo UI cannot pass arguments to an Action, so this wrapper calls `appdata-backup` with `FORCE=true`.
+To run a backup immediately, run the `appdata-backup` Action in Komodo.
 
 ### Off-Site Backups With Backrest
 
@@ -1545,16 +1545,13 @@ Caddy, cloudflared, and Unpackerr join `monitoring_network` for scraping; their 
 
 Grafana provisions the Prometheus datasource (uid `prometheus`) from `stacks/monitoring/grafana/provisioning/`. Grafana runs with a read-only root filesystem, so plugin preinstallation and automatic plugin updates are disabled (`GF_PLUGINS_PREINSTALL_DISABLED`, `GF_PLUGINS_PREINSTALL_AUTO_UPDATE`): plugin versions come only from the pinned image. The app plugins Grafana installed on its first start (Advisor, Explore Traces, Logs Drilldown, Metrics Drilldown, Pyroscope) remain in `/volume2/appdata/grafana/plugins`, are no longer updated, and do not return after a Volume 2 loss. Grafana 13 ships Prometheus as a bundled plugin, and a failed startup update would otherwise leave it unregistered. Dashboards are kept in the private `pjan/atlas-dashboards` repository with Grafana Git Sync, using a fine-grained token scoped to that repository only (Contents read and write, Metadata read, Administration read; Webhooks read and write only while running the setup wizard, which registers a webhook before its "Disable webhook integration" option applies). Git Sync reads only `dashboards/`, targets the folder "Atlas dashboards", polls every 60 seconds with webhooks disabled (Grafana is behind Cloudflare Access), and commits UI saves directly to `main`; the exact wizard settings are in that repository's README. Do not create dashboards outside synced folders: anything else exists only in `grafana.db`. Never edit the vendored community dashboards in the UI; `scripts/vendor.sh` in that repository regenerates them. The Git Sync connection itself lives in `grafana.db`, so after a Volume 2 loss reconnect it in **Administration → General → Provisioning** with the same settings and the token from the password manager.
 
-The Atlas theme is the app plugin `atlas-theme-app` in `stacks/monitoring/grafana/plugins/atlas-theme-app/` (hand-written, no build step), bind-mounted read-only at `/var/lib/grafana/plugins/atlas-theme-app`. Two files define it, and `module.js` applies them; [its README](stacks/monitoring/grafana/plugins/atlas-theme-app/README.md) documents both, including the canvas variables:
+The Atlas theme is the app plugin `atlas-theme-app` in `stacks/monitoring/grafana/plugins/atlas-theme-app/` (hand-written, no build step), bind-mounted read-only at `/var/lib/grafana/plugins/atlas-theme-app`. It only changes Grafana's theme: `atlas-theme.json` defines it, and `module.js` applies it ([its README](stacks/monitoring/grafana/plugins/atlas-theme-app/README.md)). The file holds the Atlas palette, the themes Atlas Light and Atlas Dark in Grafana's theme-definition format (backgrounds, text, buttons, accent, status colours, Grafana's named colours, the series palette), and colour names Grafana has no slot for (`gray`, `teal`, …). Styling beyond the theme belongs in panel options, for example the State timeline ++ panel plugin's looks.
 
-- `atlas-theme.json`: the Atlas palette, the themes Atlas Light and Atlas Dark in Grafana's theme-definition format (backgrounds, text, buttons, accent, status colours, Grafana's named colours, the series palette), and colour names Grafana has no slot for (`gray`, `teal`, …);
-- `atlas.css`: a plain stylesheet with light and dark theme blocks, the palette as CSS variables, and the canvas variables (`--atlas-grid`, `--atlas-axis-text`, per-state outline, text, and sparkline colours) for what charts draw on a canvas.
+The rules are in `pjan/atlas-dashboards` `CONVENTIONS.md`. `scripts/validate.sh` checks `atlas-theme.json` against Grafana's theme schema (`stacks/monitoring/grafana-tests/grafana-theme.schema.json`, copied from `packages/grafana-data/src/themes/schema.generated.json` at the Grafana tag in use; copy it again when Grafana is upgraded), every palette reference, and that dark steps mirror light ones (1000 minus the step). Bump `info.version` in `plugin.json` with every change: browsers cache the files by that version. The plugin is unsigned, and `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=atlas-theme-app` allows only it. It lives in git, not in `/volume2/appdata/grafana`, so it survives a Volume 2 loss; changes apply when `post_deploy` restarts Grafana and the browser reloads. Without the plugin (it also does not load for viewers without an org role, such as public dashboards), the dashboards work with Grafana's stock colours, except the plugin's extra colour names: `super-light-gray` timeline segments render black.
 
-The rules are in `pjan/atlas-dashboards` `CONVENTIONS.md`. `scripts/validate.sh` checks `atlas-theme.json` against Grafana's theme schema (`stacks/monitoring/grafana-tests/grafana-theme.schema.json`, copied from `packages/grafana-data/src/themes/schema.generated.json` at the Grafana tag in use; copy it again when Grafana is upgraded), every palette reference, that dark steps mirror light ones (1000 minus the step), and that `atlas.css` uses only defined `--atlas-` variables and existing canvas variable names. Bump `info.version` in `plugin.json` with every change: browsers cache the files by that version. The plugin is unsigned, and `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=atlas-theme-app` allows only it. It lives in git, not in `/volume2/appdata/grafana`, so it survives a Volume 2 loss; changes apply when `post_deploy` restarts Grafana and the browser reloads. Without the plugin (it also does not load for viewers without an org role, such as public dashboards), the dashboards work with Grafana's stock colours, except the plugin's extra colour names: `super-light-gray` timeline segments render black.
+To tune the theme, open any Grafana page with `?atlasEditor=1` added to the URL (for example `http://grafana.atlas.local/d/atlas-containers?atlasEditor=1`). A drawer shows `atlas-theme.json`; every edit applies at once, without a reload, and the palette swatches insert `atlas.<key>` references. Edits are kept in that browser only (localStorage), shown by an "Atlas theme: local override" badge, until **Reset to file**. **Copy** copies the file so it can be committed to this repository; the file in the repository stays the source for everyone else.
 
-To tune the theme, open any Grafana page with `?atlasEditor=1` added to the URL (for example `http://grafana.atlas.local/d/atlas-containers?atlasEditor=1`). A drawer shows both files; every edit applies at once, without a reload, and the palette swatches insert `var(--atlas-…)` (CSS) or `atlas.<key>` (JSON) references. Edits are kept in that browser only (localStorage), shown by an "Atlas theme: local override" badge, until **Reset to files**. **Copy both** copies the two files so they can be committed to this repository; the files in the repository stay the source for everyone else. Chrome DevTools lists the stylesheet as `atlas.css` and edits its rules live in the Styles pane.
-
-The plugin relies on undocumented Grafana behaviour (it replaces the theme at runtime, matches the inline styles Grafana renders, remaps canvas colours, and clears panel caches after a theme switch). After a Grafana upgrade, run the theme probe: it renders a dashboard in both themes and after a live switch, lists the colours the browser draws per element, and ends with `FAIL` lines for what the theme no longer reaches. It takes a few minutes and pulls the Playwright image (about 2 GB), so it runs only on request, never from `validate.sh`:
+The plugin relies on undocumented Grafana behaviour (it replaces the theme at runtime and clears panel caches after a theme switch). After a Grafana upgrade, run the theme probe: it renders a dashboard in both themes and after a live switch, lists the colours the browser draws per element, and ends with `FAIL` lines for what the theme no longer reaches. It takes a few minutes and pulls the Playwright image (about 2 GB), so it runs only on request, never from `validate.sh`:
 
 ```sh
 GRAFANA_URL=http://grafana.atlas.local GRAFANA_USER=pjan sh scripts/theme-probe.sh
@@ -1642,7 +1639,7 @@ The nightly appdata backup stops most stacks, which would otherwise fire every p
 
 - The gate is on from `check` until `run`, for at most 60 minutes, and for 15 minutes after `run` while the stacks start again.
 - A backup that fails after `check` is gated for at most 60 minutes. The backup's own alerts are never gated, so the failure still alerts.
-- The gate follows the real backup, including `appdata-backup-now`, so it cannot drift from `APPDATA_BACKUP_HOUR` or `TZ`. The hourly no-op runs of the `appdata-backup` Action return before `prepare` and never call `backup.sh`.
+- The gate follows the real backup, including one run by hand, so it cannot drift from the Action's schedule or `TZ`.
 
 ### Healthchecks Watchdog
 
@@ -1708,7 +1705,7 @@ The tile turns green within 2 minutes, and the RESOLVED message follows within 5
 
 1. Read the last `appdata-backup` run in Komodo (Actions) and the `appdata-backup:` lines in its log.
 2. Make sure every stack it stopped runs again; `APPDATA_BACKUP_STOPPED_STACKS` lists the ones an interrupted run left stopped.
-3. Fix the cause, then run `appdata-backup-now`. The alerts resolve when `atlas_backups.prom` shows exit code 0 and a new success time.
+3. Fix the cause, then run `appdata-backup` in Komodo. The alerts resolve when `atlas_backups.prom` shows exit code 0 and a new success time.
 
 Neither alert is gated. To test `AppdataBackupStale` without touching the backup (the off-site pre-check reads `.last-success`), give the metrics file an old success time as root on the NAS, and restore it afterwards (the next backup rewrites it anyway):
 
@@ -1770,6 +1767,18 @@ Gated during the appdata backup, which stops these stacks. To test it, stop `son
 #### Stack Health
 
 `StackUnhealthy` (`stacks.health`, warning): Komodo has reported a stack in a state other than `running` or `down` (not deployed, for example `appdata-backup`) for 15 minutes, for example `unhealthy` (mixed container states), `stopped`, `restarting`, `paused`, or `unknown` (Komodo cannot reach Periphery; then every stack fires at once). Open the stack in Komodo, check its containers and logs, and deploy it again. Gated during the appdata backup, which stops most stacks.
+
+#### Container Health
+
+`ContainerUnhealthy` (`containers.health`, warning): Docker has reported a running container as `unhealthy` (its healthcheck fails) for 10 minutes. Komodo's stack state ignores Docker health, so `StackUnhealthy` does not cover this, and Docker never restarts an unhealthy container itself. Read the container's logs and its healthcheck in Komodo, fix the cause, and restart or redeploy the stack. Gated during the appdata backup.
+
+#### Container Crash Loop
+
+`ContainerCrashLooping` (`containers.crashloop`, warning): for 5 minutes, a container was in Docker's `restarting` state at some point in the last 10 minutes, or restarted unexpectedly 3 or more times in 15 minutes (`atlas:container_restarted_unexpectedly`: not within 10 minutes after a Komodo operation on its stack, not during the backup, not after a NAS boot). It inhibits `StackUnhealthy` for the same stack. Read the container's logs in Komodo (the last lines before each exit), fix the cause, and deploy the stack again. Gated during the appdata backup.
+
+#### Container OOM Kill
+
+`ContainerOOMKilled` (`containers.oom`, warning): the kernel killed a process for lack of memory in the last 15 minutes (node-exporter `node_vmstat_oom_kill`, which also counts kills at a container's `mem_limit`). It counts kills on the whole NAS and cannot name the container; the OOM column of the Containers table on Atlas Containers does, from cAdvisor, unless the container was removed. Raise the container's `mem_limit` in its `compose.yaml` or find its leak. It resolves 15 minutes after the last kill. Not gated.
 
 ## Caddy Configuration
 

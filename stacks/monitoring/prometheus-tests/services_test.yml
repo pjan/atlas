@@ -1,4 +1,4 @@
-# promtool tests for rules/services.yml: each service alert fires and turns
+# promtool tests for rules/services.yml: each service and container alert fires and turns
 # its check red or amber, stays quiet otherwise, and (where gated) stays
 # quiet during the appdata backup. Run by scripts/validate.sh. Outside
 # prometheus/, so Prometheus never loads these files.
@@ -6,6 +6,7 @@
 rule_files:
   - ../prometheus/rules/rag.yml
   - ../prometheus/rules/services.yml
+  - ../prometheus/rules/containers.yml
 
 evaluation_interval: 30s
 
@@ -288,4 +289,159 @@ tests:
         eval_time: 18m
         exp_samples:
           - labels: 'atlas:check_status{check="stacks.health"}'
+            value: 1
+
+  # seerr is unhealthy from 0; sonarr is healthy. Firing after 10 minutes.
+  - name: container unhealthy
+    interval: 1m
+    input_series:
+      - series: 'komodo_container_info{job="json_apis", container="seerr", container_id="aaaa", stack="seerr", compose_service="seerr", stack_id="s1", state="running", health="unhealthy", image="seerr:1"}'
+        values: '1x20'
+      - series: 'komodo_container_info{job="json_apis", container="sonarr", container_id="bbbb", stack="sonarr", compose_service="sonarr", stack_id="s2", state="running", health="healthy", image="sonarr:4"}'
+        values: '1x20'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: ContainerUnhealthy
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: ContainerUnhealthy
+        exp_alerts:
+          - exp_labels:
+              alertname: ContainerUnhealthy
+              check: containers.health
+              severity: warning
+              source: komodo
+              container: seerr
+              stack: seerr
+            exp_annotations:
+              title: Container unhealthy · seerr
+              description: Docker has reported the seerr container of the seerr stack as unhealthy for 10 minutes. Docker does not restart it; check its logs and healthcheck, then restart the stack in Komodo.
+              target: seerr · seerr
+              details: health = unhealthy
+              link: http://komodo.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-containers
+              runbook: https://github.com/pjan/atlas#container-health
+    promql_expr_test:
+      - expr: atlas:check_status{check="containers.health"}
+        eval_time: 11m
+        exp_samples:
+          - labels: 'atlas:check_status{check="containers.health"}'
+            value: 1
+
+  # The same during the appdata backup (backup check at 0): gated.
+  - name: container unhealthy during the backup
+    interval: 1m
+    input_series:
+      - series: 'atlas_backup_last_run_timestamp_seconds{set="appdata", mode="check"}'
+        values: '0x20'
+      - series: 'komodo_container_info{job="json_apis", container="seerr", container_id="aaaa", stack="seerr", compose_service="seerr", stack_id="s1", state="running", health="unhealthy", image="seerr:1"}'
+        values: '1x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: ContainerUnhealthy
+        exp_alerts: []
+
+  # radarr flips between restarting and running every minute from 0.
+  - name: container crash loop (restarting)
+    interval: 1m
+    input_series:
+      - series: 'komodo_container_info{job="json_apis", container="radarr", container_id="aaaa", stack="radarr", compose_service="radarr", stack_id="s1", state="restarting", image="radarr:5"}'
+        values: '1 _ 1 _ 1 _ 1 _ 1 _ 1 _ 1 _ 1 _'
+      - series: 'komodo_container_info{job="json_apis", container="radarr", container_id="aaaa", stack="radarr", compose_service="radarr", stack_id="s1", state="running", image="radarr:5"}'
+        values: '_ 1 _ 1 _ 1 _ 1 _ 1 _ 1 _ 1 _ 1'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: ContainerCrashLooping
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: ContainerCrashLooping
+        exp_alerts:
+          - exp_labels:
+              alertname: ContainerCrashLooping
+              check: containers.crashloop
+              severity: warning
+              source: prometheus
+              container: radarr
+              stack: radarr
+            exp_annotations:
+              title: Container crash looping · radarr
+              description: The radarr container of the radarr stack keeps exiting and Docker keeps restarting it. Read its logs in Komodo, fix the cause, and deploy the stack again.
+              target: radarr · radarr
+              details: restarting in the last 10 minutes, or 3 or more unexpected restarts in 15 minutes
+              link: http://komodo.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-containers
+              runbook: https://github.com/pjan/atlas#container-crash-loop
+    promql_expr_test:
+      - expr: atlas:check_status{check="containers.crashloop"}
+        eval_time: 6m
+        exp_samples:
+          - labels: 'atlas:check_status{check="containers.crashloop"}'
+            value: 1
+
+  # radarr restarts every 2 minutes from 2m without a Komodo operation (each
+  # restart counts 2 minutes later): the third counts at 8m, firing at 13m.
+  - name: container crash loop (restarts)
+    interval: 1m
+    input_series:
+      - series: 'container_start_time_seconds{container_id="aaaa", id="/system.slice/docker-aaaa.scope"}'
+        values: '100 100 200 200 300 300 400 400 500 500 600 600 700 700 800 800 900 900 1000 1000'
+      - series: 'komodo_container_info{job="json_apis", container="radarr", container_id="aaaa", stack="radarr", compose_service="radarr", stack_id="s1", state="running", image="radarr:5"}'
+        values: '1x20'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: ContainerCrashLooping
+        exp_alerts: []
+      - eval_time: 14m
+        alertname: ContainerCrashLooping
+        exp_alerts:
+          - exp_labels:
+              alertname: ContainerCrashLooping
+              check: containers.crashloop
+              severity: warning
+              source: prometheus
+              container: radarr
+              stack: radarr
+            exp_annotations:
+              title: Container crash looping · radarr
+              description: The radarr container of the radarr stack keeps exiting and Docker keeps restarting it. Read its logs in Komodo, fix the cause, and deploy the stack again.
+              target: radarr · radarr
+              details: restarting in the last 10 minutes, or 3 or more unexpected restarts in 15 minutes
+              link: http://komodo.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-containers
+              runbook: https://github.com/pjan/atlas#container-crash-loop
+
+  # One OOM kill at 6m; firing at once, resolved 15 minutes later.
+  - name: container OOM kill
+    interval: 1m
+    input_series:
+      - series: 'node_vmstat_oom_kill{instance="node-exporter:9100", job="node"}'
+        values: '0x5 1x30'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: ContainerOOMKilled
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: ContainerOOMKilled
+        exp_alerts:
+          - exp_labels:
+              alertname: ContainerOOMKilled
+              check: containers.oom
+              severity: warning
+              source: prometheus
+            exp_annotations:
+              title: Out-of-memory kill on Atlas
+              description: The kernel killed a process for lack of memory in the last 15 minutes, usually a container at its mem_limit. Find it in the OOM column on Atlas Containers, then raise its mem_limit or fix its leak.
+              target: Atlas
+              details: 1 OOM kills in 15 minutes
+              link: http://komodo.atlas.local
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-containers
+              runbook: https://github.com/pjan/atlas#container-oom-kill
+      - eval_time: 25m
+        alertname: ContainerOOMKilled
+        exp_alerts: []
+    promql_expr_test:
+      - expr: atlas:check_status{check="containers.oom"}
+        eval_time: 12m
+        exp_samples:
+          - labels: 'atlas:check_status{check="containers.oom"}'
             value: 1

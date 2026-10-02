@@ -98,7 +98,10 @@ modules:
           connected: '{ .isConnected }'
           logged_in: '{ .isLoggedIn }'
 
-  # Komodo POST /read/ListStacks -> [{"name": "...", "info": {"state": "running"}}]
+  # Komodo POST /read/ListStacks -> [{"name": "...", "info": {"state": "running",
+  # "services": [{"service": "...", "update_available": true}]}}]. The default limit
+  # is 30, so ask for all. update_available needs poll_for_updates or auto_update on
+  # the stack.
   komodo_stacks:
     headers:
       Content-Type: application/json
@@ -109,7 +112,7 @@ modules:
         X-Api-Secret:
           files: [/run/secrets/komodo_api_secret]
     body:
-      content: '{}'
+      content: '{"limit": 0}'
     metrics:
       - name: komodo_stack
         help: Komodo stack state (1 for the reported state).
@@ -119,6 +122,16 @@ modules:
           stack: '{ .name }'
           stack_id: '{ .id }'
           state: '{ .info.state }'
+        values:
+          info: 1
+      - name: komodo_stack_image_update
+        help: Services of a Komodo stack with a newer image available, space-separated (empty if none).
+        type: object
+        path: '{ [*] }'
+        labels:
+          stack: '{ .name }'
+          stack_id: '{ .id }'
+          services: '{ .info.services[?(@.update_available==true)].service }'
         values:
           info: 1
 
@@ -268,6 +281,66 @@ modules:
           procedure_id: '{ .id }'
         values:
           next_run_timestamp_ms: '{ .info.next_scheduled_run }'
+
+  # Komodo POST /read/ListSchedules: every Action and Procedure with a schedule,
+  # including disabled ones and those whose schedule does not parse:
+  # [{"target": {"type", "id"}, "name", "schedule", "enabled", "last_run_at" (ms or
+  # null), "next_scheduled_run" (ms or null), "schedule_error" (text or null)}].
+  # The default limit is 30, so ask for all. Komodo clears next_scheduled_run while a
+  # run is in progress. schedule_error is multi-line: prometheus.yml keeps only
+  # whether it is set.
+  komodo_schedules:
+    headers:
+      Content-Type: application/json
+    http_client_config:
+      http_headers:
+        X-Api-Key:
+          files: [/run/secrets/komodo_api_key]
+        X-Api-Secret:
+          files: [/run/secrets/komodo_api_secret]
+    body:
+      content: '{"limit": 0}'
+    metrics:
+      - name: komodo_schedule
+        help: Komodo schedule of an Action or Procedure (1 per schedule).
+        type: object
+        path: '{ [*] }'
+        labels:
+          target_type: '{ .target.type }'
+          target_id: '{ .target.id }'
+          name: '{ .name }'
+          schedule: '{ .schedule }'
+          enabled: '{ .enabled }'
+        values:
+          info: 1
+      - name: komodo_schedule
+        help: Last run of a scheduled Komodo Action or Procedure, in Unix milliseconds.
+        type: object
+        path: '{ [?(@.last_run_at)] }'
+        labels:
+          target_type: '{ .target.type }'
+          target_id: '{ .target.id }'
+        values:
+          last_run_timestamp_ms: '{ .last_run_at }'
+      - name: komodo_schedule
+        help: Next scheduled run of a Komodo Action or Procedure, in Unix milliseconds.
+        type: object
+        path: '{ [?(@.next_scheduled_run)] }'
+        labels:
+          target_type: '{ .target.type }'
+          target_id: '{ .target.id }'
+        values:
+          next_run_timestamp_ms: '{ .next_scheduled_run }'
+      - name: komodo_schedule_error
+        help: Komodo schedule whose expression does not parse (1 per schedule).
+        type: object
+        path: '{ [*] }'
+        labels:
+          target_type: '{ .target.type }'
+          target_id: '{ .target.id }'
+          schedule_error: '{ .schedule_error }'
+        values:
+          info: 1
 
   # Komodo POST /read/ListResourceSyncs -> [{"id": "...", "name": "pjan/atlas",
   # "info": {"state": "Ok", "last_sync_ts": ms, "last_sync_hash": "..."}}].

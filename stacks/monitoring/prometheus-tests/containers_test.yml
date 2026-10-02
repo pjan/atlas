@@ -1,5 +1,6 @@
 # promtool tests for rules/containers.yml: container names and their
-# fallbacks, restarts outside the appdata backup, the state codes, and the
+# fallbacks, restarts outside the appdata backup and unexpected restarts,
+# the state codes, and the
 # Komodo event joins. Run by scripts/validate.sh. Outside prometheus/, so
 # Prometheus never loads these files.
 
@@ -122,6 +123,71 @@ tests:
         exp_samples:
           - labels: '{container="sonarr", container_id="aaaa", stack="sonarr", compose_service="sonarr", stack_id="s1"}'
             value: 0
+
+  # sonarr restarts at 5m30 with no Komodo operation: counted, 2 minutes
+  # late. radarr restarts at 5m30 through a RestartStack that started at
+  # 5m25 and is scraped only at 6m: not counted. lidarr restarts at 20m30,
+  # 15 minutes after a Komodo operation on its stack: counted.
+  - name: unexpected restarts
+    interval: 30s
+    input_series:
+      - series: 'container_start_time_seconds{container_id="aaaa", id="/system.slice/docker-aaaa.scope"}'
+        values: '100x10 1000x50'
+      - series: 'container_start_time_seconds{container_id="bbbb", id="/system.slice/docker-bbbb.scope"}'
+        values: '100x10 1000x50'
+      - series: 'container_start_time_seconds{container_id="cccc", id="/system.slice/docker-cccc.scope"}'
+        values: '100x40 1000x20'
+      - series: 'komodo_container_info{container="sonarr", container_id="aaaa", stack="sonarr", compose_service="sonarr", stack_id="s1", state="running"}'
+        values: '1x60'
+      - series: 'komodo_container_info{container="radarr", container_id="bbbb", stack="radarr", compose_service="radarr", stack_id="s2", state="running"}'
+        values: '1x60'
+      - series: 'komodo_container_info{container="lidarr", container_id="cccc", stack="lidarr", compose_service="lidarr", stack_id="s4", state="running"}'
+        values: '1x60'
+      - series: 'komodo_update_start_timestamp_ms{update_id="u1", operation="RestartStack", target_type="Stack", target_id="s2", update_status="Complete", success="true", username="pjan"}'
+        values: '_x12 325000x48'
+      - series: 'komodo_update_start_timestamp_ms{update_id="u2", operation="DeployStack", target_type="Stack", target_id="s4", update_status="Complete", success="true", username="pjan"}'
+        values: '300000x60'
+    promql_expr_test:
+      - expr: atlas:container_restarted_unexpectedly == 1
+        eval_time: 7m30s
+        exp_samples:
+          - labels: 'atlas:container_restarted_unexpectedly{container="sonarr", container_id="aaaa", stack="sonarr", compose_service="sonarr", stack_id="s1"}'
+            value: 1
+      - expr: sum by (container) (sum_over_time(atlas:container_restarted_unexpectedly[30m]))
+        eval_time: 30m
+        exp_samples:
+          - labels: '{container="sonarr"}'
+            value: 1
+          - labels: '{container="radarr"}'
+            value: 0
+          - labels: '{container="lidarr"}'
+            value: 1
+
+  # The NAS boots at 0; sonarr restarts at 5m30 (after the boot: not
+  # counted), at 26m (a RestartContainer on the server started at 25m and
+  # is scraped at 26m: not counted), and at 46m30 (counted at 48m30).
+  - name: unexpected restarts after a boot or a container operation
+    interval: 30s
+    input_series:
+      - series: 'node_boot_time_seconds{instance="node-exporter:9100", job="node"}'
+        values: '0x100'
+      - series: 'container_start_time_seconds{container_id="aaaa", id="/system.slice/docker-aaaa.scope"}'
+        values: '100x10 1000x40 2000x40 3000x9'
+      - series: 'komodo_container_info{container="sonarr", container_id="aaaa", stack="sonarr", compose_service="sonarr", stack_id="s1", state="running"}'
+        values: '1x100'
+      - series: 'komodo_update_start_timestamp_ms{update_id="u3", operation="RestartContainer", target_type="Server", target_id="srv1", update_status="Complete", success="true", username="pjan"}'
+        values: '_x52 1500000x48'
+    promql_expr_test:
+      - expr: sum_over_time(atlas:container_restarted_unexpectedly[50m]) > 0
+        eval_time: 50m
+        exp_samples:
+          - labels: '{container="sonarr", container_id="aaaa", stack="sonarr", compose_service="sonarr", stack_id="s1"}'
+            value: 1
+      - expr: atlas:container_restarted_unexpectedly == 1
+        eval_time: 48m30s
+        exp_samples:
+          - labels: 'atlas:container_restarted_unexpectedly{container="sonarr", container_id="aaaa", stack="sonarr", compose_service="sonarr", stack_id="s1"}'
+            value: 1
 
   # Every container state and health, one container each.
   - name: container state codes

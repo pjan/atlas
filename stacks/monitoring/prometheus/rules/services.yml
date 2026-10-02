@@ -1,6 +1,7 @@
 # Service alerts: Caddy, the application health probes, the Cloudflare
-# tunnel, and the Komodo stack states. Rules affected by stacks the appdata
-# backup stops are gated with `unless on () atlas:maintenance == 1`.
+# tunnel, the Komodo stack states, and container health, crash loops, and
+# OOM kills. Rules affected by stacks the appdata backup stops are gated
+# with `unless on () atlas:maintenance == 1`.
 # Inhibitions are in alertmanager.yml. Tests: stacks/monitoring/prometheus-tests/.
 
 groups:
@@ -105,3 +106,72 @@ groups:
           link: http://komodo.atlas.local
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
           runbook: https://github.com/pjan/atlas#stack-health
+
+      # Docker health (json_apis, from the container status). Komodo's stack
+      # state ignores health, so StackUnhealthy does not cover this. Gated:
+      # stacks the backup starts again report health: starting first.
+      - alert: ContainerUnhealthy
+        expr: |
+          max by (container, stack) (komodo_container_info{state="running", health="unhealthy"})
+          unless on () atlas:maintenance == 1
+        for: 10m
+        labels:
+          check: containers.health
+          severity: warning
+          source: komodo
+        annotations:
+          title: Container unhealthy · {{ $labels.container }}
+          description: Docker has reported the {{ $labels.container }} container of the {{ $labels.stack }} stack as unhealthy for 10 minutes. Docker does not restart it; check its logs and healthcheck, then restart the stack in Komodo.
+          target: "{{ $labels.stack }} · {{ $labels.container }}"
+          details: health = unhealthy
+          link: http://komodo.atlas.local
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-containers
+          runbook: https://github.com/pjan/atlas#container-health
+
+      # A crash loop: Docker's restart policy restarting the container (the
+      # state flips between restarting and running, so any restarting in 10
+      # minutes counts), or 3 unexpected restarts in 15 minutes. It makes the
+      # stack restarting or unhealthy, so it inhibits StackUnhealthy for the
+      # same stack (alertmanager.yml). Gated.
+      - alert: ContainerCrashLooping
+        expr: |
+          (
+              max by (container, stack) (max_over_time(komodo_container_info{state="restarting"}[10m]))
+            or
+              max by (container, stack) (sum_over_time(atlas:container_restarted_unexpectedly[15m])) >= 3
+          )
+          unless on () atlas:maintenance == 1
+        for: 5m
+        labels:
+          check: containers.crashloop
+          severity: warning
+          source: prometheus
+        annotations:
+          title: Container crash looping · {{ $labels.container }}
+          description: The {{ $labels.container }} container of the {{ $labels.stack }} stack keeps exiting and Docker keeps restarting it. Read its logs in Komodo, fix the cause, and deploy the stack again.
+          target: "{{ $labels.stack }} · {{ $labels.container }}"
+          details: restarting in the last 10 minutes, or 3 or more unexpected restarts in 15 minutes
+          link: http://komodo.atlas.local
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-containers
+          runbook: https://github.com/pjan/atlas#container-crash-loop
+
+      # node-exporter's count of kernel OOM kills (/proc/vmstat oom_kill),
+      # including kills at a container's mem_limit. cAdvisor's per-container
+      # counter misses kills whose container is gone, so it only names the
+      # container on Atlas Containers. Not gated: the backup does not cause
+      # OOM kills. Resolves 15 minutes after the last kill.
+      - alert: ContainerOOMKilled
+        expr: |
+          sum(increase(node_vmstat_oom_kill[15m])) > 0
+        labels:
+          check: containers.oom
+          severity: warning
+          source: prometheus
+        annotations:
+          title: Out-of-memory kill on Atlas
+          description: The kernel killed a process for lack of memory in the last 15 minutes, usually a container at its mem_limit. Find it in the OOM column on Atlas Containers, then raise its mem_limit or fix its leak.
+          target: Atlas
+          details: '{{ printf "%.0f" $value }} OOM kills in 15 minutes'
+          link: http://komodo.atlas.local
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-containers
+          runbook: https://github.com/pjan/atlas#container-oom-kill

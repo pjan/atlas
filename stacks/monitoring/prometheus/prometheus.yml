@@ -141,6 +141,8 @@ scrape_configs:
         labels: {module: komodo_procedures, service: komodo}
       - targets: ["http://192.168.2.200:9120/read/ListResourceSyncs"]
         labels: {module: komodo_syncs, service: komodo}
+      - targets: ["http://192.168.2.200:9120/read/ListSchedules"]
+        labels: {module: komodo_schedules, service: komodo}
       - targets: ["http://192.168.2.200:9120/read/ListAllContainers"]
         labels: {module: komodo_server_containers, service: komodo}
       - targets: ["http://192.168.2.200:9120/read/ListUpdates"]
@@ -170,6 +172,13 @@ scrape_configs:
         target_label: exit_code
         replacement: '$2'
       - regex: container_status
+        action: labeldrop
+      # A schedule error is multi-line text, "null" when there is none: keep only
+      # the series of schedules with an error, without the text.
+      - source_labels: [__name__, schedule_error]
+        regex: 'komodo_schedule_error_info;null'
+        action: drop
+      - regex: schedule_error
         action: labeldrop
 
   # Application health endpoints through Caddy. Each target selects its

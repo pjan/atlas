@@ -8,7 +8,7 @@ groups:
   - name: backup
     rules:
       # backup.sh keeps only the latest mode (check or run), so this latches
-      # until the next nightly run; the hourly no-op runs never touch it.
+      # until the next run.
       - alert: AppdataBackupFailed
         expr: atlas_backup_last_exit_code{set="appdata"} != 0
         labels:
@@ -17,7 +17,7 @@ groups:
           source: prometheus
         annotations:
           title: Appdata backup failed · backup {{ $labels.mode }}
-          description: The nightly appdata snapshot failed in backup {{ $labels.mode }}. Read the appdata-backup Action log in Komodo, fix the cause, and run appdata-backup-now.
+          description: The nightly appdata snapshot failed in backup {{ $labels.mode }}. Read the appdata-backup Action log in Komodo, fix the cause, and run appdata-backup again.
           target: /volume1/backups/appdata
           details: backup.sh {{ $labels.mode }} exited with {{ $value }}
           link: http://komodo.atlas.local
@@ -36,7 +36,7 @@ groups:
           source: prometheus
         annotations:
           title: Appdata backup stale
-          description: No appdata snapshot has succeeded for more than 26 hours, or the backup metrics are missing. Check that the appdata-backup Action runs every hour in Komodo, then run appdata-backup-now.
+          description: No appdata snapshot has succeeded for more than 26 hours, or the backup metrics are missing. Check that the appdata-backup Action ran at 05:00 in Komodo, then run it by hand.
           target: /volume1/backups/appdata
           details: '{{ if $labels.job }}last success {{ $value | humanizeDuration }} ago{{ else }}no atlas_backup_last_success_timestamp_seconds in /volume1/backups/.metrics{{ end }}'
           link: http://komodo.atlas.local

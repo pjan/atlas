@@ -51,8 +51,7 @@ function collect() {
   const cs = (el) => getComputedStyle(el);
   const pick = (sel, max = 12) => [...document.querySelectorAll(sel)].slice(0, max);
   const panelOf = (el) => el.closest('[data-viz-panel-key]')?.querySelector('h2')?.textContent?.trim() || '?';
-  const out = { mode: document.documentElement.getAttribute('data-atlas-theme'), css: !!document.getElementById('atlas-theme-css'),
-    pageBg: cs(document.body).backgroundColor, rows: [], warn: [] };
+  const out = { pageBg: cs(document.body).backgroundColor, rows: [] };
   const row = (kind, el, bgEl = el) => out.rows.push({ kind, panel: panelOf(el), text: (el.textContent || '').trim().slice(0, 18),
     bg: cs(bgEl).backgroundColor, fg: cs(el).color, weight: cs(el).fontWeight, ring: cs(el).boxShadow, radius: cs(bgEl).borderRadius });
   pick('[data-testid^="stat-panel-"] [style*="display: flex; background"]').forEach((el) => row('stat tile', el.querySelector('span') || el, el));
@@ -65,15 +64,12 @@ function collect() {
   const sel = document.querySelector('[data-testid="data-testid template variable"] > div');
   const box = (el) => el && { border: cs(el).borderTopColor, bg: cs(el).backgroundColor, height: Math.round(el.getBoundingClientRect().height) };
   out.controls = { button: box(btn), selector: box(sel) };
-  if ([...document.querySelectorAll('div[style*="rgb(from"]')].length) out.warn.push('bar gauge bars use rgb(from ...): the bar gauge rule no longer matches');
-  if (!document.querySelector('[data-testid^="table-panel-"] [role="gridcell"] span[style*="background-color"]') && document.querySelector('[data-testid^="table-panel-"] [class*="tag"]'))
-    out.warn.push('pills render as tags (visualDesignRefresh?): the pill rule no longer matches');
   out.canvas = window.__probeCanvas;
   return out;
 }
 
 // Records every colour set on a canvas, per panel type: installed before Grafana and the plugin
-// load, so it sees the colours after the plugin's canvas mapping.
+// load, so it sees every colour drawn.
 function recordCanvas() {
   const log = (window.__probeCanvas = {});
   const proto = CanvasRenderingContext2D.prototype;
@@ -106,9 +102,13 @@ async function page(theme) {
   return p;
 }
 function report(label, r, expect) {
-  console.log(`\n== ${label}: data-atlas-theme=${r.mode}, stylesheet=${r.css}, page ${name(r.pageBg)}`);
-  if (r.mode !== expect) fails.push(`${label}: the plugin reports ${r.mode}, expected ${expect}`);
-  if (!r.css) fails.push(`${label}: no Atlas stylesheet`);
+  // The page background is a palette colour only with an Atlas theme active; its lightness
+  // tells the mode.
+  const page = parse(r.pageBg);
+  const mode = page && Y(page.rgb) > 0.5 ? 'light' : 'dark';
+  console.log(`\n== ${label}: ${mode}, page ${name(r.pageBg)}`);
+  if (!name(r.pageBg).match(/^[a-z]+\d*$/)) fails.push(`${label}: the page background ${name(r.pageBg)} is not a palette colour: no Atlas theme`);
+  if (mode !== expect) fails.push(`${label}: the page is ${mode}, expected ${expect}`);
   const seen = new Set();
   for (const x of r.rows) {
     const k = [x.kind, x.bg, x.fg, x.ring].join('|');
@@ -131,11 +131,6 @@ function report(label, r, expect) {
   for (const [k, colours] of Object.entries(r.canvas || {}).sort()) {
     console.log(`  canvas ${k.padEnd(24)} ${Object.keys(colours).map(name).filter((v, i, a) => a.indexOf(v) === i).join(', ')}`);
   }
-  const stock = ['rgba(0, 10, 23, 0.09)', 'rgba(240, 250, 255, 0.09)'];
-  for (const [k, colours] of Object.entries(r.canvas || {})) {
-    for (const s of stock) if (colours[s]) fails.push(`${label}: ${k} still draws Grafana's grid colour ${s}`);
-  }
-  r.warn.forEach((w) => fails.push(`${label}: ${w}`));
 }
 
 // Everything a report shows, for comparing a live switch with a fresh load.

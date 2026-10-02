@@ -53,6 +53,32 @@ groups:
           (max by (container_id) (atlas:container_started) unless on () (atlas:maintenance == 1))
           * on (container_id) group_left (container, stack, compose_service, stack_id) atlas:container_names
 
+      # atlas:container_restarted_outside_backup without deliberate restarts,
+      # 2 minutes late. Not counted: a restart from 10 minutes after the
+      # start of a Komodo operation on its stack (deploy, restart, start, …)
+      # until 2 minutes before it (Komodo updates are scraped every 60 s, so
+      # an update can show up after the restart it caused); any restart in
+      # that window while a Komodo container operation (start, restart,
+      # unpause, also of all containers) ran, as those name no stack; and
+      # restarts in the 15 minutes after the NAS booted. Count unexpected
+      # restarts with
+      # sum_over_time(atlas:container_restarted_unexpectedly[<range>]).
+      - record: atlas:container_restarted_unexpectedly
+        expr: |
+          (
+            atlas:container_restarted_outside_backup offset 2m
+            unless on (stack_id)
+              label_replace(
+                komodo_update_start_timestamp_ms{target_type="Stack"} > (time() - 720) * 1000,
+                "stack_id", "$1", "target_id", "(.*)")
+          )
+          unless on ()
+            (
+                komodo_update_start_timestamp_ms{operation=~"(Start|Restart|Unpause)(Container|AllContainers)"} > (time() - 720) * 1000
+              or
+                time() - node_boot_time_seconds < 900
+            )
+
       # CPU in cores (1 = one full core), not a share of one core.
       - record: atlas:container_cpu_cores
         expr: |

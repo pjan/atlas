@@ -27,6 +27,18 @@ groups:
       - record: atlas:check_catalogue
         expr: vector(0)
         labels:
+          check: containers.crashloop
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: containers.health
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: containers.oom
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
           check: disk.health
       - record: atlas:check_catalogue
         expr: vector(0)

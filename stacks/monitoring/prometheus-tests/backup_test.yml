@@ -38,7 +38,7 @@ tests:
               mode: check
             exp_annotations:
               title: Appdata backup failed · backup check
-              description: The nightly appdata snapshot failed in backup check. Read the appdata-backup Action log in Komodo, fix the cause, and run appdata-backup-now.
+              description: The nightly appdata snapshot failed in backup check. Read the appdata-backup Action log in Komodo, fix the cause, and run appdata-backup again.
               target: /volume1/backups/appdata
               details: backup.sh check exited with 1
               link: http://komodo.atlas.local
@@ -85,7 +85,7 @@ tests:
               set: appdata
             exp_annotations:
               title: Appdata backup stale
-              description: No appdata snapshot has succeeded for more than 26 hours, or the backup metrics are missing. Check that the appdata-backup Action runs every hour in Komodo, then run appdata-backup-now.
+              description: No appdata snapshot has succeeded for more than 26 hours, or the backup metrics are missing. Check that the appdata-backup Action ran at 05:00 in Komodo, then run it by hand.
               target: /volume1/backups/appdata
               details: last success 1d 2h 20m 0s ago
               link: http://komodo.atlas.local
@@ -124,7 +124,7 @@ tests:
               set: appdata
             exp_annotations:
               title: Appdata backup stale
-              description: No appdata snapshot has succeeded for more than 26 hours, or the backup metrics are missing. Check that the appdata-backup Action runs every hour in Komodo, then run appdata-backup-now.
+              description: No appdata snapshot has succeeded for more than 26 hours, or the backup metrics are missing. Check that the appdata-backup Action ran at 05:00 in Komodo, then run it by hand.
               target: /volume1/backups/appdata
               details: no atlas_backup_last_success_timestamp_seconds in /volume1/backups/.metrics
               link: http://komodo.atlas.local

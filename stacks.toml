@@ -94,11 +94,6 @@ value = "365"
 name = "KOMETA_TIMES"
 value = "03:00"
 
-[[variable]]
-name = "APPDATA_BACKUP_HOUR"
-# Local hour, in the TZ timezone, at which the appdata-backup Action takes its snapshot.
-value = "5"
-
 ### STACKS ###
 
 [[stack]]
@@ -1261,7 +1256,6 @@ config_files = [
   { path = "grafana/plugins/atlas-theme-app/plugin.json", services = ["grafana"], requires = "Restart" },
   { path = "grafana/plugins/atlas-theme-app/module.js", services = ["grafana"], requires = "Restart" },
   { path = "grafana/plugins/atlas-theme-app/atlas-theme.json", services = ["grafana"], requires = "Restart" },
-  { path = "grafana/plugins/atlas-theme-app/atlas.css", services = ["grafana"], requires = "Restart" },
   { path = "grafana/plugins/atlas-theme-app/README.md", services = ["grafana"], requires = "None" },
   { path = "grafana/plugins/pjan-statetimeline-panel/342.js", services = ["grafana"], requires = "Restart" },
   { path = "grafana/plugins/pjan-statetimeline-panel/CHANGELOG.md", services = ["grafana"], requires = "Restart" },
@@ -1430,22 +1424,20 @@ HTTP_PORT = [[HTTP_PORT]]
 
 [[action]]
 name = "appdata-backup"
-description = "Hourly check; at APPDATA_BACKUP_HOUR local time, stop stateful stacks, snapshot appdata, start them again"
+description = "Daily at 05:00 (Core's TZ): stop stateful stacks, snapshot appdata, start them again. Run it in Komodo to back up now"
 tags = ["infra"]
 
 [action.config]
+# Daily at 05:00:00 in Core's timezone (TZ in Core's .env; schedule_timezone is empty). Komodo
+# does not interpolate variables in schedules, so the hour is written here.
 schedule_format = "Cron"
-schedule = "0 0 * * * *"
+schedule = "0 0 5 * * *"
 schedule_enabled = true
 schedule_alert = false
 failure_alert = true
-run_at_startup = true
 file_contents = '''
-// Runs hourly. Acts only at APPDATA_BACKUP_HOUR in TZ, unless FORCE is "true"
-// (see the appdata-backup-now Action). Every run first restarts stacks that an
-// interrupted run left stopped; run_at_startup covers Core restarts.
-const TZ = "[[TZ]]";
-const BACKUP_HOUR = Number("[[APPDATA_BACKUP_HOUR]]");
+// Runs daily, or when run by hand in Komodo. It first runs appdata-backup-recover,
+// which restarts stacks that an interrupted run left stopped: step 3 overwrites that list.
 const HEALTHCHECK_URL = "[[HEALTHCHECKS_APPDATA_PING_URL]]";
 const STATE_VARIABLE = "APPDATA_BACKUP_STOPPED_STACKS";
 const BACKUP_STACK = "appdata-backup";
@@ -1459,21 +1451,6 @@ const NEVER_STOP = new Set([
   "monitoring",
   "roonserver",
 ]);
-
-async function readStopped(): Promise<string[]> {
-  try {
-    const variable = await komodo.read("GetVariable", { name: STATE_VARIABLE });
-    return variable.value ? JSON.parse(variable.value) : [];
-  } catch {
-    await komodo.write("CreateVariable", {
-      name: STATE_VARIABLE,
-      value: "[]",
-      description: "Stacks stopped by the appdata-backup Action. Managed automatically.",
-      is_secret: false,
-    });
-    return [];
-  }
-}
 
 async function writeStopped(stacks: string[]) {
   await komodo.write("UpdateVariableValue", {
@@ -1516,28 +1493,14 @@ async function ping(suffix: string, body: string) {
   }
 }
 
-// 0. Recover stacks left stopped by an interrupted run.
-const leftover = await readStopped();
-if (leftover.length > 0) {
-  console.log(`Recovering stacks left stopped: ${leftover.join(", ")}`);
-  const stillStopped = await executeEach("StartStack", leftover);
-  await writeStopped(stillStopped);
-  if (stillStopped.length > 0) {
-    await ping("/fail", `Recovery could not start: ${stillStopped.join(", ")}`);
-    throw new Error(`Recovery could not start: ${stillStopped.join(", ")}`);
-  }
+// 0. Recover stacks left stopped by an interrupted run (it also creates the state variable).
+const recovery: any = await komodo.execute_and_poll("RunAction", { action: "appdata-backup-recover" });
+if (!recovery.success) {
+  throw new Error("appdata-backup-recover failed; see its latest run for details");
 }
 
-// 1. Hour gate.
-const force = ARGS.FORCE === "true";
-const localHour = Number(
-  new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", hourCycle: "h23" })
-    .format(new Date()),
-);
-if (!force && localHour !== BACKUP_HOUR) {
-  return;
-}
-console.log(`Starting appdata backup (local hour ${localHour} in ${TZ}, force=${force})`);
+// 1. Start.
+console.log("Starting appdata backup");
 await ping("/start", "");
 
 // 2. Prepare directories and check the source before stopping anything.
@@ -1553,7 +1516,7 @@ if (errors.length > 0) {
 }
 
 // 3. Persist the stop list, then stop every running stateful stack in parallel.
-const stacks: any[] = await komodo.read("ListStacks", {});
+const stacks: any[] = await komodo.read("ListStacks", { limit: 0 });
 const toStop = stacks
   .filter((stack) => stack.info.state === "running" && !NEVER_STOP.has(stack.name))
   .map((stack) => stack.name)
@@ -1593,20 +1556,86 @@ console.log(`appdata-backup complete; stopped and restarted ${toStop.length} sta
 '''
 
 [[action]]
-name = "appdata-backup-now"
-description = "Run the appdata-backup Action immediately, outside its scheduled hour"
+name = "appdata-backup-recover"
+description = "Restart stacks that an interrupted appdata-backup run left stopped; runs when Core starts and at the start of every backup"
 tags = ["infra"]
 
 [action.config]
 failure_alert = true
+run_at_startup = true
 file_contents = '''
-// The Komodo UI runs Actions without arguments, so this wrapper passes FORCE.
-const update: any = await komodo.execute_and_poll("RunAction", {
-  action: "appdata-backup",
-  args: { FORCE: "true" },
-});
-if (!update.success) {
-  throw new Error("appdata-backup failed; see its latest run for details");
+// Restarts the stacks in APPDATA_BACKUP_STOPPED_STACKS (written by appdata-backup) and
+// clears them from it. Runs when Core starts (run_at_startup) and as step 0 of every
+// appdata-backup run. After a NAS reboot Core can start before Periphery connects, so it
+// waits up to 5 minutes for the server.
+const HEALTHCHECK_URL = "[[HEALTHCHECKS_APPDATA_PING_URL]]";
+const STATE_VARIABLE = "APPDATA_BACKUP_STOPPED_STACKS";
+
+async function readStopped(): Promise<string[]> {
+  try {
+    const variable = await komodo.read("GetVariable", { name: STATE_VARIABLE });
+    return variable.value ? JSON.parse(variable.value) : [];
+  } catch {
+    await komodo.write("CreateVariable", {
+      name: STATE_VARIABLE,
+      value: "[]",
+      description: "Stacks stopped by the appdata-backup Action. Managed automatically.",
+      is_secret: false,
+    });
+    return [];
+  }
 }
-console.log("appdata-backup completed");
+
+async function writeStopped(stacks: string[]) {
+  await komodo.write("UpdateVariableValue", {
+    name: STATE_VARIABLE,
+    value: JSON.stringify(stacks),
+  });
+}
+
+async function executeEach(operation: string, stacks: string[]): Promise<string[]> {
+  const results = await Promise.allSettled(
+    stacks.map((stack) => komodo.execute_and_poll(operation as any, { stack } as any)),
+  );
+  return stacks.filter((_, index) => {
+    const result = results[index];
+    return result.status === "rejected" || !(result.value as any).success;
+  });
+}
+
+async function ping(suffix: string, body: string) {
+  if (!HEALTHCHECK_URL.startsWith("https://")) return;
+  try {
+    await fetch(`${HEALTHCHECK_URL}${suffix}`, { method: "POST", body });
+  } catch (error) {
+    console.error(`Healthchecks ping failed: ${error}`);
+  }
+}
+
+async function serversReady(): Promise<boolean> {
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const servers: any[] = await komodo.read("ListServers", {});
+    if (servers.length > 0 && servers.every((server) => server.info.state === "Ok")) return true;
+    await new Promise((resolve) => setTimeout(resolve, 10_000));
+  }
+  return false;
+}
+
+const leftover = await readStopped();
+if (leftover.length === 0) {
+  console.log("Nothing to recover");
+  return;
+}
+console.log(`Recovering stacks left stopped: ${leftover.join(", ")}`);
+if (!(await serversReady())) {
+  await ping("/fail", `Recovery: Periphery not reachable; still stopped: ${leftover.join(", ")}`);
+  throw new Error(`Periphery not reachable after 5 minutes; still stopped: ${leftover.join(", ")}`);
+}
+const stillStopped = await executeEach("StartStack", leftover);
+await writeStopped(stillStopped);
+if (stillStopped.length > 0) {
+  await ping("/fail", `Recovery could not start: ${stillStopped.join(", ")}`);
+  throw new Error(`Recovery could not start: ${stillStopped.join(", ")}`);
+}
+console.log(`Recovered: ${leftover.join(", ")}`);
 '''

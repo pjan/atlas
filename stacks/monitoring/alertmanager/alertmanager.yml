@@ -37,6 +37,10 @@ inhibit_rules:
   - source_matchers: ['alertname="VolumeSpaceCritical"']
     target_matchers: ['alertname="VolumeSpaceLow"']
     equal: [mountpoint]
+  # A crash-looping container makes its stack restarting or unhealthy in Komodo.
+  - source_matchers: ['alertname="ContainerCrashLooping"']
+    target_matchers: ['alertname="StackUnhealthy"']
+    equal: [stack]
 
 receivers:
   # Rich embeds rendered by atlas.tmpl, at most 4 per message.

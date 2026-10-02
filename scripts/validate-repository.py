@@ -1393,21 +1393,13 @@ def mirroring_problems(light: object, dark: object, where: str) -> list[str]:
     return []
 
 
-def palette_variable(key: str) -> str:
-    """The CSS variable the plugin defines for a palette key: gray100 -> --atlas-gray-100."""
-    return "--atlas-" + re.sub(r"^([a-z]+)([0-9]+)$", r"\1-\2", key)
-
-
 def validate_theme_plugin(validation: Validation) -> None:
     """atlas-theme.json against Grafana's theme schema, every palette reference resolves, dark
-    steps mirror light ones (1000 - step); atlas.css uses only defined --atlas- variables and
-    known canvas variable names."""
+    steps mirror light ones (1000 - step)."""
     theme_path = THEME_PLUGIN_DIRECTORY / "atlas-theme.json"
-    css_path = THEME_PLUGIN_DIRECTORY / "atlas.css"
-    theme_file, css_file = relative(theme_path), relative(css_path)
+    theme_file = relative(theme_path)
     try:
         theme = json.loads(theme_path.read_text(encoding="utf-8"))
-        css = css_path.read_text(encoding="utf-8")
     except (OSError, json.JSONDecodeError) as error:
         validation.require(False, f"theme plugin: {error}")
         return
@@ -1453,35 +1445,6 @@ def validate_theme_plugin(validation: Validation) -> None:
     ):
         for problem in mirroring_problems(light, dark, where):
             validation.require(False, f"{theme_file}: {problem}")
-
-    # atlas.css: comments are ignored; braces balance; every var(--atlas-...) is defined by
-    # the palette or the stylesheet; the palette variables are not redefined; names that
-    # start like a canvas variable are one (README.md in the plugin directory).
-    code = re.sub(r"/\*.*?\*/", "", css, flags=re.DOTALL)
-    validation.require(
-        code.count("{") == code.count("}"), f"{css_file}: unbalanced braces"
-    )
-    palette_variables = {palette_variable(key) for key in palette}
-    declared = set(re.findall(r"(--atlas-[a-z0-9-]+)\s*:", code))
-    for name in sorted(declared & palette_variables):
-        validation.require(False, f"{css_file}: {name} is a palette variable; do not redefine it")
-    for name in sorted(set(re.findall(r"var\(\s*(--atlas-[a-z0-9-]+)", code))):
-        validation.require(
-            name in declared or name in palette_variables,
-            f"{css_file}: var({name}) is not defined by the palette or the stylesheet",
-        )
-    roles = "ok|warning|critical|progress|pending|unknown"
-    for name in sorted(declared):
-        if re.fullmatch(rf"--atlas-(grid|axis|{roles})(-.*)?", name):
-            validation.require(
-                bool(
-                    re.fullmatch(
-                        rf"--atlas-(grid|axis-text|({roles})-(outline|text|sparkline|sparkline-fill))",
-                        name,
-                    )
-                ),
-                f"{css_file}: {name} is not a canvas variable (see the plugin README)",
-            )
 
 
 def validate_alert_messages(

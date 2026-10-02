@@ -5,12 +5,12 @@
   "preload": true,
   "autoEnabled": true,
   "info": {
-    "version": "3.0.2",
-    "updated": "2026-09-30",
+    "version": "4.0.0",
+    "updated": "2026-10-02",
     "author": { "name": "pjan" },
     "keywords": ["theme"],
     "logos": { "small": "", "large": "" },
-    "description": "Atlas Light and Atlas Dark: the themes in atlas-theme.json, and atlas.css for styling and canvas colours"
+    "description": "Atlas Light and Atlas Dark: the Grafana themes in atlas-theme.json"
   },
   "dependencies": { "grafanaDependency": ">=13.2.0", "plugins": [] },
   "includes": []

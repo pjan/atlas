@@ -28,6 +28,12 @@ tests:
             value: 0
           - labels: 'atlas:check_status{check="backup.offsite-age"}'
             value: 0
+          - labels: 'atlas:check_status{check="containers.crashloop"}'
+            value: 0
+          - labels: 'atlas:check_status{check="containers.health"}'
+            value: 0
+          - labels: 'atlas:check_status{check="containers.oom"}'
+            value: 0
           - labels: 'atlas:check_status{check="disk.health"}'
             value: 0
           - labels: 'atlas:check_status{check="downloads.port-forward"}'

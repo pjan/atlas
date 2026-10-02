@@ -1,39 +1,30 @@
 /*
  * Atlas theme engine: a preload app plugin, hand-written AMD without a build step.
- * It has no colours of its own; it applies two files from this directory (see README.md):
- *   atlas-theme.json  Grafana theme definitions ("Atlas Light", "Atlas Dark") in Grafana's
- *                     theme-definition format, plus colour names Grafana has no slot for;
- *   atlas.css         a plain stylesheet, including the canvas variables (--atlas-grid, ...).
- * The rules they implement are pjan/atlas-dashboards CONVENTIONS.md.
+ * It has no colours of its own; it applies atlas-theme.json from this directory (see
+ * README.md): Grafana theme definitions ("Atlas Light", "Atlas Dark") in Grafana's
+ * theme-definition format, plus colour names Grafana has no slot for.
+ * The rules it implements are pjan/atlas-dashboards CONVENTIONS.md.
  *
  * 1. Theme: builds the theme with createTheme() and publishes it as the active theme on
  *    load, on every theme change, and again after 200 ms, 1 s, and 3 s (Grafana may still
  *    publish its own theme while starting). The built theme also resolves the extra colour
  *    names (gray, teal, ...).
- * 2. Stylesheet: atlas.css as one <style> element (DevTools names it atlas.css), after one with
- *    the palette as variables (--atlas-gray-100, ...), from atlas-theme.json. The plugin keeps
- *    html[data-atlas-theme] set to light or dark.
- * 3. Canvas: CSS cannot reach what charts draw on a canvas, so the plugin reads the canvas
- *    variables that apply to each canvas element (any selector can set them) and uses them
- *    instead of the colours Grafana draws: grid, axis text, state-timeline outline and text,
- *    and the sparkline on a coloured stat tile. An unset variable keeps Grafana's colour.
- * 4. Theme switch: whenever an Atlas theme replaces a stock one (on load, on a switch, after an
+ * 2. Theme switch: whenever an Atlas theme replaces a stock one (on load, on a switch, after an
  *    edit), resets Grafana's cached continuous colour schemes and makes every panel of the open
  *    dashboard process its field config again; otherwise both keep the previous colours.
- * 5. Live editor: ?atlasEditor=1 opens a drawer to edit both files in the browser; edits apply
- *    at once and stay in this browser's localStorage until "Reset to files".
+ * 3. Live editor: ?atlasEditor=1 opens a drawer to edit atlas-theme.json in the browser; edits
+ *    apply at once and stay in this browser's localStorage until "Reset to file".
  *
  * All of it uses undocumented Grafana behaviour: publishing ThemeChangedEvent with a
- * replacement theme, the colours uPlot and the stat sparkline are given (Grafana 13.2.3),
- * FieldColorSchemeMode's cache fields, and the dashboard scene's panels
- * (window.__grafanaSceneContext, clearFieldConfigCache). After a Grafana upgrade, run
- * scripts/theme-probe.sh (README.md, Monitoring).
+ * replacement theme, FieldColorSchemeMode's cache fields, and the dashboard scene's panels
+ * (window.__grafanaSceneContext, clearFieldConfigCache) (Grafana 13.2.3). After a Grafana
+ * upgrade, run scripts/theme-probe.sh (README.md, Monitoring).
  * Without the plugin (it does not load for viewers without an org role, such as public
  * dashboards) the dashboards work with Grafana's stock colours, except the extra names:
  * super-light-gray timeline segments render black, gray ones in Grafana's CSS gray.
  *
  * Bump info.version in plugin.json with every change to this directory: Grafana loads this
- * file as module.js?_cache=<version>, and this file loads the other files with the same key.
+ * file as module.js?_cache=<version>, and this file loads atlas-theme.json with the same key.
  */
 define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
   var ID = 'atlas-theme-app';
@@ -44,26 +35,11 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
   var NAMED_SCHEMES = ['continuous-GrYlRd', 'continuous-RdYlGr', 'continuous-BlYlRd', 'continuous-YlRd',
     'continuous-BlPu', 'continuous-YlBl', 'continuous-blues', 'continuous-reds', 'continuous-greens',
     'continuous-purples'];
-  var MODES = ['light', 'dark'];
-  // Atlas role -> the Grafana colour name dashboards use for it (CONVENTIONS.md section 4).
-  var ROLES = { ok: 'green', warning: 'yellow', critical: 'red', progress: 'blue', pending: 'purple', unknown: 'gray' };
-  var SHADES = ['super-light-', 'light-', '', 'semi-dark-', 'dark-'];
-  // The grid colour uPlot panels hard-code (UPlotAxisBuilder.ts), per mode.
-  var GRID = { light: 'rgba(0, 10, 23, 0.09)', dark: 'rgba(240, 250, 255, 0.09)' };
-  // The canvas variables, without the --atlas- prefix (README.md, Canvas variables).
-  var CANVAS_VARS = ['grid', 'axis-text'];
-  Object.keys(ROLES).forEach(function (role) {
-    ['outline', 'text', 'sparkline', 'sparkline-fill'].forEach(function (part) { CANVAS_VARS.push(role + '-' + part); });
-  });
 
   var THEME = null;
-  var CSS = '';
-  var MODE = 'dark';
   // True until an Atlas theme is active, and again whenever Grafana puts a stock theme in
   // place: panels processed meanwhile hold stock colours.
   var stale = true;
-  // Bumped whenever the stylesheet or the mode changes: cached canvas variables expire.
-  var generation = 0;
 
   // ---- References in atlas-theme.json: atlas.<key> is a palette colour, atlas.<key>/<alpha>
   // the same with alpha.
@@ -90,86 +66,9 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
     return node;
   }
   function channels(hex) { return [1, 3, 5].map(function (i) { return parseInt(hex.substr(i, 2), 16); }); }
-  function hex6(color) {
-    if (typeof color !== 'string') { return null; }
-    if (color[0] === '#') { return color.slice(0, 7).toLowerCase(); }
-    var m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(color);
-    return m ? '#' + [m[1], m[2], m[3]].map(function (n) { return ('0' + (+n).toString(16)).slice(-2); }).join('') : null;
-  }
   function modeOf(theme) { return theme && theme.colors && theme.colors.mode === 'light' ? 'light' : 'dark'; }
-  // Lookups in maps keyed by colours or names, without inherited keys such as "constructor".
+  // Lookups in maps keyed by names, without inherited keys such as "constructor".
   function own(map, key) { return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : undefined; }
-  // palette key -> CSS variable: gray100 -> --atlas-gray-100, ink -> --atlas-ink.
-  function paletteVar(key) { return '--atlas-' + key.replace(/^([a-z]+)([0-9]+)$/, '$1-$2'); }
-
-  // ---- Roles: the colour each role name resolves to, in every shade and both modes. A colour
-  // from the other mode that is a series colour in this one (orange 400 and 600) is left out.
-  var ROLE_BY_COLOR = { light: {}, dark: {} };
-  function roleColors() {
-    MODES.forEach(function (mode) {
-      var series = {};
-      resolve(THEME.themes[mode].visualization.palette).forEach(function (c) { series[c.toLowerCase()] = true; });
-      var map = {};
-      MODES.forEach(function (m) {
-        var colors = {};
-        resolve(THEME.themes[m]).visualization.hues.forEach(function (hue) {
-          hue.shades.forEach(function (s) { colors[s.name] = s.color; });
-        });
-        Object.assign(colors, resolve(THEME.names[m]));
-        Object.keys(ROLES).forEach(function (role) {
-          SHADES.forEach(function (shade) {
-            var c = own(colors, shade + ROLES[role]);
-            if (c && !(m !== mode && own(series, c.toLowerCase()))) { map[c.toLowerCase()] = role; }
-          });
-        });
-      });
-      ROLE_BY_COLOR[mode] = map;
-    });
-  }
-
-  // ---- Canvas variables: read per element, so selectors and inheritance work as in CSS.
-  var resolver = null;
-  var resolved = {};
-  // Any CSS colour (var() already substituted), as the browser computes it: rgb() or rgba().
-  function color(value) {
-    value = (value || '').trim();
-    if (!value) { return null; }
-    if (own(resolved, value) !== undefined) { return resolved[value]; }
-    if (!resolver) {
-      resolver = document.createElement('span');
-      resolver.style.display = 'none';
-      document.body.appendChild(resolver);
-    }
-    resolver.style.color = '';
-    resolver.style.color = value;
-    var out = resolver.style.color ? getComputedStyle(resolver).color : null;
-    // color-mix() and relative colours compute to color(srgb r g b / a); canvases take rgba().
-    var m = out && /^color\(srgb ([\d.]+) ([\d.]+) ([\d.]+)(?: \/ ([\d.]+))?\)$/.exec(out);
-    if (m) {
-      out = 'rgba(' + [m[1], m[2], m[3]].map(function (x) { return Math.round(x * 255); }).join(', ') + ', ' + (m[4] === undefined ? 1 : +m[4]) + ')';
-    }
-    resolved[value] = out;
-    return out;
-  }
-  var VARS = new WeakMap();
-  function varsOf(el) {
-    var c = VARS.get(el);
-    if (c && c.generation === generation) { return c.values; }
-    var style = getComputedStyle(el);
-    var values = {};
-    CANVAS_VARS.forEach(function (name) { values[name] = color(style.getPropertyValue('--atlas-' + name)); });
-    if (el.isConnected) { VARS.set(el, { generation: generation, values: values }); }
-    return values;
-  }
-  // The page-level value of each role's text colour -> role: getContrastText returns those,
-  // and a canvas with its own value gets it swapped in when the colour is set.
-  function textRoles() {
-    var page = varsOf(document.documentElement);
-    var out = {};
-    Object.keys(ROLES).forEach(function (role) { if (page[role + '-text']) { out[page[role + '-text']] = role; } });
-    return out;
-  }
-  var textRoleCache = { generation: -1, map: {} };
 
   // ---- 1. Theme
   function build(base) {
@@ -180,13 +79,6 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
     var names = resolve(THEME.names[mode]);
     var byName = theme.visualization.getColorByName;
     theme.visualization.getColorByName = function (name) { return (name && own(names, name)) || byName(name); };
-    // State timelines ask getContrastText for the text on each segment.
-    var contrastText = theme.colors.getContrastText;
-    theme.colors.getContrastText = function (background, threshold) {
-      var role = own(ROLE_BY_COLOR[mode], hex6(background));
-      var text = role && varsOf(document.documentElement)[role + '-text'];
-      return text || contrastText(background, threshold);
-    };
     return theme;
   }
   function publish(base) {
@@ -194,8 +86,10 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
   }
   function apply() {
     var current = runtime.config.theme2;
-    if (current && !current.atlas) { stale = true; publish(current); } else { restyle(current); }
+    if (current && !current.atlas) { stale = true; publish(current); } else { switched(current); }
   }
+
+  // ---- 2. Theme switch
   function resetSchemes() {
     NAMED_SCHEMES.forEach(function (id) {
       var scheme = data.fieldColorModeRegistry.getIfExists(id);
@@ -221,118 +115,28 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
     var range = scene && scene.state && scene.state.$timeRange;
     if (range && typeof range.onRefresh === 'function') { range.onRefresh(); }
   }
-
-  // ---- 2. Stylesheets
-  var paletteStyle = document.createElement('style');
-  paletteStyle.id = 'atlas-theme-palette';
-  var cssStyle = document.createElement('style');
-  cssStyle.id = 'atlas-theme-css';
-  function writeStyles() {
-    paletteStyle.textContent = ':root {\n' + Object.keys(THEME.palette).map(function (key) {
-      return '  ' + paletteVar(key) + ': ' + THEME.palette[key] + ';';
-    }).join('\n') + '\n}\n/*# sourceURL=atlas-palette.css */';
-    cssStyle.textContent = CSS + '\n/*# sourceURL=atlas.css */';
-  }
-  function restyle(theme) {
+  function switched(theme) {
     if (!theme || !theme.colors) { return; }
-    var mode = modeOf(theme);
-    if (mode !== MODE) { generation++; }
-    MODE = mode;
-    document.documentElement.setAttribute('data-atlas-theme', MODE);
     if (!theme.atlas) { stale = true; return; }
     if (stale) {
       stale = false;
-      generation++;
       resetSchemes();
       setTimeout(reprocessPanels, 0);
     }
     paint(theme);
   }
 
-  // ---- 3. Canvas
-  // Panel types that draw state timelines: the core ones and pjan-statetimeline-panel, the
-  // drop-in replacement from ~/Sources/grafana-plugins.
-  var TIMELINE_PANELS = ['state-timeline', 'status-history', 'pjan-statetimeline-panel'];
-  var SCOPE = new WeakMap();
-  function scopeOf(canvas) {
-    var s = SCOPE.get(canvas);
-    if (s !== undefined) { return s; }
-    if (!canvas || !canvas.closest) { return null; }
-    var panel = canvas.closest('[data-plugin-id]');
-    var type = panel ? panel.getAttribute('data-plugin-id') : '';
-    s = { axes: !!canvas.closest('.uplot'), timeline: TIMELINE_PANELS.indexOf(type) >= 0, stat: type === 'stat' };
-    if (canvas.isConnected) { SCOPE.set(canvas, s); }
-    return s;
-  }
-  // The role of the coloured stat tile a sparkline canvas sits on, from the tile's inline fill.
-  function tileRole(canvas) {
-    var tile = canvas.parentElement && canvas.parentElement.closest('div[style*="background"]');
-    var role = tile && own(ROLE_BY_COLOR[MODE], hex6(tile.style.backgroundColor || tile.style.background));
-    return role || null;
-  }
-  function canvasColor(ctx, prop, v) {
-    var canvas = ctx.canvas;
-    var s = scopeOf(canvas);
-    if (!s || !(s.axes || s.stat)) { return v; }
-    var vars, role;
-    if (s.axes) {
-      if (v === GRID[MODE]) { return varsOf(canvas).grid || v; }
-      if (v === THEME.axisText[MODE]) { return varsOf(canvas)['axis-text'] || v; }
-    }
-    if (s.timeline) {
-      if (prop === 'strokeStyle' && v[0] === '#') {
-        role = own(ROLE_BY_COLOR[MODE], v.slice(0, 7).toLowerCase());
-        if (role) { return varsOf(canvas)[role + '-outline'] || v; }
-      }
-      if (prop === 'fillStyle') {
-        if (textRoleCache.generation !== generation) { textRoleCache = { generation: generation, map: textRoles() }; }
-        role = own(textRoleCache.map, v);
-        if (role) { return varsOf(canvas)[role + '-text'] || v; }
-      }
-    }
-    if (s.stat) {
-      role = tileRole(canvas);
-      if (role) {
-        vars = varsOf(canvas);
-        return (prop === 'strokeStyle' ? vars[role + '-sparkline'] : vars[role + '-sparkline-fill']) || v;
-      }
-    }
-    return v;
-  }
-  function wrapCanvas() {
-    var proto = CanvasRenderingContext2D.prototype;
-    ['strokeStyle', 'fillStyle'].forEach(function (prop) {
-      var d = Object.getOwnPropertyDescriptor(proto, prop);
-      Object.defineProperty(proto, prop, {
-        configurable: true, enumerable: d.enumerable, get: d.get,
-        set: function (v) { d.set.call(this, typeof v === 'string' ? canvasColor(this, prop, v) : v); }
-      });
-    });
-  }
-
   // ---- Start
-  // Applies a theme and a stylesheet: the files, or the live editor's local override.
-  function load(theme, css) {
+  // Applies a theme: the file, or the live editor's local override.
+  function activate(theme) {
     THEME = theme;
-    CSS = css;
-    // The colour Grafana draws axis text in: the theme's text colour, per mode.
-    THEME.axisText = { light: ref(THEME.themes.light.colors.text.primary), dark: ref(THEME.themes.dark.colors.text.primary) };
-    roleColors();
-    writeStyles();
-    generation++;
-  }
-  function activate(theme, css) {
-    load(theme, css);
     stale = true;
     publish(runtime.config.theme2);
   }
-  function start(theme, css) {
-    load(theme, css);
-    wrapCanvas();
-    document.head.appendChild(paletteStyle);
-    document.head.appendChild(cssStyle);
+  function start(theme) {
+    THEME = theme;
     runtime.getAppEvents().subscribe(runtime.ThemeChangedEvent, function (event) {
-      restyle(event.payload);
+      switched(event.payload);
       if (event.payload && !event.payload.atlas) { setTimeout(function () { publish(event.payload); }, 0); }
     });
     apply();
@@ -344,16 +148,16 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
     });
   }
 
-  // ---- 5. Live editor: ?atlasEditor=1 on any page opens a drawer with both files. Edits apply
-  // at once and are kept in this browser's localStorage (a local override) until "Reset to
-  // files"; "Copy both" copies them for the repository. Other browsers and users keep seeing
-  // the files.
+  // ---- 3. Live editor: ?atlasEditor=1 on any page opens a drawer with atlas-theme.json. Edits
+  // apply at once and are kept in this browser's localStorage (a local override) until "Reset
+  // to file"; "Copy" copies the text for the repository. Other browsers and users keep seeing
+  // the file.
   var OVERRIDE_KEY = 'atlas-theme-override';
-  var FILES = { theme: '', css: '' };
+  var FILE = '';
   function readOverride() {
     try {
       var o = JSON.parse(window.localStorage.getItem(OVERRIDE_KEY) || 'null');
-      return o && typeof o.theme === 'string' && typeof o.css === 'string' ? o : null;
+      return o && typeof o.theme === 'string' ? o : null;
     } catch (e) { return null; }
   }
   function parseTheme(text) {
@@ -361,19 +165,11 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
     if (!theme.palette || !theme.themes || !theme.names) { throw new Error('atlas-theme.json needs palette, themes, and names'); }
     return theme;
   }
-  // Palette keys atlas-theme.json refers to that do not exist, and --atlas- variables atlas.css
-  // uses that neither the palette nor the stylesheet defines.
-  function problems(themeText, css, palette) {
+  // Palette keys atlas-theme.json refers to that do not exist.
+  function problems(text, palette) {
     var out = [];
-    themeText.replace(/atlas\.([a-z]+[0-9]*)/g, function (m, key) {
+    text.replace(/atlas\.([a-z]+[0-9]*)/g, function (m, key) {
       if (!own(palette, key) && out.indexOf('atlas.' + key) < 0) { out.push('atlas.' + key); }
-      return m;
-    });
-    var defined = {};
-    Object.keys(palette).forEach(function (key) { defined[paletteVar(key)] = true; });
-    css.replace(/(--atlas-[a-z0-9-]+)\s*:/g, function (m, name) { defined[name] = true; return m; });
-    css.replace(/var\(\s*(--atlas-[a-z0-9-]+)/g, function (m, name) {
-      if (!own(defined, name) && out.indexOf(name) < 0) { out.push(name); }
       return m;
     });
     return out;
@@ -391,7 +187,7 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
       badge.addEventListener('click', openEditor);
       document.body.appendChild(badge);
     }
-    badge.textContent = 'Atlas theme: local override' + (o.version !== VERSION ? ' (files are now ' + VERSION + ')' : '');
+    badge.textContent = 'Atlas theme: local override' + (o.version !== VERSION ? ' (file is now ' + VERSION + ')' : '');
     paint();
   }
   // The drawer and badge take their colours from the active theme.
@@ -408,8 +204,7 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
   function openEditor() {
     if (editor) { return; }
     var o = readOverride();
-    var texts = { theme: o ? o.theme : FILES.theme, css: o ? o.css : FILES.css };
-    var tab = 'css';
+    var text = o ? o.theme : FILE;
     var timer = null;
     editor = document.createElement('div');
     editor.id = 'atlas-theme-editor';
@@ -417,11 +212,9 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
       'flex-direction:column;border-left:1px solid;box-shadow:0 0 24px rgba(0,0,0,.25);font:13px/1.4 sans-serif';
     editor.innerHTML =
       '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px">' +
-      '<strong style="flex:1">Atlas theme editor</strong>' +
-      '<button data-a="reset">Reset to files</button><button data-a="copy">Copy both</button>' +
+      '<strong style="flex:1">Atlas theme editor: atlas-theme.json</strong>' +
+      '<button data-a="reset">Reset to file</button><button data-a="copy">Copy</button>' +
       '<button data-a="close" aria-label="Close">✕</button></div>' +
-      '<div style="display:flex;gap:4px;padding:0 12px"><button data-tab="css">atlas.css</button>' +
-      '<button data-tab="theme">atlas-theme.json</button></div>' +
       '<div data-el="palette" style="display:grid;grid-template-columns:repeat(9,1fr);gap:2px;padding:8px 12px"></div>' +
       '<div data-el="status" style="padding:0 12px 6px;min-height:18px"></div>' +
       '<textarea data-el="text" spellcheck="false" style="flex:1;margin:0 12px 12px;padding:8px;resize:none;' +
@@ -434,18 +227,18 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
     });
     var area = editor.querySelector('[data-el="text"]');
     var status = editor.querySelector('[data-el="status"]');
-    // Swatches insert var(--atlas-<key>) in atlas.css and atlas.<key> in atlas-theme.json.
+    // Swatches insert atlas.<key>.
     function palette() {
       var box = editor.querySelector('[data-el="palette"]');
       box.innerHTML = '';
       Object.keys(THEME.palette).filter(function (k) { return /[0-9]00$/.test(k); }).forEach(function (key) {
         var sw = document.createElement('button');
         sw.type = 'button';
-        sw.title = paletteVar(key) + ' / atlas.' + key + ' ' + THEME.palette[key] + ' (click inserts it)';
+        sw.title = 'atlas.' + key + ' ' + THEME.palette[key] + ' (click inserts it)';
         sw.style.cssText = 'height:16px;border:0;border-radius:2px;padding:0;cursor:pointer;background:' + THEME.palette[key];
         sw.addEventListener('click', function () {
           var a = area.selectionStart, b = area.selectionEnd;
-          var ins = tab === 'css' ? 'var(' + paletteVar(key) + ')' : 'atlas.' + key;
+          var ins = 'atlas.' + key;
           area.value = area.value.slice(0, a) + ins + area.value.slice(b);
           area.selectionStart = area.selectionEnd = a + ins.length;
           area.focus();
@@ -454,21 +247,16 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
         box.appendChild(sw);
       });
     }
-    function show(t) {
-      tab = t;
-      area.value = texts[t];
-      editor.querySelectorAll('[data-tab]').forEach(function (b) { b.style.fontWeight = b.getAttribute('data-tab') === t ? '700' : '400'; });
-    }
-    function say(text, bad) { status.textContent = text; status.style.color = bad ? '#ea5a53' : ''; }
+    function say(message, bad) { status.textContent = message; status.style.color = bad ? '#ea5a53' : ''; }
     function changed() {
-      texts[tab] = area.value;
+      text = area.value;
       clearTimeout(timer);
       timer = setTimeout(function () {
         var theme;
-        try { theme = parseTheme(texts.theme); } catch (e) { say('atlas-theme.json: ' + ((e && e.message) || e), true); return; }
-        var found = problems(texts.theme, texts.css, theme.palette);
-        window.localStorage.setItem(OVERRIDE_KEY, JSON.stringify({ version: VERSION, theme: texts.theme, css: texts.css }));
-        activate(theme, texts.css);
+        try { theme = parseTheme(text); } catch (e) { say('atlas-theme.json: ' + ((e && e.message) || e), true); return; }
+        var found = problems(text, theme.palette);
+        window.localStorage.setItem(OVERRIDE_KEY, JSON.stringify({ version: VERSION, theme: text }));
+        activate(theme);
         palette();
         updateBadge();
         say(found.length ? 'Applied; undefined: ' + found.join(', ') : 'Applied (local override in this browser)', found.length > 0);
@@ -489,46 +277,41 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
     editor.addEventListener('click', function (e) {
       var b = e.target.closest('button');
       if (!b) { return; }
-      if (b.getAttribute('data-tab')) { texts[tab] = area.value; show(b.getAttribute('data-tab')); return; }
       var a = b.getAttribute('data-a');
       if (a === 'close') { editor.remove(); editor = null; return; }
       if (a === 'copy') {
-        navigator.clipboard.writeText('/* atlas.css */\n' + texts.css.trim() + '\n\n// atlas-theme.json\n' + texts.theme.trim() + '\n')
-          .then(function () { say('Copied both files'); }, function () { say('Copying failed; select the text instead', true); });
+        navigator.clipboard.writeText(text.trim() + '\n')
+          .then(function () { say('Copied atlas-theme.json'); }, function () { say('Copying failed; select the text instead', true); });
       }
       if (a === 'reset') {
         window.localStorage.removeItem(OVERRIDE_KEY);
-        texts = { theme: FILES.theme, css: FILES.css };
-        activate(parseTheme(FILES.theme), FILES.css);
-        show(tab);
+        text = FILE;
+        activate(parseTheme(FILE));
+        area.value = text;
         palette();
         updateBadge();
-        say('Back to the files (' + VERSION + ')');
+        say('Back to the file (' + VERSION + ')');
       }
     });
+    area.value = text;
     palette();
-    show('css');
     paint();
-    say(o ? 'Local override active' + (o.version !== VERSION ? '; it was made on ' + o.version + ', the files are now ' + VERSION : '') :
-      'Editing a copy of the files (' + VERSION + ')', !!(o && o.version !== VERSION));
+    say(o ? 'Local override active' + (o.version !== VERSION ? '; it was made on ' + o.version + ', the file is now ' + VERSION : '') :
+      'Editing a copy of the file (' + VERSION + ')', !!(o && o.version !== VERSION));
   }
   function editorRequested() { return /[?&]atlasEditor=1(&|$)/.test(window.location.search); }
 
-  function fetchText(name) {
-    return fetch(BASE + name + '?_cache=' + VERSION).then(function (r) {
-      if (!r.ok) { throw new Error(name + ': HTTP ' + r.status); }
-      return r.text();
-    });
-  }
-  Promise.all([fetchText('atlas-theme.json'), fetchText('atlas.css')]).then(function (files) {
-    FILES = { theme: files[0], css: files[1] };
-    var theme = parseTheme(FILES.theme);
-    var css = FILES.css;
+  fetch(BASE + 'atlas-theme.json?_cache=' + VERSION).then(function (r) {
+    if (!r.ok) { throw new Error('atlas-theme.json: HTTP ' + r.status); }
+    return r.text();
+  }).then(function (file) {
+    FILE = file;
+    var theme = parseTheme(FILE);
     var o = readOverride();
     if (o) {
-      try { theme = parseTheme(o.theme); css = o.css; } catch (e) { console.error('atlas-theme: local override ignored', e); }
+      try { theme = parseTheme(o.theme); } catch (e) { console.error('atlas-theme: local override ignored', e); }
     }
-    start(theme, css);
+    start(theme);
     updateBadge();
     if (editorRequested()) { openEditor(); }
     runtime.locationService.getHistory().listen(function () { if (editorRequested()) { openEditor(); } });
