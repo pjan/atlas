@@ -14,12 +14,15 @@
  *    dashboard process its field config again; otherwise both keep the previous colours.
  * 3. Live editor: ?atlasEditor=1 opens a drawer to edit atlas-theme.json in the browser; edits
  *    apply at once and stay in this browser's localStorage until "Reset to file".
+ * 4. Colour picker: Grafana sizes the picker's palette for its own six hues and doesn't let it
+ *    scroll, so with the extra hues the rows below spilled out of the picker. One style rule makes
+ *    the hue rows scroll inside it.
  *
  * All of it uses undocumented Grafana behaviour: publishing ThemeChangedEvent with a
- * replacement theme, hues appended to theme.visualization.hues, FieldColorSchemeMode's cache
- * fields, and the dashboard scene's panels (window.__grafanaSceneContext,
- * clearFieldConfigCache) (Grafana 13.2.3). After a Grafana upgrade, run
- * scripts/theme-probe.sh (README.md, Monitoring).
+ * replacement theme, hues appended to theme.visualization.hues, the colour picker's DOM
+ * (ColorPickerPopover, NamedColorsPalette), FieldColorSchemeMode's cache fields, and the
+ * dashboard scene's panels (window.__grafanaSceneContext, clearFieldConfigCache) (Grafana
+ * 13.2.3). After a Grafana upgrade, run scripts/theme-probe.sh (README.md, Monitoring).
  * Without the plugin (it does not load for viewers without an org role, such as public
  * dashboards) the dashboards work with Grafana's stock colours, except the extra names:
  * super-light-gray timeline segments render black, and gray, lime, teal, ... are CSS colours
@@ -150,6 +153,21 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
       setTimeout(reprocessPanels, 0);
     }
     paint(theme);
+  }
+
+  // ---- 4. Colour picker
+  // The palette is a 290 px box (ColorPickerPopover's content, overflow visible) holding the grid of
+  // hue rows (NamedColorsPalette) and, below it, Transparent and Text color. In the grid, a row holds
+  // a label and its swatches, each a button labelled "<shade name> color" in a wrapper. Grafana's
+  // class names are generated, so the grid is found as the element four levels above such a button;
+  // in the fixed-height box, it then scrolls and Transparent and Text color stay below it.
+  var PICKER_CSS = 'div:has(> div > div > div > button[aria-label*="super-light-"]) { overflow-y: auto; }';
+  function styleColorPicker() {
+    if (document.getElementById('atlas-theme-color-picker')) { return; }
+    var style = document.createElement('style');
+    style.id = 'atlas-theme-color-picker';
+    style.textContent = PICKER_CSS;
+    document.head.appendChild(style);
   }
 
   // ---- Start
@@ -338,6 +356,7 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
       try { theme = parseTheme(o.theme); } catch (e) { console.error('atlas-theme: local override ignored', e); }
     }
     start(theme);
+    styleColorPicker();
     updateBadge();
     if (editorRequested()) { openEditor(); }
     runtime.locationService.getHistory().listen(function () { if (editorRequested()) { openEditor(); } });
