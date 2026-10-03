@@ -8,7 +8,7 @@
  * 1. Theme: builds the theme with createTheme() and publishes it as the active theme on
  *    load, on every theme change, and again after 200 ms, 1 s, and 3 s (Grafana may still
  *    publish its own theme while starting). The built theme also resolves the extra colour
- *    names (gray, teal, ...).
+ *    names (gray, teal, ...) and lists them as hues, so Grafana's colour picker offers them.
  * 2. Theme switch: whenever an Atlas theme replaces a stock one (on load, on a switch, after an
  *    edit), resets Grafana's cached continuous colour schemes and makes every panel of the open
  *    dashboard process its field config again; otherwise both keep the previous colours.
@@ -16,12 +16,14 @@
  *    apply at once and stay in this browser's localStorage until "Reset to file".
  *
  * All of it uses undocumented Grafana behaviour: publishing ThemeChangedEvent with a
- * replacement theme, FieldColorSchemeMode's cache fields, and the dashboard scene's panels
- * (window.__grafanaSceneContext, clearFieldConfigCache) (Grafana 13.2.3). After a Grafana
- * upgrade, run scripts/theme-probe.sh (README.md, Monitoring).
+ * replacement theme, hues appended to theme.visualization.hues, FieldColorSchemeMode's cache
+ * fields, and the dashboard scene's panels (window.__grafanaSceneContext,
+ * clearFieldConfigCache) (Grafana 13.2.3). After a Grafana upgrade, run
+ * scripts/theme-probe.sh (README.md, Monitoring).
  * Without the plugin (it does not load for viewers without an org role, such as public
  * dashboards) the dashboards work with Grafana's stock colours, except the extra names:
- * super-light-gray timeline segments render black, gray ones in Grafana's CSS gray.
+ * super-light-gray timeline segments render black, and gray, lime, teal, ... are CSS colours
+ * (lime is #00ff00).
  *
  * Bump info.version in plugin.json with every change to this directory: Grafana loads this
  * file as module.js?_cache=<version>, and this file loads atlas-theme.json with the same key.
@@ -71,6 +73,8 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
   function own(map, key) { return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : undefined; }
 
   // ---- 1. Theme
+  // Grafana's five shade names of a hue, in its own order; the base shade is the primary one.
+  var SHADE_PREFIXES = ['super-light-', 'light-', '', 'semi-dark-', 'dark-'];
   function build(base) {
     var mode = modeOf(base);
     var theme = data.createTheme(resolve(THEME.themes[mode]));
@@ -79,7 +83,29 @@ define(['@grafana/data', '@grafana/runtime'], function (data, runtime) {
     var names = resolve(THEME.names[mode]);
     var byName = theme.visualization.getColorByName;
     theme.visualization.getColorByName = function (name) { return (name && own(names, name)) || byName(name); };
+    extraHues(names).forEach(function (hue) {
+      theme.visualization.hues.push({
+        name: hue,
+        shades: SHADE_PREFIXES.map(function (prefix) {
+          var shade = { color: theme.visualization.getColorByName(prefix + hue), name: prefix + hue };
+          if (!prefix) { shade.primary = true; }
+          return shade;
+        }),
+      });
+    });
     return theme;
+  }
+  // The hues of the extra colour names (gray, teal, ...), in the order of names, each with all five shade names.
+  // createTheme() ignores hue names Grafana doesn't have (createVisualizationColors.ts), so build() appends them to
+  // theme.visualization.hues: Grafana's colour picker lists them, and panel plugins can find a colour's nearest hue.
+  function extraHues(names) {
+    var hues = [];
+    Object.keys(names).forEach(function (name) {
+      var hue = name.replace(/^(super-light-|light-|semi-dark-|dark-)/, '');
+      var complete = SHADE_PREFIXES.every(function (prefix) { return own(names, prefix + hue) !== undefined; });
+      if (complete && hues.indexOf(hue) < 0) { hues.push(hue); }
+    });
+    return hues;
   }
   function publish(base) {
     runtime.getAppEvents().publish(new runtime.ThemeChangedEvent(build(base)));
