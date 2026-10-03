@@ -201,6 +201,52 @@ services:
       retries: 3
       start_period: 20s
 
+  # The same probes, resolved through public DNS: probes of the Cloudflare path
+  # (Cloudflare Access, authentik through the tunnel) must not follow Atlas'
+  # own DNS for *.atlas.vandaele.io, which points at Caddy on the LAN.
+  blackbox-public:
+    image: prom/blackbox-exporter:v0.28.0
+    container_name: blackbox-public
+    restart: unless-stopped
+    user: "65534:65534"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - --config.file=/etc/blackbox_exporter/blackbox.yml
+      - --config.enable-auto-reload
+      - --web.listen-address=:9115
+    dns:
+      - 1.1.1.1
+      - 1.0.0.1
+    volumes:
+      - type: bind
+        source: ./blackbox
+        target: /etc/blackbox_exporter
+        read_only: true
+        bind:
+          create_host_path: false
+    expose:
+      - "9115"
+    networks:
+      - monitoring_network
+    mem_limit: 64m
+    cpus: 0.5
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:9115/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
   # SMART for every disk: sda (Seagate 12 TB, Volume 1), nvme0 (Lexar 512 GB,
   # Volume 2), nvme1 (TWSC 128 GB, UGOS system). Stable by-id names avoid
   # sdX/nvmeX reordering; recreate the stack after adding or replacing disks.

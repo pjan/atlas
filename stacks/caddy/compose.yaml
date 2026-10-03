@@ -1,6 +1,9 @@
 services:
   caddy:
-    image: caddy:2.11.6
+    # Built from ./Dockerfile by the caddy pre_deploy (README "Caddy"); the
+    # local name keeps a pull from replacing it.
+    build: .
+    image: atlas-caddy:local
     container_name: caddy
     restart: unless-stopped
     read_only: true
@@ -14,6 +17,10 @@ services:
       - no-new-privileges:true
     ports:
       - "${HTTP_BIND_IP:?HTTP_BIND_IP is required}:${HTTP_PORT:?HTTP_PORT is required}:80"
+      - "${HTTP_BIND_IP:?HTTP_BIND_IP is required}:443:443"
+    # Port 8080 (the Cloudflare Tunnel's origin) is deliberately not published.
+    environment:
+      - CLOUDFLARE_DNS_API_TOKEN=${CLOUDFLARE_DNS_API_TOKEN:?CLOUDFLARE_DNS_API_TOKEN is required}
     extra_hosts:
       - host.docker.internal:host-gateway
     volumes:

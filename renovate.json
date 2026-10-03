@@ -15,7 +15,6 @@
       "matchPackageNames": [
         "adguard/adguardhome",
         "busybox",
-        "caddy",
         "cloudflare/cloudflared",
         "flaresolverr/flaresolverr",
         "garethgeorge/backrest",
@@ -102,6 +101,12 @@
       "automerge": true
     },
     {
+      "description": "Review every Caddy update by hand, as one group: the image is built on the NAS from stacks/caddy/Dockerfile, and its Cloudflare DNS module holds a token that can edit every vandaele.io DNS record. Docker versioning reads the builder's -builder suffix as a compatibility suffix.",
+      "matchFileNames": ["stacks/caddy/Dockerfile"],
+      "groupName": "caddy",
+      "automerge": false
+    },
+    {
       "description": "Review every Alertmanager update: webhook payload templating is experimental, and a regression makes Discord reject every alert.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["prom/alertmanager"],
@@ -118,6 +123,16 @@
     }
   ],
   "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update the Cloudflare DNS module built into Caddy.",
+      "managerFilePatterns": ["/^stacks\\/caddy\\/Dockerfile$/"],
+      "matchStrings": [
+        "ARG CADDY_DNS_CLOUDFLARE_VERSION=(?<currentValue>v[0-9.]+)"
+      ],
+      "depNameTemplate": "github.com/caddy-dns/cloudflare",
+      "datasourceTemplate": "go"
+    },
     {
       "customType": "regex",
       "description": "Update the pinned Atlas host filesystem utility image.",

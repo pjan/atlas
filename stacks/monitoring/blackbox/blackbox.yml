@@ -91,6 +91,17 @@ modules:
         - header: Location
           regexp: 'cloudflareaccess\.com'
 
+  # Caddy's HTTPS listener: the TLS handshake must succeed with a certificate
+  # valid for *.atlas.vandaele.io. Exports probe_ssl_earliest_cert_expiry.
+  tls_caddy:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      preferred_ip_protocol: ip4
+      tls: true
+      tls_config:
+        server_name: caddy.atlas.vandaele.io
+
   tcp_connect:
     prober: tcp
     timeout: 5s

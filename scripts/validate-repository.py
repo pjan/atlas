@@ -103,6 +103,11 @@ LOCAL_ONLY_CADDY_ROUTES = {"backrest"}
 # Routes that are public only: the authentik login must be the same HTTPS
 # origin for every client (README "authentik").
 PUBLIC_ONLY_CADDY_ROUTES = {"auth"}
+# One address of a Caddy site block, as written in conf/sites/*.caddy.
+CADDY_SITE_ADDRESS_PATTERN = re.compile(
+    r"(?:(?P<scheme>https?)://)?(?P<name>[a-z0-9-]+)\.atlas\."
+    r"(?P<zone>local|vandaele\.io)(?::(?P<port>[0-9]+))?"
+)
 ALLOWED_DIRECT_INPUT_ALIASES = {
     ("adguard", "DNS_BIND_IP", "NAS_LAN_IP"),
     ("caddy", "HTTP_BIND_IP", "NAS_LAN_IP"),
@@ -153,6 +158,8 @@ VALIDATION_VALUES = {
     "BACKREST_RESTORE_DIR": "/volume2/tmp/backrest/restore",
     "BACKUPS_DIR": "/volume1/backups",
     "BACKUP_DIR": "/volume1/backups/roonserver",
+    # caddy-dns/cloudflare rejects a token that is not 35-50 characters.
+    "CLOUDFLARE_DNS_API_TOKEN": "atlasvalidationdummytoken0000000000000",
     "CONFIG_DIR": "/volume2/appdata/validation",
     "CONF_DIR": "/volume2/appdata/adguard/conf",
     "CRON_SCHEDULE": "15 4 * * *",
@@ -717,33 +724,64 @@ def validate_caddy(stacks_by_name: dict[str, dict], validation: Validation) -> N
         f"Caddy site registration mismatch: {sorted(site_paths ^ registered_sites)}",
     )
 
-    caddy_hostnames = set()
+    # Route name -> the listeners it is served on: "local" (http://*.atlas.local),
+    # "public-http" (http://*.atlas.vandaele.io on :80), "https" (:443), and
+    # "tunnel" (http://*.atlas.vandaele.io:8080, the Cloudflare Tunnel's origin).
+    route_listeners: dict[str, set[str]] = {}
     for site_path in (STACKS_ROOT / "caddy" / "conf" / "sites").glob("*.caddy"):
         site_text = site_path.read_text(encoding="utf-8")
-        caddy_hostnames.update(
-            re.findall(
-                r"https?://([a-z0-9.-]+\.atlas\.(?:local|vandaele\.io))",
-                site_text,
-            )
-        )
+        for line in site_text.splitlines():
+            # Site addresses open a top-level block.
+            if not line or line[0].isspace() or not line.rstrip().endswith("{"):
+                continue
+            for address in line.rstrip().removesuffix("{").split(","):
+                match = CADDY_SITE_ADDRESS_PATTERN.fullmatch(address.strip())
+                if match is None:
+                    if "atlas." in address:
+                        validation.errors.append(
+                            f"{relative(site_path)} has an unrecognised Caddy "
+                            f"address: {address.strip()}"
+                        )
+                    continue
+                scheme, name, zone, port = match.group("scheme", "name", "zone", "port")
+                if zone == "local":
+                    listener = "local"
+                elif scheme == "http" and port == "8080":
+                    listener = "tunnel"
+                elif scheme == "http" and port is None:
+                    listener = "public-http"
+                elif scheme in (None, "https") and port in (None, "443"):
+                    listener = "https"
+                else:
+                    validation.errors.append(
+                        f"{relative(site_path)} has an unexpected Caddy listener: "
+                        f"{address.strip()}"
+                    )
+                    continue
+                route_listeners.setdefault(name, set()).add(listener)
         for match in re.finditer(
             r"(?m)^\s*import\s+(?:atlas_reverse_proxy|atlas_rclone)\s+([a-z0-9-]+)\b",
             site_text,
         ):
-            route_name = match.group(1)
-            caddy_hostnames.add(f"{route_name}.atlas.local")
-            caddy_hostnames.add(f"{route_name}.atlas.vandaele.io")
+            route_listeners.setdefault(match.group(1), set()).update(
+                {"local", "public-http", "https", "tunnel"}
+            )
 
     local_route_names = {
-        hostname.removesuffix(".atlas.local")
-        for hostname in caddy_hostnames
-        if hostname.endswith(".atlas.local")
+        name for name, listeners in route_listeners.items() if "local" in listeners
     }
     public_route_names = {
-        hostname.removesuffix(".atlas.vandaele.io")
-        for hostname in caddy_hostnames
-        if hostname.endswith(".atlas.vandaele.io")
+        name
+        for name, listeners in route_listeners.items()
+        if listeners & {"public-http", "https", "tunnel"}
     }
+    for name in sorted(public_route_names):
+        missing = {"https", "tunnel"} - route_listeners[name]
+        validation.require(
+            not missing,
+            f"Caddy public route {name} must be served on HTTPS (:443) and on the "
+            f"tunnel listener (:8080); missing: {sorted(missing)}",
+        )
     validation.require(
         not (LOCAL_ONLY_CADDY_ROUTES & public_route_names),
         "LAN-only Caddy routes must not define public hostnames: "

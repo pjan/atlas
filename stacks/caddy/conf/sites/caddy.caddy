@@ -1,3 +1,3 @@
-http://caddy.atlas.local, http://caddy.atlas.vandaele.io {
+http://caddy.atlas.local, caddy.atlas.vandaele.io, http://caddy.atlas.vandaele.io, http://caddy.atlas.vandaele.io:8080 {
 	respond "ok" 200
 }

@@ -34,7 +34,7 @@ scrape_configs:
 
   - job_name: blackbox
     static_configs:
-      - targets: ["blackbox-exporter:9115"]
+      - targets: ["blackbox-exporter:9115", "blackbox-public:9115"]
 
   - job_name: smartctl
     scrape_interval: 60s
@@ -223,11 +223,12 @@ scrape_configs:
       - targets: ["http://spottarr.atlas.local/healthz"]
         labels: {module: http_health_200, service: spottarr}
       # authentik has no LAN hostname: directly on monitoring_network, and
-      # through the Cloudflare Tunnel and Caddy.
+      # through the Cloudflare Tunnel and Caddy. The public probe runs on
+      # blackbox-public, which resolves through public DNS.
       - targets: ["http://authentik-server:9000/-/health/ready/"]
         labels: {module: http_health_200, service: authentik}
       - targets: ["https://auth.atlas.vandaele.io/-/health/live/"]
-        labels: {module: http_health_200, service: authentik-public}
+        labels: {module: http_health_200, service: authentik-public, __exporter: "blackbox-public:9115"}
     relabel_configs:
       - source_labels: [module]
         target_label: __param_module
@@ -237,6 +238,9 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: blackbox-exporter:9115
+      - source_labels: [__exporter]
+        regex: (.+)
+        target_label: __address__
 
   # Every Caddy route on the LAN hostname: DNS (UniFi wildcard), Caddy, and the app.
   - job_name: probe_routes
@@ -325,7 +329,8 @@ scrape_configs:
 
   # Public hostnames must answer with the Cloudflare Access login redirect.
   # This proves DNS and the Cloudflare edge, not the tunnel itself (see
-  # cloudflared metrics in Phase 4b).
+  # cloudflared metrics in Phase 4b). Probed from blackbox-public, which
+  # resolves through public DNS.
   - job_name: probe_cloudflare_access
     scrape_interval: 300s
     metrics_path: /probe
@@ -335,6 +340,25 @@ scrape_configs:
       - targets:
           - https://grafana.atlas.vandaele.io
           - https://seerr.atlas.vandaele.io
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-public:9115
+
+  # Caddy's HTTPS listener and the *.atlas.vandaele.io certificate it serves,
+  # without DNS (CertificateExpiringSoon).
+  - job_name: probe_tls_caddy
+    scrape_interval: 300s
+    metrics_path: /probe
+    params:
+      module: [tls_caddy]
+    static_configs:
+      - targets: ["192.168.2.200:443"]
+        labels:
+          service: caddy
     relabel_configs: *probe_relabel
 
   # Outbound internet from the NAS (not through the VPN).

@@ -2,6 +2,33 @@
 	metrics {
 		per_host
 	}
+	# HTTPS for the LAN and Tailscale. No HTTP/3: UDP 443 is not published.
+	servers :443 {
+		protocols h1 h2
+	}
+	# The Cloudflare Tunnel's origin, reachable only on Docker networks. The
+	# client is the address Cloudflare saw (CF-Connecting-IP).
+	servers :8080 {
+		trusted_proxies static private_ranges
+		client_ip_headers CF-Connecting-IP
+	}
+}
+
+# Owns the one *.atlas.vandaele.io certificate, which every site on :443 uses
+# (Caddy issues no per-host certificates under a managed wildcard), and answers
+# hostnames without a site. The DNS challenge's propagation check asks public
+# resolvers, so Atlas' own DNS for *.atlas.vandaele.io cannot hide the record.
+*.atlas.vandaele.io {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_DNS_API_TOKEN}
+		resolvers 1.1.1.1 1.0.0.1
+	}
+	respond 404
+}
+
+# Tunnel requests for a hostname without a site.
+http://:8080 {
+	respond 404
 }
 
 # Public hostnames never expose application metrics endpoints.
@@ -15,14 +42,14 @@
 		reverse_proxy {args[1]}
 	}
 
-	http://{args[0]}.atlas.vandaele.io {
+	{args[0]}.atlas.vandaele.io, http://{args[0]}.atlas.vandaele.io, http://{args[0]}.atlas.vandaele.io:8080 {
 		import atlas_hide_metrics
 		reverse_proxy {args[1]}
 	}
 }
 
 (atlas_rclone) {
-	http://{args[0]}.atlas.local, http://{args[0]}.atlas.vandaele.io {
+	http://{args[0]}.atlas.local, {args[0]}.atlas.vandaele.io, http://{args[0]}.atlas.vandaele.io, http://{args[0]}.atlas.vandaele.io:8080 {
 		@rclone_bootstrap `path('/') || (path('/login') && !query({'url': '*'}) )`
 
 		handle @rclone_bootstrap {

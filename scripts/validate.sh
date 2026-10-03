@@ -45,7 +45,13 @@ docker run --rm \
   -v "$repo_root/stacks/monitoring/blackbox:/etc/blackbox_exporter:ro" \
   "$blackbox_image" --config.file=/etc/blackbox_exporter/blackbox.yml --config.check
 
+# Caddy is built from stacks/caddy/Dockerfile. Validation provisions the
+# Cloudflare DNS module, which only accepts a well-formed token.
 HTTP_BIND_IP=127.0.0.1 HTTP_PORT=18080 \
+  CLOUDFLARE_DNS_API_TOKEN=atlasvalidationdummytoken0000000000000 \
+  docker compose -f stacks/caddy/compose.yaml build caddy
+HTTP_BIND_IP=127.0.0.1 HTTP_PORT=18080 \
+  CLOUDFLARE_DNS_API_TOKEN=atlasvalidationdummytoken0000000000000 \
   docker compose -f stacks/caddy/compose.yaml run --rm --no-deps caddy \
   caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 

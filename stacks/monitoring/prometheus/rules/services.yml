@@ -31,6 +31,32 @@ groups:
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
           runbook: https://github.com/pjan/atlas#caddy
 
+      # Caddy's *.atlas.vandaele.io certificate on :443 (job probe_tls_caddy):
+      # under 10 days left, or no valid certificate at all. Caddy renews with
+      # a third of the lifetime left (30 days of 90), so this means renewals
+      # have failed for days.
+      - alert: CaddyCertificateFailing
+        expr: |
+          (
+              probe_ssl_earliest_cert_expiry{job="probe_tls_caddy"} - time() < 10 * 86400
+            or
+              probe_success{job="probe_tls_caddy"} == 0
+          )
+          unless on () atlas:maintenance == 1
+        for: 30m
+        labels:
+          check: services.caddy
+          severity: warning
+          source: prometheus
+        annotations:
+          title: Caddy certificate failing
+          description: Caddy's *.atlas.vandaele.io certificate expires within 10 days or is not valid, so renewals through the Cloudflare DNS challenge are failing. Check the caddy logs and CLOUDFLARE_DNS_API_TOKEN in Komodo, then redeploy caddy.
+          target: "{{ $labels.instance }}"
+          details: "{{ $value | humanizeDuration }} left (0s when the TLS handshake fails)"
+          link: http://komodo.atlas.local
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+          runbook: https://github.com/pjan/atlas#caddy
+
       # Application health endpoints (job probe_health). Caddy's own probe is
       # left to CaddyDown; Plex has the critical rule below.
       - alert: ProbeFailed

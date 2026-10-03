@@ -1203,7 +1203,7 @@ config_files = [
   { path = "prometheus/rules/containers.yml", services = ["prometheus"], requires = "None" },
   { path = "alertmanager/alertmanager.yml", services = ["alertmanager"], requires = "None" },
   { path = "alertmanager/atlas.tmpl", services = ["alertmanager"], requires = "None" },
-  { path = "blackbox/blackbox.yml", services = ["blackbox-exporter"], requires = "None" },
+  { path = "blackbox/blackbox.yml", services = ["blackbox-exporter", "blackbox-public"], requires = "None" },
   { path = "json/json.yml", services = ["json-exporter"], requires = "Restart" },
   { path = "grafana/provisioning/datasources/prometheus.yml", services = ["grafana"], requires = "Restart" },
   { path = "grafana/plugins/atlas-theme-app/plugin.json", services = ["grafana"], requires = "Restart" },
@@ -1283,9 +1283,11 @@ branch = "main"
 project_name = "caddy"
 run_directory = "stacks/caddy"
 file_paths = ["compose.yaml"]
-auto_pull = true
-poll_for_updates = true
+# The image is built here from Dockerfile, never pulled (README "Caddy").
+auto_pull = false
+poll_for_updates = false
 config_files = [
+  { path = "Dockerfile", services = ["caddy"], requires = "Redeploy" },
   { path = "conf/Caddyfile", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/adguard.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/auth.caddy", services = ["caddy"], requires = "Restart" },
@@ -1320,7 +1322,16 @@ sh ../../scripts/ensure-docker-network.sh media_network
 sh ../../scripts/ensure-docker-network.sh proxy_network
 sh ../../scripts/ensure-docker-network.sh rclone_network
 sh ../../scripts/ensure-docker-network.sh monitoring_network
-HTTP_BIND_IP=[[NAS_LAN_IP]] HTTP_PORT=[[HTTP_PORT]] docker compose -f compose.yaml pull caddy
+# A malformed Cloudflare token stops Caddy from loading any site and puts the
+# token in its log, so check the value Komodo wrote to .env first, without
+# printing it. The build and validation below use a well-formed dummy token.
+sed -n 's/^CLOUDFLARE_DNS_API_TOKEN=//p' .env |
+  grep -Eq '^([A-Za-z0-9_-]{35,50}|cf(ut|at)_[A-Za-z0-9_-]{32,256})$' || {
+  echo "CLOUDFLARE_DNS_API_TOKEN is missing or malformed; fix it in Komodo" >&2
+  exit 1
+}
+export CLOUDFLARE_DNS_API_TOKEN=atlasvalidationdummytoken0000000000000
+HTTP_BIND_IP=[[NAS_LAN_IP]] HTTP_PORT=[[HTTP_PORT]] docker compose -f compose.yaml build --pull caddy
 HTTP_BIND_IP=[[NAS_LAN_IP]] HTTP_PORT=[[HTTP_PORT]] docker compose -f compose.yaml run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 """
 post_deploy.path = "."
@@ -1371,6 +1382,7 @@ cat "$expected_hosts"
 environment = """
 HTTP_BIND_IP = [[NAS_LAN_IP]]
 HTTP_PORT = [[HTTP_PORT]]
+CLOUDFLARE_DNS_API_TOKEN = [[CLOUDFLARE_DNS_API_TOKEN]]
 """
 
 ### ACTIONS ###
