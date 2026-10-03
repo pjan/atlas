@@ -1,6 +1,6 @@
 # Atlas theme plugin
 
-`atlas-theme-app` gives Grafana the Atlas Light and Atlas Dark themes. It is a preload app plugin with no build step, and every Grafana page loads it. It only changes Grafana's theme; styling beyond the theme belongs in panel options (for example the looks of the State timeline ++ panel plugin). Two files matter:
+`atlas-theme-app` gives Grafana the Atlas Light and Atlas Dark themes. It is a preload app plugin with no build step, and every Grafana page loads it. It only changes Grafana's theme; styling beyond the theme belongs in panel options (for example the looks of the State timeline plus panel plugin). Two files matter:
 
 | File | What it holds |
 |---|---|
@@ -8,6 +8,8 @@
 | `module.js` | The engine that applies the file. It contains no colours. |
 
 The rules the file implements are in `pjan/atlas-dashboards` `CONVENTIONS.md`.
+
+Each mode's `text.maxContrast` is the other mode's page colour (light: `atlas.ink`, dark: `atlas.page`). The plus panel plugins' "Automatic" text colour searches between a theme's page colour and its `maxContrast`, so in both modes it ends at the two page colours.
 
 ## Editing
 

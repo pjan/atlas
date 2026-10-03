@@ -5,8 +5,8 @@
   "preload": true,
   "autoEnabled": true,
   "info": {
-    "version": "4.0.0",
-    "updated": "2026-10-02",
+    "version": "4.0.1",
+    "updated": "2026-10-03",
     "author": { "name": "pjan" },
     "keywords": ["theme"],
     "logos": { "small": "", "large": "" },

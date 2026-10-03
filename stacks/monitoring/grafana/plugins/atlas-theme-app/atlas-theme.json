@@ -418,7 +418,7 @@
           "secondary": "atlas.gray300",
           "disabled": "atlas.gray500",
           "link": "atlas.indigo300",
-          "maxContrast": "atlas.white"
+          "maxContrast": "atlas.page"
         },
         "border": {
           "weak": "atlas.gray100/0.12",
