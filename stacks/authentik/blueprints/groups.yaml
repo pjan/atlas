@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+# Atlas groups (README "authentik"). Users are created in the authentik UI,
+# never here: they carry passwords.
+version: 1
+metadata:
+  name: Atlas - Groups
+entries:
+  # pjan. Also authentik superusers, so akadmin can be disabled.
+  - model: authentik_core.group
+    identifiers:
+      name: admins
+    attrs:
+      is_superuser: true
+
+  # pjan's family.
+  - model: authentik_core.group
+    identifiers:
+      name: family
+    attrs:
+      is_superuser: false

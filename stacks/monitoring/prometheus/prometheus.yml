@@ -84,6 +84,11 @@ scrape_configs:
     static_configs:
       - targets: ["unpackerr:5656"]
 
+  # authentik's server on monitoring_network (README "authentik").
+  - job_name: authentik
+    static_configs:
+      - targets: ["authentik-server:9300"]
+
   # Application exporters (API keys from Komodo variables).
   - job_name: exportarr
     scrape_interval: 2m
@@ -181,8 +186,8 @@ scrape_configs:
       - regex: schedule_error
         action: labeldrop
 
-  # Application health endpoints through Caddy. Each target selects its
-  # blackbox module with the "module" label.
+  # Application health endpoints, through Caddy unless noted. Each target
+  # selects its blackbox module with the "module" label.
   - job_name: probe_health
     scrape_interval: 60s
     metrics_path: /probe
@@ -217,6 +222,12 @@ scrape_configs:
         labels: {module: http_health_200, service: qui}
       - targets: ["http://spottarr.atlas.local/healthz"]
         labels: {module: http_health_200, service: spottarr}
+      # authentik has no LAN hostname: directly on monitoring_network, and
+      # through the Cloudflare Tunnel and Caddy.
+      - targets: ["http://authentik-server:9000/-/health/ready/"]
+        labels: {module: http_health_200, service: authentik}
+      - targets: ["https://auth.atlas.vandaele.io/-/health/live/"]
+        labels: {module: http_health_200, service: authentik-public}
     relabel_configs:
       - source_labels: [module]
         target_label: __param_module

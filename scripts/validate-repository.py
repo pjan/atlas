@@ -100,6 +100,9 @@ ATLAS_MAX_FIELD_VALUES = {
 }
 # Routes that must stay LAN-only: they expose every backup secret.
 LOCAL_ONLY_CADDY_ROUTES = {"backrest"}
+# Routes that are public only: the authentik login must be the same HTTPS
+# origin for every client (README "authentik").
+PUBLIC_ONLY_CADDY_ROUTES = {"auth"}
 ALLOWED_DIRECT_INPUT_ALIASES = {
     ("adguard", "DNS_BIND_IP", "NAS_LAN_IP"),
     ("caddy", "HTTP_BIND_IP", "NAS_LAN_IP"),
@@ -142,6 +145,8 @@ VALIDATION_VALUES = {
     "ALERTMANAGER_DATA_DIR": "/volume2/appdata/alertmanager",
     "APPDATA_DIR": "/volume2/appdata",
     "APP_URL": "http://speedtest.atlas.local",
+    "AUTHENTIK_DATA_DIR": "/volume2/appdata/authentik/data",
+    "AUTHENTIK_POSTGRES_DIR": "/volume2/appdata/authentik/postgres",
     "BACKREST_CACHE_DIR": "/volume2/tmp/backrest/cache",
     "BACKREST_CONFIG_DIR": "/volume2/appdata/backrest/config",
     "BACKREST_DATA_DIR": "/volume2/appdata/backrest/data",
@@ -745,9 +750,16 @@ def validate_caddy(stacks_by_name: dict[str, dict], validation: Validation) -> N
         f"{sorted(LOCAL_ONLY_CADDY_ROUTES & public_route_names)}",
     )
     validation.require(
-        local_route_names - LOCAL_ONLY_CADDY_ROUTES == public_route_names,
+        not (PUBLIC_ONLY_CADDY_ROUTES & local_route_names),
+        "Public-only Caddy routes must not define local hostnames: "
+        f"{sorted(PUBLIC_ONLY_CADDY_ROUTES & local_route_names)}",
+    )
+    paired_local = local_route_names - LOCAL_ONLY_CADDY_ROUTES
+    paired_public = public_route_names - PUBLIC_ONLY_CADDY_ROUTES
+    validation.require(
+        paired_local == paired_public,
         "Caddy routes must define matching local and public hostnames: "
-        f"{sorted((local_route_names - LOCAL_ONLY_CADDY_ROUTES) ^ public_route_names)}",
+        f"{sorted(paired_local ^ paired_public)}",
     )
 
     for item in config.get("config_files", []):

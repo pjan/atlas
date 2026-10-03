@@ -15,6 +15,7 @@ This repository manages Docker Compose stacks for the `Atlas` NAS.
 - Local DNS zone: `*.atlas.local`
 - Public application zone: `*.atlas.vandaele.io` through Cloudflare Tunnel and Caddy
 - Remote access: Tailscale (on the UniFi router) for private access, with selected Caddy applications also available through Cloudflare Access-protected public hostnames
+- Login: authentik at `https://auth.atlas.vandaele.io` (see [authentik](#authentik)); Grafana is the first application behind it
 - Timezone: `Asia/Singapore`, set once in the Komodo `TZ` variable (see [Timezone And Schedules](#timezone-and-schedules))
 
 ## One-Time NAS Preparation
@@ -580,11 +581,16 @@ PERIPHERY_ROOT_DIRECTORY
 Shared stack values managed in Komodo:
 
 ```text
+AUTHENTIK_BOOTSTRAP_EMAIL
+AUTHENTIK_BOOTSTRAP_PASSWORD
+AUTHENTIK_POSTGRES_PASSWORD
+AUTHENTIK_SECRET_KEY
 BAZARR_API_KEY
 CLOUDFLARE_TUNNEL_TOKEN
 DISCORD_ALERTS_WEBHOOK_URL
 GLUETUN_CONTROL_API_KEY
 GRAFANA_ADMIN_PASSWORD
+GRAFANA_OIDC_CLIENT_SECRET
 GRAFANA_SECRETS_MANAGER_KEY
 GRAFANA_SECRET_KEY
 HEALTHCHECKS_APPDATA_PING_URL
@@ -1372,6 +1378,71 @@ Cloudflare's origin HTTP Host Header override can also route a public hostname t
 
 Use Cloudflare Access policies on the public hostnames for admin-facing services. The tunnel removes inbound port exposure, but it does not replace application authentication.
 
+### authentik
+
+The `authentik` stack runs [authentik](https://goauthentik.io/) 2026.8, the login for Atlas applications, with per-user access for pjan and family. It is public only, at:
+
+```text
+https://auth.atlas.vandaele.io
+```
+
+There is no `*.atlas.local` hostname: OIDC callbacks, passkeys, and secure cookies need one HTTPS origin, and Caddy serves only HTTP. The validator enforces this through `PUBLIC_ONLY_CADDY_ROUTES`. Cloudflare terminates HTTPS, and there is no Cloudflare Access in front: authentik itself is the gate, with a Cloudflare rate limit on its login API. Grafana is the first application behind it; the other applications follow app by app, after each gets its own HTTPS hostname.
+
+Layout:
+
+- `postgresql` (`postgres:16`, the version in authentik's reference compose file) runs as UID `70` with its data in `/volume2/appdata/authentik/postgres` (`0700`), only on the internal `authentik_network`, which has no route to the internet. Renovate keeps it on major 16; a major upgrade needs a dump and restore.
+- `server` runs as UID `1000` with `/volume2/appdata/authentik/data` (`0700`, uploaded icons) at `/data`. It joins `proxy_network` for Caddy and `monitoring_network` for metrics (`:9300`) and the health probe.
+- `worker` runs background tasks and applies the blueprints. It has no Docker socket (only outposts that authentik deploys itself need one; the embedded outpost runs inside the server) and is only on `authentik_network`, which is enough while authentik sends no email.
+- Every container has a read-only root filesystem and no capabilities. authentik is not given `TZ`: it expects to run in UTC.
+
+`stacks/caddy/conf/sites/auth.caddy` sends `X-Forwarded-Proto: https`, because authentik builds its OIDC URLs and secure cookies from the scheme, and replaces `X-Forwarded-For` with Cloudflare's `CF-Connecting-IP`, because authentik reads only `X-Forwarded-For` and Caddy would set it to the cloudflared container. authentik trusts `X-Forwarded-For` from private addresses (its default `listen.trusted_proxy_cidrs`); only containers can connect to it.
+
+Komodo variables (all secret):
+
+```text
+AUTHENTIK_SECRET_KEY          openssl rand -base64 60 | tr -d '\n'
+AUTHENTIK_POSTGRES_PASSWORD   openssl rand -hex 32
+AUTHENTIK_BOOTSTRAP_EMAIL     pjan's email address
+AUTHENTIK_BOOTSTRAP_PASSWORD  openssl rand -base64 32
+GRAFANA_OIDC_CLIENT_SECRET    openssl rand -hex 32
+```
+
+Never change `AUTHENTIK_SECRET_KEY` after the first start: it signs sessions and tokens. `AUTHENTIK_POSTGRES_PASSWORD` only applies when the database is created. The bootstrap values are read only when the database is empty: they create `akadmin`, and a set password closes authentik's initial-setup flow, which would otherwise let anyone on the public hostname choose the admin password. Set them before the first deploy and empty them (keep the variables) once setup is done. `GRAFANA_OIDC_CLIENT_SECRET` goes to both the authentik worker (the Grafana blueprint) and Grafana.
+
+#### Blueprints
+
+`stacks/authentik/blueprints/` is mounted read-only at `/blueprints/custom` in the worker, which applies it when it starts; changing a file restarts the worker (`config_files`, `requires = "Restart"`). A blueprint resets the attributes it sets, so change these objects in the repository, not in the UI:
+
+- `groups.yaml`: the groups `admins` (pjan; also authentik superusers) and `family`.
+- `admins-mfa.yaml`: members of `admins` without TOTP or a passkey must set one up before they are logged in (stage `atlas-admins-mfa-setup` at order 35 of the default authentication flow). Everyone else is asked for TOTP or a passkey only once they have set one up in their user settings.
+- `grafana.yaml`: the OAuth2/OIDC provider and application `grafana`, open only to `admins`.
+
+Users are created in the authentik UI, never in blueprints: they carry passwords. Without email (SMTP), pjan sets family passwords by hand.
+
+#### First Setup
+
+1. Create the five Komodo variables above before running the Resource Sync: the sync deploys `authentik` and redeploys `monitoring`, and both fail without them. Wait until the three `authentik` containers are healthy, then deploy `caddy` by hand. Until step 2, the `authentik-public` probe fails.
+2. In the Cloudflare Tunnel dashboard, add the public hostname `auth.atlas.vandaele.io` with service `http://caddy:80`, and no Cloudflare Access application. In the Cloudflare dashboard for `vandaele.io`, turn on **SSL/TLS → Edge Certificates → Always Use HTTPS** and add a rate-limiting rule: URI path starts with `/api/v3/flows/executor/`, counted per IP, for example 20 requests per 10 seconds, action Block. A normal login takes about 5 requests there.
+3. Open `https://auth.atlas.vandaele.io` and log in as `akadmin` with the bootstrap password. Set up TOTP and a passkey under **Settings → MFA Devices**.
+4. Create the user `pjan` in **Directory → Users**, add it to `admins`, set its password, log in as `pjan` (authentik makes it set up TOTP or a passkey), and set up the other one too. Then deactivate `akadmin`, or give it a long random password kept in the password manager for break-glass.
+5. Empty `AUTHENTIK_BOOTSTRAP_EMAIL` and `AUTHENTIK_BOOTSTRAP_PASSWORD` in Komodo.
+6. Create the family users and add them to `family`.
+7. Delete Grafana's local user `pjan` in **Administration → Users and access → Users** (log in as `admin`), then test the Grafana login below as `pjan` (Admin) and as a family member (authentik denies access).
+
+#### Grafana Login
+
+Grafana's login page has **Sign in with authentik** (`GF_AUTH_GENERIC_OAUTH_*` in `stacks/monitoring/compose.yaml`). Members of `admins` get Grafana's Admin role and everyone else Viewer, from the `groups` claim; authentik itself lets only `admins` in. Grafana matches authentik users by username, never by email, because users can change their email in authentik. It therefore cannot take over an existing local Grafana user with the same username: that login fails with `unable to create user` until the local user is deleted. Dashboards live in Git Sync, so a deleted local user loses only its preferences and stars.
+
+Grafana's own login form (the `admin` user from `GRAFANA_ADMIN_PASSWORD`) stays on as break-glass until every application uses authentik. OIDC returns to `https://grafana.atlas.vandaele.io`, Grafana's root URL, so a login started on `http://grafana.atlas.local` ends on the public hostname, behind Cloudflare Access, until Grafana gets its own HTTPS hostname.
+
+#### Backups And Restore
+
+The nightly `appdata-backup` Action stops `authentik` (it is not in `NEVER_STOP`), so `/volume2/appdata/authentik` is copied with Postgres stopped and consistent. Nobody can log in for those minutes. To restore, stop the `authentik` stack and restore `authentik` as in [Restoring From The Local Snapshot](#restoring-from-the-local-snapshot) (the database and the data directory together), then start the stack: Postgres starts first, and the server and worker wait until it is healthy. `AUTHENTIK_SECRET_KEY` must be the one the snapshot was taken with.
+
+#### Monitoring
+
+Prometheus scrapes the server's metrics (job `authentik`). `probe_health` checks `http://authentik-server:9000/-/health/ready/` directly (service `authentik`) and `https://auth.atlas.vandaele.io/-/health/live/` through Cloudflare (service `authentik-public`), so [`ProbeFailed`](#application-probes) warns when either fails, gated during the backup. Both appear as tiles in the Application health panel on Atlas Health. The `authentik` job is not in `MonitoringTargetDown`: that alert is not gated, so it would fire during every nightly backup, and the probe already covers a down server.
+
 ## Monitoring
 
 The `monitoring` stack runs Prometheus, Alertmanager (see [Alerts](#alerts)), node-exporter, blackbox-exporter, smartctl-exporter, cAdvisor, the application exporters, and Grafana on the private `monitoring_network`. Only Grafana also joins `proxy_network`, and it is reachable at `http://grafana.atlas.local` and at `https://grafana.atlas.vandaele.io`, which must be protected by Cloudflare Access; Grafana also requires its own login. Prometheus and Alertmanager have no host port and no web route; query Prometheus through Grafana.
@@ -1393,10 +1464,11 @@ Current signals:
 | `probe_dns_external` | AdGuard resolves an external name |
 | `probe_cloudflare_access` | Public hostnames answer with the Cloudflare Access login redirect |
 | `probe_internet` | Outbound HTTPS from the NAS |
-| `probe_health` | Application health through Caddy: Servarr `/ping` must report `OK` (fails when the app cannot reach its database), Plex `/identity` must contain a `machineIdentifier` (through Caddy and directly on `:32400`), Grafana `/api/health` must report the database `ok`, SABnzbd must report its version, Caddy must answer `ok`, and Komodo, Seerr, Autobrr, Houndarr, qui, and Spottarr health endpoints must return 200 |
+| `probe_health` | Application health, through Caddy unless noted: Servarr `/ping` must report `OK` (fails when the app cannot reach its database), Plex `/identity` must contain a `machineIdentifier` (through Caddy and directly on `:32400`), Grafana `/api/health` must report the database `ok`, SABnzbd must report its version, Caddy must answer `ok`, Komodo, Seerr, Autobrr, Houndarr, qui, and Spottarr health endpoints must return 200, and authentik's ready endpoint (directly, `authentik`) and live endpoint (through Cloudflare, `authentik-public`) must return 200 |
 | `caddy` | Caddy's own metrics per hostname (requests, errors, latency) on the internal listener `:2020` |
 | `cloudflared` | Tunnel metrics, including `cloudflared_tunnel_ha_connections`, on `:2000` |
 | `unpackerr` | Extraction metrics on `:5656` |
+| `authentik` | authentik's server metrics (requests, flows, tasks, outposts) on `:9300` |
 | `exportarr`, `exportarr_slow` | Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, and SABnzbd through exportarr: the applications' own health issues (`<app>_system_health_issues`, for example unavailable indexers or download clients), status, and queues. Sonarr and Bazarr are scraped every 5 minutes because they are slow to query |
 | `json_apis` | Gluetun VPN status, public IP and country, and forwarded port; qBittorrent connection status (`qbittorrent_transfer_status_info{connection_status}`: connected, firewalled, or disconnected), DHT nodes, transfer rates, and `listen_port` (must equal the Gluetun forwarded port); slskd connected and logged in to Soulseek; the state of every Komodo stack (`komodo_stack_info`); every stack container with its name, stack, service, image, state, Docker health, and exit code (`komodo_container_info`); the Komodo server (Periphery, `komodo_server_info`), Actions and Procedures with their last and next runs, and the Resource Sync with its last sync (`komodo_action_*`, `komodo_procedure_*`, `komodo_sync_*`); every container on the server, including those outside stacks (`komodo_server_container_info`); and Komodo's newest 100 updates and alerts (`komodo_update_start_timestamp_ms`, `komodo_alert_timestamp_ms`, one series per item) |
 
@@ -1608,11 +1680,11 @@ cp /tmp/atlas_backups.prom.saved atlas_backups.prom.tmp && mv atlas_backups.prom
 
 #### Caddy
 
-`CaddyDown` (`services.caddy`, critical): Caddy's metrics endpoint (`caddy:2020`) or its LAN port (`192.168.2.200:80`) has not answered for 3 minutes. Both are checked without DNS. Every `*.atlas.local` route, the public hostnames through the tunnel, and every health probe except `plex-direct` depend on it, so it suppresses `ProbeFailed`. Check the `caddy` stack and its logs in Komodo, validate the configuration with `./scripts/validate.sh`, and redeploy it. Gated during the appdata backup.
+`CaddyDown` (`services.caddy`, critical): Caddy's metrics endpoint (`caddy:2020`) or its LAN port (`192.168.2.200:80`) has not answered for 3 minutes. Both are checked without DNS. Every `*.atlas.local` route, the public hostnames through the tunnel, and every health probe except `plex-direct` and `authentik` depend on it, so it suppresses `ProbeFailed`. Check the `caddy` stack and its logs in Komodo, validate the configuration with `./scripts/validate.sh`, and redeploy it. Gated during the appdata backup.
 
 #### Application Probes
 
-`ProbeFailed` (`services.apps`): an application's health endpoint (job `probe_health`, through Caddy and the LAN hostname) has failed for 5 minutes. Warning for every application; critical for Plex (`plex` through Caddy, `plex-direct` on port 32400). Caddy's own probe is covered by [`CaddyDown`](#caddy). The link opens the application.
+`ProbeFailed` (`services.apps`): an application's health endpoint (job `probe_health`, through Caddy and the LAN hostname) has failed for 5 minutes. Warning for every application; critical for Plex (`plex` through Caddy, `plex-direct` on port 32400). Caddy's own probe is covered by [`CaddyDown`](#caddy). authentik has no LAN hostname: `authentik` probes its server directly, and `authentik-public` probes `https://auth.atlas.vandaele.io` through Cloudflare, so [`TunnelDown`](#cloudflare-tunnel) suppresses it. The link opens the application.
 
 1. Check the stack and its logs in Komodo, and redeploy it if it does not recover.
 2. If many probes fail at once, check Caddy, the LAN DNS (`*.atlas.local` from UniFi), and, for the VPN-bound applications, [the VPN](#vpn).
@@ -1671,7 +1743,7 @@ To add a new app route:
 3. Ensure the app container joins `proxy_network`, or proxy to `host.docker.internal` for host services.
 4. Push to `main`, execute Resource Sync, then explicitly deploy or redeploy `caddy` so the `post_deploy` reload hook applies the live config.
 
-Most application UIs are exposed only through Caddy, using paired `*.atlas.local` and `*.atlas.vandaele.io` hostnames. Public hostnames must be protected by appropriate Cloudflare Access policies. Routes listed in `LOCAL_ONLY_CADDY_ROUTES` in `scripts/validate-repository.py` (currently `backrest`) are LAN-only and must not get a public hostname. Plex is the direct-port exception and still publishes `192.168.2.200:32400/tcp` for native client discovery and direct access.
+Most application UIs are exposed only through Caddy, using paired `*.atlas.local` and `*.atlas.vandaele.io` hostnames. Public hostnames must be protected by appropriate Cloudflare Access policies. Routes listed in `LOCAL_ONLY_CADDY_ROUTES` in `scripts/validate-repository.py` (currently `backrest`) are LAN-only and must not get a public hostname. Routes in `PUBLIC_ONLY_CADDY_ROUTES` (currently `auth`, see [authentik](#authentik)) are public only and must not get a `*.atlas.local` hostname. Plex is the direct-port exception and still publishes `192.168.2.200:32400/tcp` for native client discovery and direct access.
 
 Validation note:
 

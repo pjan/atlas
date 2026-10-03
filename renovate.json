@@ -22,6 +22,7 @@
         "ghcr.io/autobrr/autobrr",
         "ghcr.io/autobrr/qui",
         "ghcr.io/av1155/houndarr",
+        "ghcr.io/goauthentik/server",
         "ghcr.io/google/cadvisor",
         "ghcr.io/moghtech/komodo-core",
         "ghcr.io/moghtech/komodo-periphery",
@@ -52,6 +53,12 @@
       ],
       "versioning": "semver",
       "ignoreUnstable": true
+    },
+    {
+      "description": "Keep authentik's Postgres on major 16 (authentik's reference version): a major upgrade needs a dump and restore.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["postgres"],
+      "allowedVersions": "<17"
     },
     {
       "description": "Use upstream qBittorrent versions and exclude legacy LinuxServer tags.",

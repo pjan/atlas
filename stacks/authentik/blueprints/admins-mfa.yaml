@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+# Admins must use TOTP or a passkey (README "authentik"). The default
+# authentication flow already validates any authenticator a user has set up
+# (default-authentication-mfa-validation, order 30) and skips users without
+# one. This adds a stage after it that makes admins without TOTP or a passkey
+# set one up before they are logged in. Family members can add one in their
+# user settings.
+version: 1
+metadata:
+  name: Atlas - MFA for admins
+entries:
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Default - Authentication flow
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Default - TOTP MFA setup flow
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Default - WebAuthn MFA setup flow
+      required: true
+
+  - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+    id: admins-mfa-setup
+    identifiers:
+      name: atlas-admins-mfa-setup
+    attrs:
+      device_classes:
+        - totp
+        - webauthn
+      not_configured_action: configure
+      configuration_stages:
+        - !Find [authentik_stages_authenticator_totp.authenticatortotpstage, [name, default-authenticator-totp-setup]]
+        - !Find [authentik_stages_authenticator_webauthn.authenticatorwebauthnstage, [name, default-authenticator-webauthn-setup]]
+
+  # Evaluated when the stage is reached, after the user is identified.
+  - model: authentik_flows.flowstagebinding
+    id: admins-mfa-setup-binding
+    identifiers:
+      target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      stage: !KeyOf admins-mfa-setup
+      order: 35
+    attrs:
+      evaluate_on_plan: false
+      re_evaluate_policies: true
+
+  - model: authentik_policies_expression.expressionpolicy
+    id: admin-without-mfa
+    identifiers:
+      name: atlas-admin-without-mfa
+    attrs:
+      expression: |
+        # True for a member of admins without TOTP or a passkey.
+        flow_plan = request.context.get("flow_plan")
+        user = flow_plan.context.get("pending_user") if flow_plan else None
+        if user is None or not ak_is_group_member(user, name="admins"):
+            return False
+        return not (
+            ak_user_has_authenticator(user, "totp")
+            or ak_user_has_authenticator(user, "webauthn")
+        )
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf admins-mfa-setup-binding
+      policy: !KeyOf admin-without-mfa
+      order: 0

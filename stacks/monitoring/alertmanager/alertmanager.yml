@@ -24,9 +24,12 @@ route:
 # A root cause suppresses the alerts it causes, in Discord only: inhibited
 # alerts still turn their tiles red or amber on Atlas Critical Health.
 inhibit_rules:
-  # Every probe_health target except plex-direct goes through Caddy.
+  # Every probe_health target except plex-direct and authentik goes through Caddy.
   - source_matchers: ['alertname="CaddyDown"']
-    target_matchers: ['alertname="ProbeFailed"', 'service!="plex-direct"']
+    target_matchers: ['alertname="ProbeFailed"', 'service!~"plex-direct|authentik"']
+  # The public authentik probe goes through the Cloudflare Tunnel.
+  - source_matchers: ['alertname="TunnelDown"']
+    target_matchers: ['alertname="ProbeFailed"', 'service="authentik-public"']
   # Applications in Gluetun's network namespace (network_mode container:gluetun).
   - source_matchers: ['alertname="VpnDown"']
     target_matchers:

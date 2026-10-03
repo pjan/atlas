@@ -1036,6 +1036,51 @@ CONFIG_DIR = [[APPDATA_DIR]]/speedtest-tracker
 """
 
 [[stack]]
+name = "authentik"
+description = "authentik login for Atlas applications, public at auth.atlas.vandaele.io"
+deploy = true
+tags = ["infra", "auth"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/authentik"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["https://auth.atlas.vandaele.io"]
+# The worker applies the blueprints when it starts.
+config_files = [
+  { path = "blueprints/groups.yaml", services = ["worker"], requires = "Restart" },
+  { path = "blueprints/admins-mfa.yaml", services = ["worker"], requires = "Restart" },
+  { path = "blueprints/grafana.yaml", services = ["worker"], requires = "Restart" },
+]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+sh ../../scripts/ensure-docker-network.sh proxy_network
+sh ../../scripts/ensure-docker-network.sh monitoring_network
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/authentik" 0 0 0755
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/authentik/postgres" 70 70 0700
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/authentik/data" 1000 1000 0700
+"""
+pre_deploy.shell_mode = true
+environment = """
+TZ = [[TZ]]
+AUTHENTIK_POSTGRES_DIR = [[APPDATA_DIR]]/authentik/postgres
+AUTHENTIK_DATA_DIR = [[APPDATA_DIR]]/authentik/data
+AUTHENTIK_SECRET_KEY = [[AUTHENTIK_SECRET_KEY]]
+AUTHENTIK_POSTGRES_PASSWORD = [[AUTHENTIK_POSTGRES_PASSWORD]]
+AUTHENTIK_BOOTSTRAP_EMAIL = [[AUTHENTIK_BOOTSTRAP_EMAIL]]
+AUTHENTIK_BOOTSTRAP_PASSWORD = [[AUTHENTIK_BOOTSTRAP_PASSWORD]]
+GRAFANA_OIDC_CLIENT_SECRET = [[GRAFANA_OIDC_CLIENT_SECRET]]
+"""
+
+[[stack]]
 name = "cloudflared"
 description = "Cloudflare Tunnel connector"
 deploy = true
@@ -1209,6 +1254,7 @@ GRAFANA_DATA_DIR = [[APPDATA_DIR]]/grafana
 GRAFANA_ADMIN_PASSWORD = [[GRAFANA_ADMIN_PASSWORD]]
 GRAFANA_SECRET_KEY = [[GRAFANA_SECRET_KEY]]
 GRAFANA_SECRETS_MANAGER_KEY = [[GRAFANA_SECRETS_MANAGER_KEY]]
+GRAFANA_OIDC_CLIENT_SECRET = [[GRAFANA_OIDC_CLIENT_SECRET]]
 SONARR_API_KEY = [[SONARR_API_KEY]]
 RADARR_API_KEY = [[RADARR_API_KEY]]
 LIDARR_API_KEY = [[LIDARR_API_KEY]]
@@ -1242,6 +1288,7 @@ poll_for_updates = true
 config_files = [
   { path = "conf/Caddyfile", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/adguard.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/auth.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/autobrr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/backrest.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/bazarr.caddy", services = ["caddy"], requires = "Restart" },

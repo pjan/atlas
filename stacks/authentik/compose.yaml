@@ -1,0 +1,189 @@
+# authentik, the login for Atlas applications (README "authentik"). Public
+# only at https://auth.atlas.vandaele.io through the Cloudflare Tunnel and
+# Caddy. The nightly appdata backup stops this stack, so Postgres is copied
+# while it is stopped.
+#
+# The worker has no Docker socket: only outposts that authentik deploys itself
+# need it, and the embedded outpost runs inside the server. authentik is not
+# given TZ: it expects to run in UTC.
+
+services:
+  postgresql:
+    image: postgres:16.15-alpine
+    container_name: authentik-postgresql
+    restart: unless-stopped
+    # The postgres user of the Alpine image.
+    user: "70:70"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql:uid=70,gid=70,mode=0775
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TZ}
+      - POSTGRES_DB=authentik
+      - POSTGRES_USER=authentik
+      - POSTGRES_PASSWORD=${AUTHENTIK_POSTGRES_PASSWORD:?AUTHENTIK_POSTGRES_PASSWORD is required}
+    volumes:
+      - type: bind
+        source: ${AUTHENTIK_POSTGRES_DIR:?AUTHENTIK_POSTGRES_DIR is required}
+        target: /var/lib/postgresql/data
+        bind:
+          create_host_path: false
+    networks:
+      - authentik_network
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 256
+    stop_grace_period: 1m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-d", "authentik", "-U", "authentik"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Serves the login pages and the API on :9000, Prometheus metrics on :9300.
+  # Caddy reaches it on proxy_network; Prometheus and blackbox on
+  # monitoring_network.
+  server:
+    image: ghcr.io/goauthentik/server:2026.8.3
+    container_name: authentik-server
+    restart: unless-stopped
+    command: server
+    user: "1000:1000"
+    read_only: true
+    # authentik's TMPDIR is /dev/shm.
+    shm_size: 512mb
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    # Keep identical to the worker's environment, apart from the worker-only
+    # values at its end.
+    environment:
+      - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY:?AUTHENTIK_SECRET_KEY is required}
+      - AUTHENTIK_POSTGRESQL__HOST=postgresql
+      - AUTHENTIK_POSTGRESQL__NAME=authentik
+      - AUTHENTIK_POSTGRESQL__USER=authentik
+      - AUTHENTIK_POSTGRESQL__PASSWORD=${AUTHENTIK_POSTGRES_PASSWORD:?AUTHENTIK_POSTGRES_PASSWORD is required}
+      # Renovate handles updates.
+      - AUTHENTIK_DISABLE_UPDATE_CHECK=true
+      - AUTHENTIK_DISABLE_STARTUP_ANALYTICS=true
+      - AUTHENTIK_ERROR_REPORTING__ENABLED=false
+    volumes:
+      - type: bind
+        source: ${AUTHENTIK_DATA_DIR:?AUTHENTIK_DATA_DIR is required}
+        target: /data
+        bind:
+          create_host_path: false
+    expose:
+      - "9000"
+      - "9300"
+    networks:
+      - authentik_network
+      - proxy_network
+      - monitoring_network
+    mem_limit: 1g
+    cpus: 2
+    pids_limit: 512
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "ak", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  # Runs background tasks and applies the blueprints: authentik's own under
+  # /blueprints and this repository's under /blueprints/custom, when the
+  # worker starts and when a file changes. Only on the internal network: it
+  # needs no internet access while authentik sends no email.
+  worker:
+    image: ghcr.io/goauthentik/server:2026.8.3
+    container_name: authentik-worker
+    restart: unless-stopped
+    command: worker
+    user: "1000:1000"
+    read_only: true
+    shm_size: 512mb
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    environment:
+      - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY:?AUTHENTIK_SECRET_KEY is required}
+      - AUTHENTIK_POSTGRESQL__HOST=postgresql
+      - AUTHENTIK_POSTGRESQL__NAME=authentik
+      - AUTHENTIK_POSTGRESQL__USER=authentik
+      - AUTHENTIK_POSTGRESQL__PASSWORD=${AUTHENTIK_POSTGRES_PASSWORD:?AUTHENTIK_POSTGRES_PASSWORD is required}
+      - AUTHENTIK_DISABLE_UPDATE_CHECK=true
+      - AUTHENTIK_DISABLE_STARTUP_ANALYTICS=true
+      - AUTHENTIK_ERROR_REPORTING__ENABLED=false
+      # Read only when the database is empty: they create akadmin, and a set
+      # password closes the public initial-setup flow. Empty them in Komodo
+      # once setup is done.
+      - AUTHENTIK_BOOTSTRAP_EMAIL=${AUTHENTIK_BOOTSTRAP_EMAIL:-}
+      - AUTHENTIK_BOOTSTRAP_PASSWORD=${AUTHENTIK_BOOTSTRAP_PASSWORD:-}
+      # Read by blueprints/grafana.yaml (!Env).
+      - GRAFANA_OIDC_CLIENT_SECRET=${GRAFANA_OIDC_CLIENT_SECRET:?GRAFANA_OIDC_CLIENT_SECRET is required}
+    volumes:
+      - type: bind
+        source: ${AUTHENTIK_DATA_DIR:?AUTHENTIK_DATA_DIR is required}
+        target: /data
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./blueprints
+        target: /blueprints/custom
+        read_only: true
+        bind:
+          create_host_path: false
+    networks:
+      - authentik_network
+    mem_limit: 1g
+    cpus: 1
+    pids_limit: 256
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "ak", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+networks:
+  # Postgres, the server, and the worker only; no route to the internet.
+  authentik_network:
+    name: authentik_network
+    internal: true
+  proxy_network:
+    name: proxy_network
+    external: true
+  monitoring_network:
+    name: monitoring_network
+    external: true
