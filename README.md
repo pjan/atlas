@@ -1406,7 +1406,7 @@ It is one HTTPS origin on every network, which OIDC callbacks, passkeys, and sec
 Layout:
 
 - `postgresql` (`postgres:16`, the version in authentik's reference compose file) runs as UID `70` with its data in `/volume2/appdata/authentik/postgres` (`0700`), only on the internal `authentik_network`, which has no route to the internet. Renovate keeps it on major 16; a major upgrade needs a dump and restore.
-- `server` runs as UID `1000` with `/volume2/appdata/authentik/data` (`0700`, uploaded icons) at `/data`. It joins `proxy_network` for Caddy and `monitoring_network` for metrics (`:9300`) and the health probe.
+- `server` runs as UID `1000` with `/volume2/appdata/authentik/data` (`0700`, uploaded icons) at `/data` and the login page's files read-only at `/web/dist/custom` (see [Branding](#branding)). It joins `proxy_network` for Caddy and `monitoring_network` for metrics (`:9300`) and the health probe.
 - `worker` runs background tasks and applies the blueprints. It has no Docker socket (only outposts that authentik deploys itself need one; the embedded outpost runs inside the server) and is only on `authentik_network`, which is enough while authentik sends no email.
 - Every container has a read-only root filesystem and no capabilities. authentik is not given `TZ`: it expects to run in UTC.
 
@@ -1431,6 +1431,7 @@ Never change `AUTHENTIK_SECRET_KEY` after the first start: it signs sessions and
 `stacks/authentik/blueprints/` is mounted read-only at `/blueprints/custom` in the worker. The worker's task queue never applies these files (each is labelled `blueprints.goauthentik.io/instantiate: "false"`): with its two threads, a slow apply there stalled the queue and left new blueprints unapplied, so new forward-auth apps answered `404`. Instead the stack's `post_deploy` runs `scripts/authentik-apply-blueprints.sh`, which waits until the worker's own blueprint work is done, applies the files whose content changed since it last applied them (it records their hashes in authentik's disabled blueprint instances; re-saving an unchanged provider costs about 20 seconds) with `ak apply_blueprint`, in the order of its `BLUEPRINTS` list (groups first, the outpost last; blueprints never apply each other), checks that the embedded outpost serves exactly the forward-auth providers and that each has an application, and restarts the server, whose outpost loads its providers when it starts. A failure fails the deploy in Komodo. Changing a blueprint redeploys the stack (`config_files`, `requires = "Redeploy"`), so logins pause for the server restart. The validator keeps `BLUEPRINTS` equal to the files. A blueprint resets the attributes it sets, so change these objects in the repository, not in the UI:
 
 - `groups.yaml`: the groups `admins` (pjan; also authentik superusers) and `family`.
+- `brand.yaml`: the look of the login pages and the title of the login form (see [Branding](#branding)).
 - `admins-mfa.yaml`: members of `admins` without TOTP or a passkey must set one up before they are logged in (stage `atlas-admins-mfa-setup` at order 35 of the default authentication flow). Everyone else is asked for TOTP or a passkey only once they have set one up in their user settings.
 - `grafana.yaml`: the OAuth2/OIDC provider and application `grafana`, open to `admins` and `family` (Viewer).
 - `oidc-autobrr.yaml`, `oidc-qui.yaml`: the OAuth2/OIDC providers and applications `autobrr` and `qui` (the slug sets the issuer, `https://auth.atlas.vandaele.io/application/o/<slug>/`), open only to `admins`. Their forward-auth applications have the slug `<app>-forward-auth`.
@@ -1440,6 +1441,18 @@ Never change `AUTHENTIK_SECRET_KEY` after the first start: it signs sessions and
 
 
 Users are created in the authentik UI, never in blueprints: they carry passwords. Without email (SMTP), pjan sets family passwords by hand.
+
+#### Branding
+
+The login pages (sign-in, MFA, access denied) look like vandaele.io: its logo and favicon, the Urbanist font, and its indigo accent, with its V large and blurred behind the card, light or dark following the device. The card and the V are centred in the window. On a phone the form sits directly on the page colour, without the card and the V. The login form has no heading under the logo (its title, "Sign in to vandaele.io", still names the browser tab), and the language picker and the "Powered by authentik" line are hidden.
+
+`brand.yaml` sets these on authentik's default brand, with the styles in `branding_custom_css`. authentik adds that CSS to every part of its web interface and to its server-rendered pages, which escape `<`, `>`, and `&` in it, so the CSS must not use them (no child combinator). The files in `stacks/authentik/branding/` are served at `/static/dist/custom/`:
+
+- `logo.svg`: the logo, with a dark wordmark on light pages and a white one on dark pages. It follows the device itself rather than authentik's `%(theme)s` logo variants, which the server-rendered pages do not fill in.
+- `favicon.svg`, and `mark.svg`: the favicon's V without its tile, for the background.
+- `urbanist.woff2`: Urbanist (latin, weights 400 to 800) from Google Fonts, under the SIL Open Font License in `Urbanist-OFL.txt`. It is served by authentik, so the login page loads nothing from other sites.
+
+A changed file in `branding/` is served at once without a redeploy; browsers may show the old one until a hard reload. A change to `brand.yaml` redeploys the stack like any blueprint.
 
 #### Forward Auth
 

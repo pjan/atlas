@@ -1,0 +1,183 @@
+# yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+# The login pages look like vandaele.io (README "Branding"): its logo, the
+# Urbanist font, and its colours, light or dark following the device. The
+# files are stacks/authentik/branding, served at /static/dist/custom/. The
+# logo picks its own wordmark colour from the device setting: authentik's
+# server-rendered pages (access denied) do not resolve %(theme)s.
+version: 1
+metadata:
+  name: Atlas - Brand
+  labels:
+    # Applied by the authentik stack's post_deploy, in order, never by the
+    # worker's queue (README "Blueprints").
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  - model: authentik_brands.brand
+    identifiers:
+      domain: authentik-default
+    attrs:
+      default: true
+      branding_title: vandaele.io
+      branding_logo: /static/dist/custom/logo.svg
+      branding_favicon: /static/dist/custom/favicon.svg
+      branding_custom_css: |
+        @font-face {
+          font-family: "Urbanist";
+          src: url("/static/dist/custom/urbanist.woff2") format("woff2");
+          font-weight: 400 800;
+          font-display: swap;
+        }
+
+        :root, :host {
+          --pf-global--FontFamily--sans-serif: "Urbanist", system-ui, sans-serif;
+          --pf-global--FontFamily--heading--sans-serif: "Urbanist", system-ui, sans-serif;
+          --pf-global--FontFamily--text--sans-serif: "Urbanist", system-ui, sans-serif;
+          --pf-global--primary-color--100: #5b5fe0;
+          --pf-global--primary-color--200: #4447c4;
+          --pf-global--link--Color: #5b5fe0;
+          --pf-global--link--Color--hover: #e0307a;
+          --pf-global--active-color--100: #5b5fe0;
+          --vio-page: #f5f4ff;
+          --vio-card: rgb(255 255 255 / 0.82);
+          --vio-card-border: rgb(114 128 255 / 0.22);
+          --vio-mark-opacity: 0.35;
+        }
+
+        :is([data-theme=dark], :host([theme="dark"])) {
+          --pf-global--primary-color--100: #7280ff;
+          --pf-global--primary-color--200: #8c98ff;
+          --pf-global--link--Color: #8c98ff;
+          --pf-global--link--Color--hover: #FF3F8F;
+          --pf-global--active-color--100: #7280ff;
+          --vio-page: #231c45;
+          --vio-card: rgb(35 28 69 / 0.72);
+          --vio-card-border: rgb(114 128 255 / 0.28);
+          --vio-mark-opacity: 0.6;
+        }
+
+        /* The page: vandaele.io's background with its V, blurred, behind the
+           card; both are centred in the window. */
+        body {
+          background: var(--vio-page);
+        }
+
+        body::before {
+          content: "";
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          width: min(110vw, 150vh);
+          aspect-ratio: 1;
+          translate: -50% -50%;
+          background: url("/static/dist/custom/mark.svg") center / contain no-repeat;
+          filter: blur(2.5vh);
+          opacity: var(--vio-mark-opacity);
+          pointer-events: none;
+        }
+
+        .pf-c-login {
+          grid-template-rows: 1fr auto 1fr;
+        }
+
+        .pf-c-login__main {
+          align-self: center;
+        }
+
+        ak-drawer {
+          position: relative;
+        }
+
+        /* The login card. */
+        .pf-c-login__main {
+          background: var(--vio-card);
+          border: 1px solid var(--vio-card-border);
+          border-radius: 16px;
+          backdrop-filter: blur(12px);
+        }
+
+        /* At phone width authentik fills the screen with the card; there the
+           form sits on the page colour, without the card or the V. */
+        @media (max-width: 35rem), (max-height: 17.5rem) {
+          .pf-c-login {
+            --ak-c-login--BackgroundColorOverlay: transparent;
+          }
+
+          .pf-c-login__main {
+            background: none;
+            border: none;
+            backdrop-filter: none;
+          }
+
+          body::before {
+            display: none;
+          }
+        }
+
+        .pf-c-login__main-header h1.pf-c-title {
+          font-weight: 700;
+        }
+
+        /* The login form has no heading under the logo; its title still names
+           the browser tab. The variable reaches into the form's shadow roots. */
+        ak-flow-executor[slug="default-authentication-flow"] {
+          --vio-flow-title-display: none;
+        }
+
+        .pf-c-login__main-header h1.pf-c-title {
+          display: var(--vio-flow-title-display, block);
+        }
+
+        .pf-c-button.pf-m-primary {
+          border-radius: 8px;
+          font-weight: 600;
+          --pf-c-button--m-primary--Color: #fff;
+          --pf-c-button--m-primary--hover--Color: #fff;
+          --pf-c-button--m-primary--focus--Color: #fff;
+          --pf-c-button--m-primary--active--Color: #fff;
+        }
+
+        /* White on the dark theme's lighter accent is hard to read; the button
+           keeps the deeper one. */
+        :is([data-theme=dark], :host([theme="dark"])) .pf-c-button.pf-m-primary {
+          --pf-c-button--m-primary--BackgroundColor: #5b5fe0;
+          --pf-c-button--m-primary--hover--BackgroundColor: #4447c4;
+          --pf-c-button--m-primary--focus--BackgroundColor: #4447c4;
+          --pf-c-button--m-primary--active--BackgroundColor: #4447c4;
+        }
+
+        /* Inputs: focus in the accent colour (authentik redefines the primary
+           colour for form controls, so the colour is explicit). */
+        .pf-c-form-control {
+          --pf-c-form-control--focus--BorderBottomColor: #5b5fe0;
+        }
+
+        .pf-c-form-control:focus-visible {
+          outline-color: #5b5fe0;
+        }
+
+        :is([data-theme=dark], :host([theme="dark"])) .pf-c-form-control {
+          --pf-c-form-control--focus--BorderBottomColor: #7280ff;
+        }
+
+        :is([data-theme=dark], :host([theme="dark"])) .pf-c-form-control:focus-visible {
+          outline-color: #7280ff;
+        }
+
+        /* The language picker in the top left corner. */
+        [part="locale-select"] {
+          display: none;
+        }
+
+        /* The "Powered by authentik" line under the card, on the flow pages
+           and on the server-rendered ones. */
+        ak-brand-links li[data-kind="text"],
+        footer.pf-c-login__footer li:has(span) {
+          display: none;
+        }
+
+  # The heading of the login form.
+  - model: authentik_flows.flow
+    identifiers:
+      slug: default-authentication-flow
+    attrs:
+      title: Sign in to vandaele.io

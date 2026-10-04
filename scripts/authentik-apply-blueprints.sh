@@ -12,7 +12,7 @@ set -eu
 # Dependency order: groups first, then what binds to them; the outpost last,
 # because it lists every forward-auth provider. The validator keeps this list
 # equal to the blueprint files.
-BLUEPRINTS="groups admins-mfa reputation grafana oidc-autobrr oidc-qui
+BLUEPRINTS="groups brand admins-mfa reputation grafana oidc-autobrr oidc-qui
 forward-auth-adguard forward-auth-autobrr forward-auth-bazarr
 forward-auth-houndarr forward-auth-lidarr forward-auth-prowlarr
 forward-auth-qbittorrent forward-auth-qui forward-auth-radarr
@@ -27,7 +27,8 @@ ak_shell() {
 wait_healthy() {
   service=$1
   attempts=0
-  until [ "$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q "$service")")" = healthy ]; do
+  # An empty ID (the container is not running) counts as not healthy yet.
+  until [ "$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q "$service")" 2>/dev/null)" = healthy ]; do
     attempts=$((attempts + 1))
     if [ "$attempts" -gt 120 ]; then
       echo "authentik-apply-blueprints: $service is not healthy after 10 minutes" >&2
@@ -70,17 +71,21 @@ done
 
 # Only blueprints whose content changed since this script last applied them:
 # re-saving an unchanged provider still makes authentik rebuild the outpost's
-# permissions, about 20 seconds each. The order stays that of BLUEPRINTS.
+# permissions, about 20 seconds each. The authentik version is part of the
+# hash, because an upgrade can re-apply authentik's default blueprints over
+# objects ours change (brand.yaml, admins-mfa.yaml). The order stays that of
+# BLUEPRINTS.
 paths=$(ak_shell <<EOF | sed -n 's/^CHANGED //p'
 from hashlib import sha512
 
+from authentik import authentik_version
 from authentik.blueprints.models import BlueprintInstance
 
 for name in """$BLUEPRINTS""".split():
     path = f"custom/{name}.yaml"
     content = BlueprintInstance(path=path).retrieve()
     instance = BlueprintInstance.objects.filter(path=path).first()
-    if not instance or instance.last_applied_hash != sha512(content.encode()).hexdigest():
+    if not instance or instance.last_applied_hash != sha512((content + authentik_version()).encode()).hexdigest():
         print("CHANGED", path)
 EOF
 )
@@ -140,6 +145,7 @@ from hashlib import sha512
 
 from django.utils.timezone import now
 
+from authentik import authentik_version
 from authentik.blueprints.models import BlueprintInstance, BlueprintInstanceStatus
 
 names = """$BLUEPRINTS""".split()
@@ -151,7 +157,7 @@ for name in names:
     )
     instance.enabled = False
     instance.status = BlueprintInstanceStatus.SUCCESSFUL
-    instance.last_applied_hash = sha512(content.encode()).hexdigest()
+    instance.last_applied_hash = sha512((content + authentik_version()).encode()).hexdigest()
     instance.last_applied = now()
     instance.save()
 print("RECORDED", len(names))
