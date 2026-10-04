@@ -5,7 +5,10 @@
 //
 // It opens a dashboard in Atlas Light, in Atlas Dark, and in Light switched live to Dark, and
 // reports per element the colours the browser renders, as palette keys (for example emerald300),
-// with APCA Lc for text. It ends with FAIL lines for what the theme no longer reaches.
+// with APCA Lc for text. It also checks Grafana's colour picker on a temporary dashboard (created
+// and deleted through the API): it must list Grafana's six hues and then the theme's extra names,
+// and the last hue row must stay inside the picker when scrolled to. It ends with FAIL lines for
+// what the theme no longer reaches.
 //
 // Environment: GRAFANA_URL (required), GRAFANA_USER and GRAFANA_PASSWORD (required),
 // DASHBOARD (default /d/atlas-containers?from=now-24h&to=now).
@@ -168,6 +171,52 @@ try {
 } finally {
   await light.evaluate(async ([u, theme]) => fetch(u, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ theme }) }), [prefs, before || '']);
 }
+
+// ---- Colour picker: the extra names as hue rows (module.js build()), and the rows scrolling
+// inside the picker (module.js styleColorPicker()).
+const GRAFANA_HUES = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'];
+const SHADE_PREFIXES = ['super-light-', 'light-', '', 'semi-dark-', 'dark-'];
+async function checkPicker(p) {
+  const file = await p.evaluate(async (u) => (await fetch(u)).json(), URL + '/public/plugins/atlas-theme-app/atlas-theme.json?_cache=probe');
+  const names = file.names.light;
+  const extra = [];
+  for (const n of Object.keys(names)) {
+    const hue = n.replace(/^(super-light-|light-|semi-dark-|dark-)/, '');
+    if (!extra.includes(hue) && SHADE_PREFIXES.every((prefix) => prefix + hue in names)) extra.push(hue);
+  }
+  const expected = [...GRAFANA_HUES, ...extra];
+  const api = URL + '/api/dashboards';
+  const uid = 'atlas-theme-probe-picker';
+  const created = await p.evaluate(async ([u, dashboard]) => (await fetch(u + '/db', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ overwrite: true, dashboard }) })).status, [api, { uid, title: 'Atlas theme probe: colour picker', schemaVersion: 42,
+    panels: [{ id: 1, type: 'stat', title: 'picker', gridPos: { x: 0, y: 0, w: 12, h: 8 } }] }]);
+  if (created !== 200) { fails.push(`colour picker: could not create the temporary dashboard (HTTP ${created})`); return; }
+  try {
+    await p.goto(URL + '/d/' + uid + '?editPanel=1&theme=light');
+    await p.waitForTimeout(8000);
+    await p.getByRole('button', { name: 'green color', exact: true }).click();
+    await p.waitForTimeout(1000);
+    // Each hue row has a dark-<hue> swatch, labelled "<shade name> color"
+    const rows = await p.locator('button[aria-label^="dark-"]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label').replace(/^dark-| color$/g, '')));
+    console.log(`\n== Colour picker: ${rows.join(', ')}`);
+    if (rows.join() !== expected.join()) fails.push(`colour picker: hue rows ${rows.join(', ')}; expected ${expected.join(', ')}`);
+    // The palette is a fixed-height box; scrolled to, the last row must still be inside it
+    const last = p.getByRole('button', { name: `${expected[expected.length - 1]} color`, exact: true });
+    await last.scrollIntoViewIfNeeded();
+    await p.waitForTimeout(300);
+    const inside = await last.evaluate((el) => {
+      const box = el.closest('div:has(> div > div > div > div > button[aria-label*="super-light-"])');
+      if (!box) return 'no palette box found';
+      const r = el.getBoundingClientRect(), bb = box.getBoundingClientRect();
+      return r.top >= bb.top - 1 && r.bottom <= bb.bottom + 1 ? 'inside' : `outside (row ${Math.round(r.top)}-${Math.round(r.bottom)}, box ${Math.round(bb.top)}-${Math.round(bb.bottom)})`;
+    });
+    console.log(`  last row (${expected[expected.length - 1]}) scrolled to: ${inside}`);
+    if (inside !== 'inside') fails.push(`colour picker: the last hue row scrolled to is ${inside}: the rows spill out of the picker`);
+  } finally {
+    await p.evaluate(async (u) => fetch(u, { method: 'DELETE' }), api + '/uid/' + uid);
+  }
+}
+await checkPicker(dark);
 await b.close();
 
 console.log(fails.length ? '\n' + fails.map((f) => 'FAIL ' + f).join('\n') : '\ntheme-probe: no failures');
