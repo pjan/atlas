@@ -14,7 +14,6 @@ This repository manages Docker Compose stacks for the `Atlas` NAS.
 - Caddy HTTP entrypoint: `http://192.168.2.200:80`
 - Caddy HTTPS entrypoint: `https://<app>.atlas.vandaele.io` on `192.168.2.200:443`, with one Let's Encrypt wildcard certificate (see [Caddy Configuration](#caddy-configuration))
 - Application hostnames: `https://<app>.atlas.vandaele.io` everywhere. On the LAN and Tailscale, Atlas DNS (UniFi, AdGuard) sends them to Caddy on the NAS; from the internet, they go through the Cloudflare Tunnel to Caddy
-- Old LAN hostnames: `http://<app>.atlas.local` redirects to `https://<app>.atlas.vandaele.io`
 - Remote access: Tailscale (on the UniFi router) for private access, with selected Caddy applications also available through Cloudflare Access-protected public hostnames
 - Login: authentik at `https://auth.atlas.vandaele.io` (see [authentik](#authentik)); Grafana is the first application behind it
 - Timezone: `Asia/Singapore`, set once in the Komodo `TZ` variable (see [Timezone And Schedules](#timezone-and-schedules))
@@ -52,11 +51,10 @@ Settings > Policy Engine > DNS > Create DNS Record
 Settings > Policy Table > Create New Policy > DNS
 ```
 
-Host (A) wildcard records:
+Host (A) wildcard record:
 
 ```text
 hostname *.atlas.vandaele.io, value 192.168.2.200
-hostname *.atlas.local, value 192.168.2.200   (old hostnames, redirected to HTTPS)
 ```
 
 Tailscale devices ask AdGuard (`192.168.2.200`, the Tailscale global nameserver with "Override DNS servers" on), which does not forward local names to UniFi. In AdGuard, add the same record under **Filters > DNS rewrites**: domain `*.atlas.vandaele.io`, answer `192.168.2.200`. It is stored in `AdGuardHome.yaml` in appdata, not in this repository.
@@ -1140,19 +1138,19 @@ Port: 8080
 
 SABnzbd uses port `8085` inside Gluetun's shared network namespace because qBittorrent already uses `8080`. The repo-managed LinuxServer custom init script patches SABnzbd's service runner before startup so the web UI binds `0.0.0.0:8085`. Treat `SABNZBD_PORT=8085` and the custom init script as the source of truth for the internal listening port.
 
-SABnzbd validates the HTTP `Host` header to protect against DNS-rebinding attacks. Because Caddy preserves the incoming hostname, add both Atlas hostnames under `Config > Special > host_whitelist`:
+SABnzbd validates the HTTP `Host` header to protect against DNS-rebinding attacks. Because Caddy preserves the incoming hostname, add the Atlas hostname under `Config > Special > host_whitelist`:
 
 ```text
-sabnzbd.atlas.local, sabnzbd.atlas.vandaele.io
+sabnzbd.atlas.vandaele.io
 ```
 
-Keep the entries lowercase and comma-separated. Do not disable the check with a wildcard or rewrite the upstream `Host` header in Caddy. The setting persists in `/volume2/appdata/sabnzbd/sabnzbd.ini` and does not require a Komodo variable or secret. See the [SABnzbd hostname-verification documentation](https://sabnzbd.org/wiki/extra/hostname-check.html) for background.
+Keep entries lowercase and comma-separated. Do not disable the check with a wildcard or rewrite the upstream `Host` header in Caddy. The setting persists in `/volume2/appdata/sabnzbd/sabnzbd.ini` and does not require a Komodo variable or secret. See the [SABnzbd hostname-verification documentation](https://sabnzbd.org/wiki/extra/hostname-check.html) for background.
 
-On a fresh install, SABnzbd rejects `sabnzbd.atlas.local` before the setting can be changed in the UI. After the first deploy has created `sabnzbd.ini` and the container is healthy, set the whitelist over SSH before the first visit:
+On a fresh install, SABnzbd rejects `sabnzbd.atlas.vandaele.io` before the setting can be changed in the UI. After the first deploy has created `sabnzbd.ini` and the container is healthy, set the whitelist over SSH before the first visit:
 
 ```sh
 docker stop sabnzbd
-sed -i 's/^host_whitelist = .*/host_whitelist = sabnzbd.atlas.local, sabnzbd.atlas.vandaele.io/' \
+sed -i 's/^host_whitelist = .*/host_whitelist = sabnzbd.atlas.vandaele.io/' \
   /volume2/appdata/sabnzbd/sabnzbd.ini
 docker start sabnzbd
 ```
@@ -1167,7 +1165,7 @@ sudo vi /volume2/appdata/sabnzbd/sabnzbd.ini
 Under `[misc]`, set:
 
 ```ini
-host_whitelist = sabnzbd.atlas.local, sabnzbd.atlas.vandaele.io
+host_whitelist = sabnzbd.atlas.vandaele.io
 ```
 
 Then restart the container:
@@ -1510,7 +1508,6 @@ Current signals:
 | `probe_routes_public` | Every public route through Cloudflare and the tunnel (from `blackbox-public`, through public DNS; services `<app>-public`) |
 | `probe_tcp` | AdGuard DNS `:53`, Caddy `:80`, Komodo `:9120`, Plex `:32400`, and Roon Server `:9330` on `192.168.2.200` |
 | `probe_dns_split` | UniFi and AdGuard resolve `sonarr.atlas.vandaele.io` to `192.168.2.200` |
-| `probe_dns_atlas_local` | UniFi resolves `sonarr.atlas.local` to `192.168.2.200` (old hostnames, redirected) |
 | `probe_dns_external` | AdGuard resolves an external name |
 | `probe_tls_caddy` | Caddy's HTTPS listener `192.168.2.200:443` completes a TLS handshake for `caddy.atlas.vandaele.io` with a valid certificate, and its expiry |
 | `probe_internet` | Outbound HTTPS from the NAS |
@@ -1783,7 +1780,7 @@ stacks/caddy/conf/sites/*.caddy
 
 Caddy listens on three ports:
 
-- `80` (LAN): redirects only, `http://<app>.atlas.local` and `http://<app>.atlas.vandaele.io` to `https://<app>.atlas.vandaele.io`.
+- `80` (LAN): redirects only, `http://<app>.atlas.vandaele.io` to `https://<app>.atlas.vandaele.io`.
 - `443` (LAN and Tailscale): `https://*.atlas.vandaele.io`, with one Let's Encrypt wildcard certificate. HTTP/1.1 and HTTP/2 only; UDP `443` is not published.
 - `8080` (Docker networks only): the Cloudflare Tunnel's origin (see [Cloudflared](#cloudflared)).
 

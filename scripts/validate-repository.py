@@ -952,6 +952,29 @@ def validate_authentik_blueprints(
     )
 
 
+def validate_no_atlas_local(validation: Validation) -> None:
+    """The *.atlas.local hostnames are gone: every app is
+    https://<app>.atlas.vandaele.io (README "Caddy Configuration"). Discord
+    message fixtures keep theirs: they are test data with length budgets."""
+    paths = [REPO_ROOT / "stacks.toml", *sorted((REPO_ROOT / "komodo").rglob("*"))]
+    paths += [
+        path
+        for path in sorted(STACKS_ROOT.rglob("*"))
+        if ALERT_MESSAGE_FIXTURES_DIRECTORY not in path.parents
+    ]
+    for path in paths:
+        if not path.is_file() or path.name == ".env":
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        validation.require(
+            "atlas.local" not in text,
+            f"{relative(path)} still refers to atlas.local",
+        )
+
+
 def validate_hooks(stacks_by_name: dict[str, dict], validation: Validation) -> None:
     variable_names = set()
     for stack in stacks_by_name.values():
@@ -1707,6 +1730,7 @@ def main() -> None:
             )
 
     validate_caddy(stacks_by_name, validation)
+    validate_no_atlas_local(validation)
     validate_hooks(stacks_by_name, validation)
     validate_variable_contract(stacks_data, validation)
     validate_renovate_config(renovate_data, validation)

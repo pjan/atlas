@@ -31,11 +31,6 @@ http://:8080 {
 	respond 404
 }
 
-# The old LAN hostnames lead to the HTTPS ones.
-http://*.atlas.local {
-	redir https://{labels.2}.atlas.vandaele.io{uri} 308
-}
-
 # Public hostnames never expose application metrics endpoints.
 (atlas_hide_metrics) {
 	@metrics path /metrics /metrics/* /prometheus /prometheus/*

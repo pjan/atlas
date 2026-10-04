@@ -306,19 +306,6 @@ scrape_configs:
           service: roon
     relabel_configs: *probe_relabel
 
-  # UniFi serves the *.atlas.local wildcard (redirects to HTTPS); it must
-  # resolve to the NAS.
-  - job_name: probe_dns_atlas_local
-    scrape_interval: 60s
-    metrics_path: /probe
-    params:
-      module: [dns_atlas_local]
-    static_configs:
-      - targets: ["192.168.2.1:53"]
-        labels:
-          service: unifi-dns
-    relabel_configs: *probe_relabel
-
   # Atlas DNS for *.atlas.vandaele.io: UniFi (LAN, the NAS, containers) and
   # AdGuard (Tailscale) must both send it to the NAS, not to Cloudflare.
   - job_name: probe_dns_split
