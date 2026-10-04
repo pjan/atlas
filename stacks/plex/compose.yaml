@@ -12,7 +12,7 @@ services:
       - UMASK=${UMASK}
       - VERSION=docker
       - PLEX_CLAIM=${PLEX_CLAIM:-}
-      - ADVERTISE_IP=http://${NAS_LAN_IP:?NAS_LAN_IP is required}:32400/,http://plex.atlas.local/
+      - ADVERTISE_IP=http://${NAS_LAN_IP:?NAS_LAN_IP is required}:32400/,https://plex.atlas.vandaele.io:443/
     volumes:
       - type: bind
         source: ${CONFIG_DIR:?CONFIG_DIR is required}

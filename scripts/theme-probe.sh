@@ -4,7 +4,7 @@
 # Slow and manual: run it only when pjan asks (README.md, Monitoring), never from
 # validate.sh or CI.
 #
-# Usage: GRAFANA_URL=http://grafana.atlas.local GRAFANA_USER=pjan sh scripts/theme-probe.sh
+# Usage: GRAFANA_URL=https://grafana.atlas.vandaele.io GRAFANA_USER=pjan sh scripts/theme-probe.sh
 # It asks for the Grafana password unless GRAFANA_PASSWORD is set.
 # Optional: DASHBOARD=/d/<uid>?from=now-24h&to=now (default Atlas Containers).
 # From Docker Desktop, a Grafana on this machine is http://host.docker.internal:<port>.

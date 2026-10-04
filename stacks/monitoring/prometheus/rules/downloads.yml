@@ -21,7 +21,7 @@ groups:
           description: Gluetun has not reported its VPN as running for 5 minutes, so every VPN-bound application is offline. Check the gluetun stack and its logs in Komodo.
           target: gluetun
           details: '{{ with query "gluetun_vpn_status_info" }}status = {{ . | first | label "status" }}{{ else }}no gluetun_vpn_status_info (control server unreachable){{ end }}'
-          link: http://komodo.atlas.local
+          link: https://komodo.atlas.vandaele.io
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
           runbook: https://github.com/pjan/atlas#vpn
 
@@ -45,6 +45,6 @@ groups:
           description: qBittorrent does not listen on the port Gluetun forwards, or Gluetun has no forwarded port, so torrents are firewalled. Check the port forwarding lines in the gluetun logs, then set the forwarded port in qBittorrent.
           target: qbittorrent
           details: 'listen_port = {{ with query "max(qbittorrent_listen_port)" }}{{ . | first | value }}{{ else }}none{{ end }}, forwarded_port = {{ with query "max(gluetun_forwarded_port)" }}{{ . | first | value }}{{ else }}none{{ end }}'
-          link: http://qbittorrent.atlas.local
+          link: https://qbittorrent.atlas.vandaele.io
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
           runbook: https://github.com/pjan/atlas#port-forward

@@ -41,7 +41,7 @@ tests:
               description: The nightly appdata snapshot failed in backup check. Read the appdata-backup Action log in Komodo, fix the cause, and run appdata-backup again.
               target: /volume1/backups/appdata
               details: backup.sh check exited with 1
-              link: http://komodo.atlas.local
+              link: https://komodo.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
               runbook: https://github.com/pjan/atlas#appdata-backup
     promql_expr_test:
@@ -88,7 +88,7 @@ tests:
               description: No appdata snapshot has succeeded for more than 26 hours, or the backup metrics are missing. Check that the appdata-backup Action ran at 05:00 in Komodo, then run it by hand.
               target: /volume1/backups/appdata
               details: last success 1d 2h 20m 0s ago
-              link: http://komodo.atlas.local
+              link: https://komodo.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
               runbook: https://github.com/pjan/atlas#appdata-backup
     promql_expr_test:
@@ -127,7 +127,7 @@ tests:
               description: No appdata snapshot has succeeded for more than 26 hours, or the backup metrics are missing. Check that the appdata-backup Action ran at 05:00 in Komodo, then run it by hand.
               target: /volume1/backups/appdata
               details: no atlas_backup_last_success_timestamp_seconds in /volume1/backups/.metrics
-              link: http://komodo.atlas.local
+              link: https://komodo.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
               runbook: https://github.com/pjan/atlas#appdata-backup
       - eval_time: 20m
@@ -143,7 +143,7 @@ tests:
               description: No off-site snapshot has succeeded for more than 30 hours, or the Backrest hook metrics are missing. Check the plan's schedule and hooks in Backrest, then run the plan.
               target: atlas-volume1-backups → gdrive-atlas-backups
               details: no atlas_offsite_last_success_timestamp_seconds in /volume1/backups/.metrics
-              link: http://backrest.atlas.local
+              link: https://backrest.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
               runbook: https://github.com/pjan/atlas#off-site-backup
       - eval_time: 20m
@@ -182,7 +182,7 @@ tests:
               description: Backrest could not back up /volume1/backups to Google Drive; the previous off-site snapshots are intact. Fix the cause and run the plan again in Backrest.
               target: atlas-volume1-backups → gdrive-atlas-backups
               details: 'snapshot start hook: run hook command hook plan/atlas-volume1-backups/hook/0: fatal: exit status 1'
-              link: http://backrest.atlas.local
+              link: https://backrest.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
               runbook: https://github.com/pjan/atlas#off-site-backup
       - eval_time: 7m
@@ -237,7 +237,7 @@ tests:
               description: Backrest wrote a snapshot, but some files could not be read and are missing off-site. Find them in the plan's last operation in Backrest, fix their permissions, and run the plan again.
               target: atlas-volume1-backups → gdrive-atlas-backups
               details: partial backup, 2 files may not have been read completely.
-              link: http://backrest.atlas.local
+              link: https://backrest.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
               runbook: https://github.com/pjan/atlas#off-site-backup
     promql_expr_test:
@@ -273,7 +273,7 @@ tests:
               description: No off-site snapshot has succeeded for more than 30 hours, or the Backrest hook metrics are missing. Check the plan's schedule and hooks in Backrest, then run the plan.
               target: atlas-volume1-backups → gdrive-atlas-backups
               details: last success 1d 6h 20m 0s ago
-              link: http://backrest.atlas.local
+              link: https://backrest.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
               runbook: https://github.com/pjan/atlas#off-site-backup
     promql_expr_test:

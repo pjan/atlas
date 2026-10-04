@@ -13,8 +13,8 @@ This repository manages Docker Compose stacks for the `Atlas` NAS.
 - Komodo Core URL: `http://192.168.2.200:9120`
 - Caddy HTTP entrypoint: `http://192.168.2.200:80`
 - Caddy HTTPS entrypoint: `https://<app>.atlas.vandaele.io` on `192.168.2.200:443`, with one Let's Encrypt wildcard certificate (see [Caddy Configuration](#caddy-configuration))
-- Local DNS zone: `*.atlas.local`
-- Public application zone: `*.atlas.vandaele.io` through Cloudflare Tunnel and Caddy
+- Application hostnames: `https://<app>.atlas.vandaele.io` everywhere. On the LAN and Tailscale, Atlas DNS (UniFi, AdGuard) sends them to Caddy on the NAS; from the internet, they go through the Cloudflare Tunnel to Caddy
+- Old LAN hostnames: `http://<app>.atlas.local` redirects to `https://<app>.atlas.vandaele.io`
 - Remote access: Tailscale (on the UniFi router) for private access, with selected Caddy applications also available through Cloudflare Access-protected public hostnames
 - Login: authentik at `https://auth.atlas.vandaele.io` (see [authentik](#authentik)); Grafana is the first application behind it
 - Timezone: `Asia/Singapore`, set once in the Komodo `TZ` variable (see [Timezone And Schedules](#timezone-and-schedules))
@@ -23,7 +23,7 @@ This repository manages Docker Compose stacks for the `Atlas` NAS.
 
 ### 1. Free Port 80 In UGOS
 
-UGOS can bind ports `80` and `443` with its built-in nginx service. Caddy binds both, for local hostnames such as `http://sonarr.atlas.local` and for HTTPS on `*.atlas.vandaele.io`, so both must be free.
+UGOS can bind ports `80` and `443` with its built-in nginx service. Caddy binds both: `443` serves `https://<app>.atlas.vandaele.io`, and `80` redirects to it, so both must be free.
 
 In the UGOS dashboard:
 
@@ -43,7 +43,7 @@ Expected result: no UGOS/nginx listener on `0.0.0.0:80` or `0.0.0.0:443`.
 
 ### 2. Configure UniFi Local DNS
 
-On the UniFi Dream Machine, configure local DNS so app subdomains resolve to the NAS.
+On the UniFi Dream Machine, configure local DNS so app hostnames resolve to the NAS. LAN clients, the NAS, and its containers ask UniFi (DHCP hands out `192.168.2.1`; the NAS's `dnsmasq` on `127.0.0.1` forwards to it).
 
 For newer UniFi Network versions, the DNS record UI is usually under one of these paths:
 
@@ -52,11 +52,16 @@ Settings > Policy Engine > DNS > Create DNS Record
 Settings > Policy Table > Create New Policy > DNS
 ```
 
-Host (A) wildcard record:
+Host (A) wildcard records:
 
 ```text
-hostname *.atlas.local, value 192.168.2.200
+hostname *.atlas.vandaele.io, value 192.168.2.200
+hostname *.atlas.local, value 192.168.2.200   (old hostnames, redirected to HTTPS)
 ```
+
+Tailscale devices ask AdGuard (`192.168.2.200`, the Tailscale global nameserver with "Override DNS servers" on), which does not forward local names to UniFi. In AdGuard, add the same record under **Filters > DNS rewrites**: domain `*.atlas.vandaele.io`, answer `192.168.2.200`. It is stored in `AdGuardHome.yaml` in appdata, not in this repository.
+
+Never create a `*.atlas` record in Cloudflare: public DNS has one proxied CNAME per public route, pointing at the tunnel (see [Cloudflared](#cloudflared)), and a wildcard there catches every hostname without its own record.
 
 ### 3. Bootstrap Komodo Manually
 
@@ -257,7 +262,7 @@ To run a backup immediately, run the `appdata-backup` Action in Komodo.
 
 ### Off-Site Backups With Backrest
 
-The `backrest` stack runs [Backrest](https://github.com/garethgeorge/backrest), a web UI and scheduler for restic. Its UI is reachable only on the LAN at `http://backrest.atlas.local`: it holds every repository password and destination credential, so it has no public hostname, and the validator enforces that through `LOCAL_ONLY_CADDY_ROUTES`. Backrest also requires its own login.
+The `backrest` stack runs [Backrest](https://github.com/garethgeorge/backrest), a web UI and scheduler for restic. Its UI is reachable only on the LAN at `https://backrest.atlas.vandaele.io`: it holds every repository password and destination credential, so it is not on the Cloudflare Tunnel and has no public DNS record; the validator keeps it off Caddy's tunnel listener through `LOCAL_ONLY_CADDY_ROUTES`. Backrest also requires its own login.
 
 Layout inside the container:
 
@@ -666,7 +671,7 @@ The disposable transcode directory is `/volume2/tmp/plex/transcode`, provisioned
 
 Plex's scheduled database backups go to `/volume1/backups/plex`, mounted at `/backups`, so they survive a Volume 2 failure. The pre-deploy hook provisions that directory as `999:10` with mode `0750`. In Plex `Settings > Scheduled Tasks`, keep `Backup database every three days` enabled and set `Backup directory` to `/backups`.
 
-All Plex bind sources use `create_host_path: false`, so missing appdata, media, transcode, or backup paths fail instead of becoming Docker-created `root:root` directories. Plex keeps the direct `192.168.2.200:32400` listener for native clients and discovery, while the browser UI remains available through `http://plex.atlas.local`.
+All Plex bind sources use `create_host_path: false`, so missing appdata, media, transcode, or backup paths fail instead of becoming Docker-created `root:root` directories. Plex keeps the direct `192.168.2.200:32400` listener for native clients and discovery, while the browser UI remains available through `https://plex.atlas.vandaele.io`.
 
 In Plex `Settings > Network`, set `LAN Networks` to `192.168.2.0/24`. Plex runs on a Docker bridge network and otherwise treats LAN clients as remote, applying remote bandwidth limits and transcoding. Do not add Docker subnets: Caddy-proxied public traffic would then count as local. Leave `List of IP addresses and networks that are allowed without auth` empty.
 
@@ -692,7 +697,7 @@ Verify the persisted listener without printing the adjacent user configuration:
 docker exec adguard awk '/^http:/ { in_http=1; next } in_http && /^[^[:space:]]/ { exit } in_http && /^[[:space:]]+address:/ { print; exit }' /opt/adguardhome/conf/AdGuardHome.yaml
 ```
 
-The expected result is `address: 0.0.0.0:3000`. If DNS works but `http://adguard.atlas.local` does not, check this value before changing Caddy or exposing a temporary host UI port.
+The expected result is `address: 0.0.0.0:3000`. If DNS works but `https://adguard.atlas.vandaele.io` does not, check this value before changing Caddy or exposing a temporary host UI port.
 
 ### Kometa Tokens
 
@@ -720,7 +725,7 @@ Do not repair Kometa with an unrestricted recursive `chown`. Stop the container,
 The `seerr` stack runs Seerr behind Caddy at:
 
 ```text
-http://seerr.atlas.local
+https://seerr.atlas.vandaele.io
 ```
 
 Deploy order:
@@ -741,7 +746,7 @@ Use the API keys from Sonarr and Radarr, then choose the correct root folders an
 
 Operational notes:
 
-- This stack does not expose a direct host port. Access is Caddy-only through `http://seerr.atlas.local`.
+- This stack does not expose a direct host port. Access is Caddy-only through `https://seerr.atlas.vandaele.io`.
 - Seerr relies on its own auth plus Plex auth. There is no Caddy Basic Auth gate.
 - The container runs as UID/GID `1000:1000`. The pre-deploy step nonrecursively provisions `[[APPDATA_DIR]]/seerr` and its `logs` child; existing nested ownership is audited and repaired only during a stopped migration.
 - `[[APPDATA_DIR]]/seerr` should be backed up with its ownership and permissions preserved.
@@ -764,7 +769,7 @@ In Sonarr, Radarr, Lidarr, and Prowlarr, set `Authentication` to `Forms` and `Au
 The `bazarr` stack runs Bazarr behind Caddy at:
 
 ```text
-http://bazarr.atlas.local
+https://bazarr.atlas.vandaele.io
 ```
 
 Deploy order:
@@ -784,7 +789,7 @@ Use the API keys from Sonarr and Radarr. Keep Bazarr path mappings empty if Baza
 
 Operational notes:
 
-- This stack does not expose a direct host port. Access is Caddy-only through `http://bazarr.atlas.local`.
+- This stack does not expose a direct host port. Access is Caddy-only through `https://bazarr.atlas.vandaele.io`.
 - Bazarr mounts the same `[[DATA_DIR]]` tree at `/data` as Sonarr, Radarr, and Lidarr so subtitle writes happen beside the media files without path translation.
 - Store subtitles `Alongside Media File` unless there is a deliberate media-library reason to do otherwise.
 - Subtitle providers may require separate credentials. Some providers may need anti-captcha services, but FlareSolverr is not a general captcha solver for Bazarr.
@@ -820,7 +825,7 @@ Operational notes:
 The `spottarr` stack runs Spottarr as a Spotnet-backed Newznab indexer behind Caddy at:
 
 ```text
-http://spottarr.atlas.local
+https://spottarr.atlas.vandaele.io
 ```
 
 Spottarr is VPN-bound through Gluetun. Caddy reaches it through:
@@ -859,7 +864,7 @@ Spottarr 1.20 serves the Newznab API under `/newznab/api`. The Generic Newznab d
 
 Operational notes:
 
-- This stack does not expose a direct host port. Access is Caddy-only through `http://spottarr.atlas.local`.
+- This stack does not expose a direct host port. Access is Caddy-only through `https://spottarr.atlas.vandaele.io`.
 - Spottarr stores its SQLite data in `/volume2/appdata/spottarr`, mounted at `/data`.
 - The container is not a LinuxServer image. It runs with Compose `user: "999:10"` rather than LSIO `PUID`/`PGID` environment variables.
 - Keep `/volume2/appdata/spottarr` private because it contains index state and may reveal Usenet-backed search behavior.
@@ -923,7 +928,7 @@ Operational notes:
 The `houndarr` stack runs controlled, rate-limited missing and cutoff searches for Sonarr, Radarr, and Lidarr. Its built-in UI is available locally through Caddy at:
 
 ```text
-http://houndarr.atlas.local
+https://houndarr.atlas.vandaele.io
 http://houndarr.atlas.vandaele.io
 ```
 
@@ -950,7 +955,7 @@ Operational notes:
 - The container runs explicitly as `999:10` with all capabilities dropped, a read-only root filesystem, and writable state only at `/volume2/appdata/houndarr`.
 - `/volume2/appdata/houndarr` contains the SQLite database, encrypted Arr credentials, and encryption master key. It is provisioned as `0700`; back it up with ownership and permissions preserved.
 - The healthcheck uses the unauthenticated `/api/health` endpoint. Its ten-minute start period accommodates database migrations without marking an upgrade unhealthy prematurely.
-- Keep `HOUNDARR_SECURE_COOKIES` disabled while the plain-HTTP local URL remains in use; secure cookies would not be sent to `houndarr.atlas.local`.
+- `HOUNDARR_SECURE_COOKIES=true`: every client reaches Houndarr over HTTPS.
 
 ### Unpackerr
 
@@ -992,11 +997,11 @@ Operational notes:
 Soularr is a background bridge between Lidarr's wanted albums and the `slskd` Soulseek client. The only UI is slskd, behind Caddy at:
 
 ```text
-http://slskd.atlas.local
+https://slskd.atlas.vandaele.io
 http://slskd.atlas.vandaele.io
 ```
 
-Soularr and slskd are separate Komodo stacks so the automation worker can be updated without interrupting the Soulseek client or its downloads. Soularr's built-in UI is intentionally disabled in v1 because it has no authentication. It has no route or direct host port; inspect its logs through Komodo or Docker. slskd is Caddy-only and requires the configured web credentials. Protect `slskd.atlas.vandaele.io` with Cloudflare Access and route that tunnel hostname to `http://caddy:80`. slskd reuses the existing Gluetun namespace used by qBittorrent and SABnzbd, and its UI is reachable through Gluetun's `downloaders-vpn` alias.
+Soularr and slskd are separate Komodo stacks so the automation worker can be updated without interrupting the Soulseek client or its downloads. Soularr's built-in UI is intentionally disabled in v1 because it has no authentication. It has no route or direct host port; inspect its logs through Komodo or Docker. slskd is Caddy-only and requires the configured web credentials. Protect `slskd.atlas.vandaele.io` with Cloudflare Access and route that tunnel hostname to `http://caddy:8080`. slskd reuses the existing Gluetun namespace used by qBittorrent and SABnzbd, and its UI is reachable through Gluetun's `downloaders-vpn` alias.
 
 Before deploying, create these Komodo variables. Use a dedicated Soulseek account and separate random values of at least 16 characters for the slskd API key and JWT key:
 
@@ -1098,8 +1103,8 @@ Komodo `after = ["gluetun"]` affects dependency ordering during Resource Sync de
 qBittorrent and SABnzbd are available at:
 
 ```text
-http://qbittorrent.atlas.local
-http://sabnzbd.atlas.local
+https://qbittorrent.atlas.vandaele.io
+https://sabnzbd.atlas.vandaele.io
 ```
 
 There are no direct Autobrr, qBittorrent, or SABnzbd host UI ports. Keep UI access Caddy-only unless an emergency LAN-bound port is deliberately added to the Gluetun stack.
@@ -1219,7 +1224,7 @@ Do not use `docker restart gluetun` once VPN-bound containers are attached; it r
 The `autobrr` stack monitors tracker IRC announcements and feeds, then sends matching releases to configured download clients or Arr applications. It is VPN-bound through Gluetun and available locally through Caddy at:
 
 ```text
-http://autobrr.atlas.local
+https://autobrr.atlas.vandaele.io
 http://autobrr.atlas.vandaele.io
 ```
 
@@ -1255,10 +1260,10 @@ Operational notes:
 The `qui` stack runs qui as a separate qBittorrent management UI behind Caddy at:
 
 ```text
-http://qui.atlas.local
+https://qui.atlas.vandaele.io
 ```
 
-qui is not a qBittorrent alternative WebUI theme. It connects to qBittorrent through the qBittorrent Web API. The existing qBittorrent UI remains available at `http://qbittorrent.atlas.local`.
+qui is not a qBittorrent alternative WebUI theme. It connects to qBittorrent through the qBittorrent Web API. The existing qBittorrent UI remains available at `https://qbittorrent.atlas.vandaele.io`.
 
 Deploy order:
 
@@ -1291,7 +1296,7 @@ API key: copied from Prowlarr
 
 Operational notes:
 
-- There is no direct qui host port. Access is Caddy-only through `http://qui.atlas.local`.
+- There is no direct qui host port. Access is Caddy-only through `https://qui.atlas.vandaele.io`.
 - qui does not run in Gluetun's network namespace. It is only a control UI and should not share the VPN container lifecycle.
 - Keep qui authentication enabled. Do not set `QUI__AUTH_DISABLED=true`.
 - The stack mounts `[[DATA_DIR]]/downloads/torrents` at the container path `/data/downloads/torrents` (via `TORRENTS_DIR`) to enable qui's filesystem-dependent features. This path deliberately matches qBittorrent's own `/data/downloads/torrents` mapping so the save paths qui reads from the qBittorrent API resolve correctly on qui's filesystem. This mount grants qui read/write/delete capability over torrent downloads; switch it to `:ro` in `stacks/qui/compose.yaml` if only read-only browsing is wanted.
@@ -1303,7 +1308,7 @@ Operational notes:
 The `rclone` stack runs the official `rclone gui` web UI behind Caddy at:
 
 ```text
-http://rclone.atlas.local
+https://rclone.atlas.vandaele.io
 ```
 
 Deploy order:
@@ -1314,12 +1319,12 @@ Deploy order:
 Use the normal hostname below. Caddy redirects first-time GUI loads to the rclone launcher URL so the web UI knows how to reach the same-origin RC API:
 
 ```text
-http://rclone.atlas.local/
+https://rclone.atlas.vandaele.io/
 ```
 
 Operational notes:
 
-- `rclone.atlas.local` and `rclone.atlas.vandaele.io` are privileged management surfaces. Anyone who reaches either hostname can manage configured remotes and read or write the mounted local data path.
+- `rclone.atlas.vandaele.io` is a privileged management surface. Anyone who reaches either hostname can manage configured remotes and read or write the mounted local data path.
 - The rclone RC API runs with `--no-auth` on a dedicated `rclone_network` that only Caddy and rclone join. Require Cloudflare Access on `rclone.atlas.vandaele.io`; application-level authentication does not protect this endpoint.
 - This stack mounts all of `[[DATA_DIR]]` at `/data`. That was chosen for flexibility, not least privilege.
 - `rclone.conf` contains remote credentials and tokens. It is provisioned with `0600` permissions and should be backed up from `[[APPDATA_DIR]]/rclone`.
@@ -1332,7 +1337,7 @@ Operational notes:
 Speedtest Tracker runs behind Caddy at:
 
 ```text
-http://speedtest.atlas.local
+https://speedtest.atlas.vandaele.io
 ```
 
 Before deploying, create `SPEEDTEST_TRACKER_APP_KEY` in Komodo. This is mapped to the container's required `APP_KEY` environment variable; the shorter name is the upstream Speedtest Tracker/Laravel name, while the Komodo value is namespaced for this repo. Generate it with:
@@ -1366,31 +1371,29 @@ For each public hostname in the Cloudflare Tunnel dashboard, point the service a
 Service: http://caddy:8080
 ```
 
-Port `8080` is reachable only on Docker networks, serves every public route over plain HTTP (Cloudflare terminates HTTPS), and takes the client address from `CF-Connecting-IP`. It never depends on Caddy's certificate, and LAN-only routes are not on it. Hostnames still on `http://caddy:80` keep working while they are moved one by one.
+Port `8080` is reachable only on Docker networks, serves every public route over plain HTTP (Cloudflare terminates HTTPS), and takes the client address from `CF-Connecting-IP`. It never depends on Caddy's certificate, and LAN-only routes are not on it.
 
-Define each public hostname exactly once. Do not use `http://<app>.atlas.local` as the tunnel service: that adds an unnecessary dependency on Atlas DNS and rewrites the origin host to the local hostname. Sending every public hostname to `http://caddy:80` keeps routing declarative in Caddy and preserves the incoming `*.atlas.vandaele.io` host for matching.
+Define each public hostname exactly once, and give it a proxied DNS record (`CNAME <app>.atlas` to `<tunnel-id>.cfargotunnel.com`; the dashboard creates it with the route). Sending every public hostname to `http://caddy:8080` keeps routing declarative in Caddy and preserves the incoming `*.atlas.vandaele.io` host for matching. `probe_routes_public` checks every public route through Cloudflare, so a route or DNS record that stops reaching Caddy raises [`ProbeFailed`](#application-probes).
 
-Caddy routes by HTTP host. The shared `atlas_reverse_proxy` snippet creates the `*.atlas.local` route and the `*.atlas.vandaele.io` route on ports `80`, `443`, and `8080`. The specialized rclone snippet defines the same addresses. For a custom route, use:
+Caddy routes by HTTP host. The shared `atlas_reverse_proxy` snippet serves `<app>.atlas.vandaele.io` on `443` and on `8080`; the specialized rclone snippet does the same. For a custom route, use:
 
 ```caddyfile
-http://speedtest.atlas.local, speedtest.atlas.vandaele.io, http://speedtest.atlas.vandaele.io, http://speedtest.atlas.vandaele.io:8080 {
+speedtest.atlas.vandaele.io, http://speedtest.atlas.vandaele.io:8080 {
 	reverse_proxy speedtest-tracker:80
 }
 ```
-
-Cloudflare's origin HTTP Host Header override can also route a public hostname to an existing `atlas.local` site block, but use it carefully. Some apps generate redirects, callback URLs, CSRF origins, or absolute links from the Host header they receive.
 
 Use Cloudflare Access policies on the public hostnames for admin-facing services. The tunnel removes inbound port exposure, but it does not replace application authentication.
 
 ### authentik
 
-The `authentik` stack runs [authentik](https://goauthentik.io/) 2026.8, the login for Atlas applications, with per-user access for pjan and family. It is public only, at:
+The `authentik` stack runs [authentik](https://goauthentik.io/) 2026.8, the login for Atlas applications, with per-user access for pjan and family, at:
 
 ```text
 https://auth.atlas.vandaele.io
 ```
 
-There is no `*.atlas.local` hostname: OIDC callbacks, passkeys, and secure cookies need one HTTPS origin, and Caddy serves only HTTP. The validator enforces this through `PUBLIC_ONLY_CADDY_ROUTES`. Cloudflare terminates HTTPS, and there is no Cloudflare Access in front: authentik itself is the gate, with a Cloudflare rate limit on its login API. Grafana is the first application behind it; the other applications follow app by app, after each gets its own HTTPS hostname.
+It is one HTTPS origin on every network, which OIDC callbacks, passkeys, and secure cookies need: Caddy serves it on `443` for the LAN and Tailscale, and Cloudflare terminates HTTPS for the internet. There is no Cloudflare Access in front: authentik itself is the gate, with a Cloudflare rate limit on its login API. Grafana is the first application behind it; the other applications follow app by app, after each gets its own HTTPS hostname.
 
 Layout:
 
@@ -1426,7 +1429,7 @@ Users are created in the authentik UI, never in blueprints: they carry passwords
 #### First Setup
 
 1. Create the five Komodo variables above before running the Resource Sync: the sync deploys `authentik` and redeploys `monitoring`, and both fail without them. Wait until the three `authentik` containers are healthy, then deploy `caddy` by hand. Until step 2, the `authentik-public` probe fails.
-2. In the Cloudflare Tunnel dashboard, add the public hostname `auth.atlas.vandaele.io` with service `http://caddy:80`, and no Cloudflare Access application. In the Cloudflare dashboard for `vandaele.io`, turn on **SSL/TLS → Edge Certificates → Always Use HTTPS** and add a rate-limiting rule: URI path starts with `/api/v3/flows/executor/`, counted per IP, for example 20 requests per 10 seconds, action Block. A normal login takes about 5 requests there.
+2. In the Cloudflare Tunnel dashboard, add the public hostname `auth.atlas.vandaele.io` with service `http://caddy:8080`, and no Cloudflare Access application. In the Cloudflare dashboard for `vandaele.io`, turn on **SSL/TLS → Edge Certificates → Always Use HTTPS** and add a rate-limiting rule: URI path starts with `/api/v3/flows/executor/`, counted per IP, for example 20 requests per 10 seconds, action Block. A normal login takes about 5 requests there.
 3. Open `https://auth.atlas.vandaele.io` and log in as `akadmin` with the bootstrap password. Set up TOTP and a passkey under **Settings → MFA Devices**.
 4. Create the user `pjan` in **Directory → Users**, add it to `admins`, set its password, log in as `pjan` (authentik makes it set up TOTP or a passkey), and set up the other one too. Then deactivate `akadmin`, or give it a long random password kept in the password manager for break-glass.
 5. Empty `AUTHENTIK_BOOTSTRAP_EMAIL` and `AUTHENTIK_BOOTSTRAP_PASSWORD` in Komodo.
@@ -1437,7 +1440,7 @@ Users are created in the authentik UI, never in blueprints: they carry passwords
 
 Grafana's login page has **Sign in with authentik** (`GF_AUTH_GENERIC_OAUTH_*` in `stacks/monitoring/compose.yaml`). Members of `admins` get Grafana's Admin role and everyone else Viewer, from the `groups` claim; authentik itself lets only `admins` in. Grafana matches authentik users by username, never by email, because users can change their email in authentik. It therefore cannot take over an existing local Grafana user with the same username: that login fails with `unable to create user` until the local user is deleted. Dashboards live in Git Sync, so a deleted local user loses only its preferences and stars.
 
-Grafana's own login form (the `admin` user from `GRAFANA_ADMIN_PASSWORD`) stays on as break-glass until every application uses authentik. OIDC returns to `https://grafana.atlas.vandaele.io`, Grafana's root URL, so a login started on `http://grafana.atlas.local` ends on the public hostname, behind Cloudflare Access, until Grafana gets its own HTTPS hostname.
+Grafana's own login form (the `admin` user from `GRAFANA_ADMIN_PASSWORD`) stays on as break-glass until every application uses authentik. Grafana's token and userinfo calls go to `https://auth.atlas.vandaele.io`, which Atlas DNS sends to Caddy's `443`, so they depend on Caddy's certificate on every network: when it is invalid ([`CaddyDown`](#caddy)), use the local `admin` login.
 
 #### Backups And Restore
 
@@ -1449,7 +1452,7 @@ Prometheus scrapes the server's metrics (job `authentik`). `probe_health` checks
 
 ## Monitoring
 
-The `monitoring` stack runs Prometheus, Alertmanager (see [Alerts](#alerts)), node-exporter, blackbox-exporter and blackbox-public (the same probes, resolved through public DNS for the probes of the Cloudflare path), smartctl-exporter, cAdvisor, the application exporters, and Grafana on the private `monitoring_network`. Only Grafana also joins `proxy_network`, and it is reachable at `http://grafana.atlas.local` and at `https://grafana.atlas.vandaele.io`, which must be protected by Cloudflare Access; Grafana also requires its own login. Prometheus and Alertmanager have no host port and no web route; query Prometheus through Grafana.
+The `monitoring` stack runs Prometheus, Alertmanager (see [Alerts](#alerts)), node-exporter, blackbox-exporter and blackbox-public (the same probes, resolved through public DNS for the probes of the Cloudflare path), smartctl-exporter, cAdvisor, the application exporters, and Grafana on the private `monitoring_network`. Only Grafana also joins `proxy_network`, and it is reachable at `https://grafana.atlas.vandaele.io` and at `https://grafana.atlas.vandaele.io`, which must be protected by Cloudflare Access; Grafana also requires its own login. Prometheus and Alertmanager have no host port and no web route; query Prometheus through Grafana.
 
 The nightly `appdata-backup` Action never stops the `monitoring` stack, and its data is not backed up: `/volume2/appdata/prometheus` (90 days, at most 20 GB), `/volume2/appdata/alertmanager` (silences and the notification log), and `/volume2/appdata/grafana` (Grafana's SQLite database) are excluded. Only configuration is kept, in git: Prometheus, its rules, Alertmanager, blackbox, and Grafana provisioning in this repository, and dashboards in `pjan/atlas-dashboards`. After losing Volume 2, Grafana starts with an empty database: the admin login comes from `GRAFANA_ADMIN_PASSWORD`, the datasource (and alerting) from provisioning, and the dashboards return once Git Sync is reconnected with the token from the password manager. Extra users, service accounts, and alert history are lost. Scrapes run every 30 seconds and probes every 60 seconds.
 
@@ -1462,11 +1465,12 @@ Current signals:
 | `node` | CPU, memory, filesystems, md RAID, btrfs, and the backup textfile metrics in `/volume1/backups/.metrics` |
 | `cadvisor` | Per-container CPU (usage, the `cpus` limit, and throttling at it), memory (working set, RSS, limit), block I/O, pressure (PSI: CPU, memory, and I/O waiting), threads and the PIDs limit, start time, and OOM events, keyed by `container_id` |
 | `smartctl` | SMART health, NVMe wear, spare, critical warnings, media errors, and temperatures for `sda` (Seagate 12 TB, Volume 1), `nvme0` (Lexar 512 GB, Volume 2), and `nvme1` (TWSC 128 GB, UGOS system disk) |
-| `probe_routes` | Every deployed `*.atlas.local` Caddy route (UniFi DNS, Caddy, and the application; 401 and 403 count as healthy) |
+| `probe_routes` | Every Caddy route on `https://<app>.atlas.vandaele.io` from the LAN (UniFi DNS, Caddy and its certificate, and the application; 401 and 403 count as healthy) |
+| `probe_routes_public` | Every public route through Cloudflare and the tunnel (from `blackbox-public`, through public DNS; services `<app>-public`) |
 | `probe_tcp` | AdGuard DNS `:53`, Caddy `:80`, Komodo `:9120`, Plex `:32400`, and Roon Server `:9330` on `192.168.2.200` |
-| `probe_dns_atlas_local` | UniFi resolves `sonarr.atlas.local` to `192.168.2.200` |
+| `probe_dns_split` | UniFi and AdGuard resolve `sonarr.atlas.vandaele.io` to `192.168.2.200` |
+| `probe_dns_atlas_local` | UniFi resolves `sonarr.atlas.local` to `192.168.2.200` (old hostnames, redirected) |
 | `probe_dns_external` | AdGuard resolves an external name |
-| `probe_cloudflare_access` | Public hostnames answer with the Cloudflare Access login redirect (from `blackbox-public`, through public DNS) |
 | `probe_tls_caddy` | Caddy's HTTPS listener `192.168.2.200:443` completes a TLS handshake for `caddy.atlas.vandaele.io` with a valid certificate, and its expiry |
 | `probe_internet` | Outbound HTTPS from the NAS |
 | `probe_health` | Application health, through Caddy unless noted: Servarr `/ping` must report `OK` (fails when the app cannot reach its database), Plex `/identity` must contain a `machineIdentifier` (through Caddy and directly on `:32400`), Grafana `/api/health` must report the database `ok`, SABnzbd must report its version, Caddy must answer `ok`, Komodo, Seerr, Autobrr, Houndarr, qui, and Spottarr health endpoints must return 200, and authentik's ready endpoint (directly, `authentik`) and live endpoint (through Cloudflare, `authentik-public`) must return 200 |
@@ -1493,12 +1497,12 @@ The Atlas theme is the app plugin `atlas-theme-app` in `stacks/monitoring/grafan
 
 The rules are in `pjan/atlas-dashboards` `CONVENTIONS.md`. `scripts/validate.sh` checks `atlas-theme.json` against Grafana's theme schema (`stacks/monitoring/grafana-tests/grafana-theme.schema.json`, copied from `packages/grafana-data/src/themes/schema.generated.json` at the Grafana tag in use; copy it again when Grafana is upgraded), every palette reference, and that dark steps mirror light ones (1000 minus the step). Bump `info.version` in `plugin.json` with every change: browsers cache the files by that version. The plugin is unsigned, and `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=atlas-theme-app` allows only it. It lives in git, not in `/volume2/appdata/grafana`, so it survives a Volume 2 loss; changes apply when `post_deploy` restarts Grafana and the browser reloads. Without the plugin (it also does not load for viewers without an org role, such as public dashboards), the dashboards work with Grafana's stock colours, except the plugin's extra colour names: `super-light-gray` timeline segments render black.
 
-To tune the theme, open any Grafana page with `?atlasEditor=1` added to the URL (for example `http://grafana.atlas.local/d/atlas-containers?atlasEditor=1`). A drawer shows `atlas-theme.json`; every edit applies at once, without a reload, and the palette swatches insert `atlas.<key>` references. Edits are kept in that browser only (localStorage), shown by an "Atlas theme: local override" badge, until **Reset to file**. **Copy** copies the file so it can be committed to this repository; the file in the repository stays the source for everyone else.
+To tune the theme, open any Grafana page with `?atlasEditor=1` added to the URL (for example `https://grafana.atlas.vandaele.io/d/atlas-containers?atlasEditor=1`). A drawer shows `atlas-theme.json`; every edit applies at once, without a reload, and the palette swatches insert `atlas.<key>` references. Edits are kept in that browser only (localStorage), shown by an "Atlas theme: local override" badge, until **Reset to file**. **Copy** copies the file so it can be committed to this repository; the file in the repository stays the source for everyone else.
 
 The plugin relies on undocumented Grafana behaviour (it replaces the theme at runtime and clears panel caches after a theme switch). After a Grafana upgrade, run the theme probe: it renders a dashboard in both themes and after a live switch, lists the colours the browser draws per element, checks Grafana's colour picker (the extra hues listed, and their rows scrolling inside the picker; on a temporary dashboard it creates and deletes), and ends with `FAIL` lines for what the theme no longer reaches. It takes a few minutes and pulls the Playwright image (about 2 GB), so it runs only on request, never from `validate.sh`:
 
 ```sh
-GRAFANA_URL=http://grafana.atlas.local GRAFANA_USER=pjan sh scripts/theme-probe.sh
+GRAFANA_URL=https://grafana.atlas.vandaele.io GRAFANA_USER=pjan sh scripts/theme-probe.sh
 ```
 
 It asks for the Grafana password (or takes `GRAFANA_PASSWORD`), switches that user's theme during the run, and restores the preference at the end. `DASHBOARD=/d/<uid>` probes another dashboard.
@@ -1666,7 +1670,7 @@ cp /tmp/atlas_backups.prom.saved atlas_backups.prom.tmp && mv atlas_backups.prom
 
 `OffsiteBackupFailed` (`backup.offsite`, critical): the last snapshot of the Backrest plan `atlas-volume1-backups` failed (exit code 1), including a failed pre-check; Details show Backrest's error text. `OffsiteBackupPartial` (`backup.offsite`, warning): the snapshot was written, but restic could not read some files (exit code 3). `OffsiteBackupStale` (`backup.offsite-age`, critical): no snapshot has succeeded for 30 hours (the plan runs daily at 06:00), or `atlas_offsite.prom` is missing (the [metrics hook](#off-site-backup-metrics) was removed or never ran). The values come from the plan's metrics hook.
 
-1. Open the plan's last operation in Backrest (`http://backrest.atlas.local`) and read its log.
+1. Open the plan's last operation in Backrest (`https://backrest.atlas.vandaele.io`) and read its log.
 2. A pre-check failure means the appdata snapshot was not complete and recent: fix the [appdata backup](#appdata-backup) first.
 3. For unreadable files (partial), fix their permissions or exclude them in the plan.
 4. Run the plan with **Backup now**. The alerts resolve with the next successful snapshot.
@@ -1685,16 +1689,16 @@ cp /tmp/atlas_backups.prom.saved atlas_backups.prom.tmp && mv atlas_backups.prom
 
 #### Caddy
 
-`CaddyDown` (`services.caddy`, critical): Caddy's metrics endpoint (`caddy:2020`) or its LAN port (`192.168.2.200:80`) has not answered for 3 minutes. Both are checked without DNS. Every `*.atlas.local` route, the public hostnames through the tunnel, and every health probe except `plex-direct` and `authentik` depend on it, so it suppresses `ProbeFailed`. Check the `caddy` stack and its logs in Komodo, validate the configuration with `./scripts/validate.sh`, and redeploy it. Gated during the appdata backup.
+`CaddyDown` (`services.caddy`, critical): for 3 minutes, Caddy's metrics endpoint (`caddy:2020`) or its LAN port (`192.168.2.200:80`) has not answered, or its HTTPS listener (`192.168.2.200:443`, job `probe_tls_caddy`) has not completed a TLS handshake with a valid certificate. All are checked without DNS. Every `https://<app>.atlas.vandaele.io` route, the tunnel's public routes (unless only the certificate failed), and every probe except `plex-direct` and `authentik` depend on it, so it suppresses `ProbeFailed`. A certificate failure also breaks Grafana's authentik login (see [Grafana Login](#grafana-login)); see `CaddyCertificateExpiring` below for the cause. Check the `caddy` stack and its logs in Komodo, validate the configuration with `./scripts/validate.sh`, and redeploy it. Gated during the appdata backup.
 
-`CaddyCertificateFailing` (`services.caddy`, warning): for 30 minutes, the `*.atlas.vandaele.io` certificate on `192.168.2.200:443` has had less than 10 days left, or the TLS handshake has failed (no valid certificate). Caddy renews with a third of the lifetime left, so renewals through the Cloudflare DNS challenge have been failing for days. Check the `caddy` logs for `tls.obtain` errors and `CLOUDFLARE_DNS_API_TOKEN` in Komodo (see [Caddy Configuration](#caddy-configuration)), then redeploy `caddy`. The tunnel on `:8080` does not use the certificate. Gated during the appdata backup.
+`CaddyCertificateExpiring` (`services.caddy`, warning): for 30 minutes, the `*.atlas.vandaele.io` certificate on `192.168.2.200:443` has had less than 10 days left. Caddy renews with a third of the lifetime left, so renewals through the Cloudflare DNS challenge have been failing for days. Check the `caddy` logs for `tls.obtain` errors and `CLOUDFLARE_DNS_API_TOKEN` in Komodo (see [Caddy Configuration](#caddy-configuration)), then redeploy `caddy`. The tunnel on `:8080` does not use the certificate. Gated during the appdata backup.
 
 #### Application Probes
 
-`ProbeFailed` (`services.apps`): an application's health endpoint (job `probe_health`, through Caddy and the LAN hostname) has failed for 5 minutes. Warning for every application; critical for Plex (`plex` through Caddy, `plex-direct` on port 32400). Caddy's own probe is covered by [`CaddyDown`](#caddy). authentik has no LAN hostname: `authentik` probes its server directly, and `authentik-public` probes `https://auth.atlas.vandaele.io` through Cloudflare, so [`TunnelDown`](#cloudflare-tunnel) suppresses it. The link opens the application.
+`ProbeFailed` (`services.apps`): for 5 minutes, an application's health endpoint (job `probe_health`, through Caddy on the LAN) or its public route through Cloudflare and the tunnel (job `probe_routes_public`, service `<app>-public`) has failed. Warning for every application; critical for Plex (`plex` through Caddy, `plex-direct` on port 32400). Caddy's own probe is covered by [`CaddyDown`](#caddy). `authentik` probes its server directly. [`TunnelDown`](#cloudflare-tunnel) suppresses every `<app>-public` alert, and [`VpnDown`](#vpn) those of the VPN-bound applications. A failing `<app>-public` alone means its tunnel route or its Cloudflare DNS record no longer reaches Caddy (see [Cloudflared](#cloudflared)). The link opens the application.
 
 1. Check the stack and its logs in Komodo, and redeploy it if it does not recover.
-2. If many probes fail at once, check Caddy, the LAN DNS (`*.atlas.local` from UniFi), and, for the VPN-bound applications, [the VPN](#vpn).
+2. If many probes fail at once, check Caddy, Atlas DNS (`*.atlas.vandaele.io` from UniFi, `probe_dns_split`), and, for the VPN-bound applications, [the VPN](#vpn).
 
 Gated during the appdata backup, which stops these stacks. To test it, stop `sonarr` in Komodo outside the backup: one FIRING message after about 5 minutes and `services.apps` amber, then RESOLVED after starting it again.
 
@@ -1738,13 +1742,13 @@ stacks/caddy/conf/sites/*.caddy
 
 Caddy listens on three ports:
 
-- `80` (LAN): `http://*.atlas.local`, and the public hostnames over plain HTTP.
+- `80` (LAN): redirects only, `http://<app>.atlas.local` and `http://<app>.atlas.vandaele.io` to `https://<app>.atlas.vandaele.io`.
 - `443` (LAN and Tailscale): `https://*.atlas.vandaele.io`, with one Let's Encrypt wildcard certificate. HTTP/1.1 and HTTP/2 only; UDP `443` is not published.
 - `8080` (Docker networks only): the Cloudflare Tunnel's origin (see [Cloudflared](#cloudflared)).
 
 The image is `atlas-caddy:local`, built from `stacks/caddy/Dockerfile` (the official image plus the [caddy-dns/cloudflare](https://github.com/caddy-dns/cloudflare) module) by the `caddy` stack's `pre_deploy`; Komodo never pulls it. A change to the Dockerfile redeploys the stack. Renovate updates both base images and the module, and never automerges them.
 
-The wildcard site `*.atlas.vandaele.io` in the `Caddyfile` owns the certificate; every site on `443` uses it, and Caddy obtains no per-hostname certificates. Caddy obtains and renews it with a DNS challenge through the Cloudflare API, checking the challenge record against public resolvers (`1.1.1.1`), so Atlas' own DNS for `*.atlas.vandaele.io` cannot hide it. Renewal is automatic; [`CaddyCertificateFailing`](#caddy) warns when it fails. Certificates live in the `caddy-data` Docker volume; losing it only means a new certificate.
+The wildcard site `*.atlas.vandaele.io` in the `Caddyfile` owns the certificate; every site on `443` uses it, and Caddy obtains no per-hostname certificates. Caddy obtains and renews it with a DNS challenge through the Cloudflare API, checking the challenge record against public resolvers (`1.1.1.1`), so Atlas' own DNS for `*.atlas.vandaele.io` cannot hide it. Renewal is automatic; [`CaddyCertificateExpiring`](#caddy) warns when it fails. Certificates live in the `caddy-data` Docker volume; losing it only means a new certificate.
 
 Komodo variable (secret):
 
@@ -1765,7 +1769,7 @@ The root `Caddyfile` imports all site files:
 import sites/*.caddy
 ```
 
-`http://caddy.atlas.local` and `caddy.atlas.vandaele.io` (on ports `80`, `443`, and `8080`) return a static `200 ok` health response. They do not proxy or expose Caddy's admin API.
+`caddy.atlas.vandaele.io` (on `443` and `8080`) returns a static `200 ok` health response. They do not proxy or expose Caddy's admin API.
 
 To add a new app route:
 
@@ -1774,7 +1778,7 @@ To add a new app route:
 3. Ensure the app container joins `proxy_network`, or proxy to `host.docker.internal` for host services.
 4. Push to `main`, execute Resource Sync, then explicitly deploy or redeploy `caddy` so the `post_deploy` reload hook applies the live config.
 
-Most application UIs are exposed only through Caddy, using paired `*.atlas.local` and `*.atlas.vandaele.io` hostnames. The validator requires every public route to be served on `443` and on the tunnel listener `8080`. Public hostnames must be protected by appropriate Cloudflare Access policies. Routes listed in `LOCAL_ONLY_CADDY_ROUTES` in `scripts/validate-repository.py` (currently `backrest`) are LAN-only and must not get a public hostname. Routes in `PUBLIC_ONLY_CADDY_ROUTES` (currently `auth`, see [authentik](#authentik)) are public only and must not get a `*.atlas.local` hostname. Plex is the direct-port exception and still publishes `192.168.2.200:32400/tcp` for native client discovery and direct access.
+Most application UIs are exposed only through Caddy, at `https://<app>.atlas.vandaele.io`. The validator requires every route to be served on `443` and, except LAN-only routes, on the tunnel listener `8080`, and rejects `*.atlas.local` and port-80 addresses in site files. Public hostnames must be protected by appropriate Cloudflare Access policies. Routes listed in `LOCAL_ONLY_CADDY_ROUTES` in `scripts/validate-repository.py` (currently `backrest`) are LAN-only: they use the `atlas_lan_proxy` snippet, are not on `8080`, and must not get a tunnel route or a public DNS record. Plex is the direct-port exception and still publishes `192.168.2.200:32400/tcp` for native client discovery and direct access.
 
 Validation note:
 
@@ -1783,17 +1787,13 @@ Validation note:
 Example app route:
 
 ```caddyfile
-http://example.atlas.local {
-	reverse_proxy example:1234
-}
+import atlas_reverse_proxy example example:1234
 ```
 
 Example host-service route:
 
 ```caddyfile
-http://hostapp.atlas.local {
-	reverse_proxy host.docker.internal:1234
-}
+import atlas_reverse_proxy hostapp host.docker.internal:1234
 ```
 
 ## Renovate

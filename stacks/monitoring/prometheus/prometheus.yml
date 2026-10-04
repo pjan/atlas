@@ -192,39 +192,39 @@ scrape_configs:
     scrape_interval: 60s
     metrics_path: /probe
     static_configs:
-      - targets: ["http://caddy.atlas.local/"]
+      - targets: ["https://caddy.atlas.vandaele.io/"]
         labels: {module: http_caddy_ok, service: caddy}
-      - targets: ["http://grafana.atlas.local/api/health"]
+      - targets: ["https://grafana.atlas.vandaele.io/api/health"]
         labels: {module: http_grafana_health, service: grafana}
-      - targets: ["http://komodo.atlas.local/version"]
+      - targets: ["https://komodo.atlas.vandaele.io/version"]
         labels: {module: http_health_200, service: komodo}
-      - targets: ["http://sonarr.atlas.local/ping"]
+      - targets: ["https://sonarr.atlas.vandaele.io/ping"]
         labels: {module: http_servarr_ping, service: sonarr}
-      - targets: ["http://radarr.atlas.local/ping"]
+      - targets: ["https://radarr.atlas.vandaele.io/ping"]
         labels: {module: http_servarr_ping, service: radarr}
-      - targets: ["http://lidarr.atlas.local/ping"]
+      - targets: ["https://lidarr.atlas.vandaele.io/ping"]
         labels: {module: http_servarr_ping, service: lidarr}
-      - targets: ["http://prowlarr.atlas.local/ping"]
+      - targets: ["https://prowlarr.atlas.vandaele.io/ping"]
         labels: {module: http_servarr_ping, service: prowlarr}
-      - targets: ["http://sabnzbd.atlas.local/api?mode=version&output=json"]
+      - targets: ["https://sabnzbd.atlas.vandaele.io/api?mode=version&output=json"]
         labels: {module: http_sabnzbd_version, service: sabnzbd}
-      - targets: ["http://plex.atlas.local/identity"]
+      - targets: ["https://plex.atlas.vandaele.io/identity"]
         labels: {module: http_plex_identity, service: plex}
       - targets: ["http://192.168.2.200:32400/identity"]
         labels: {module: http_plex_identity, service: plex-direct}
-      - targets: ["http://seerr.atlas.local/api/v1/status"]
+      - targets: ["https://seerr.atlas.vandaele.io/api/v1/status"]
         labels: {module: http_health_200, service: seerr}
-      - targets: ["http://autobrr.atlas.local/api/healthz/readiness"]
+      - targets: ["https://autobrr.atlas.vandaele.io/api/healthz/readiness"]
         labels: {module: http_health_200, service: autobrr}
-      - targets: ["http://houndarr.atlas.local/api/health"]
+      - targets: ["https://houndarr.atlas.vandaele.io/api/health"]
         labels: {module: http_health_200, service: houndarr}
-      - targets: ["http://qui.atlas.local/health"]
+      - targets: ["https://qui.atlas.vandaele.io/health"]
         labels: {module: http_health_200, service: qui}
-      - targets: ["http://spottarr.atlas.local/healthz"]
+      - targets: ["https://spottarr.atlas.vandaele.io/healthz"]
         labels: {module: http_health_200, service: spottarr}
-      # authentik has no LAN hostname: directly on monitoring_network, and
-      # through the Cloudflare Tunnel and Caddy. The public probe runs on
-      # blackbox-public, which resolves through public DNS.
+      # authentik directly on monitoring_network, and through the Cloudflare
+      # Tunnel and Caddy: the public probe runs on blackbox-public, which
+      # resolves through public DNS.
       - targets: ["http://authentik-server:9000/-/health/ready/"]
         labels: {module: http_health_200, service: authentik}
       - targets: ["https://auth.atlas.vandaele.io/-/health/live/"]
@@ -242,7 +242,8 @@ scrape_configs:
         regex: (.+)
         target_label: __address__
 
-  # Every Caddy route on the LAN hostname: DNS (UniFi wildcard), Caddy, and the app.
+  # Every Caddy route on its HTTPS hostname from the LAN: Atlas DNS (the UniFi
+  # *.atlas.vandaele.io record), Caddy and its certificate, and the app.
   - job_name: probe_routes
     scrape_interval: 60s
     metrics_path: /probe
@@ -250,27 +251,28 @@ scrape_configs:
       module: [http_route]
     static_configs:
       - targets:
-          - http://adguard.atlas.local
-          - http://autobrr.atlas.local
-          - http://backrest.atlas.local
-          - http://bazarr.atlas.local
-          - http://caddy.atlas.local
-          - http://grafana.atlas.local
-          - http://houndarr.atlas.local
-          - http://komodo.atlas.local
-          - http://lidarr.atlas.local
-          - http://plex.atlas.local
-          - http://prowlarr.atlas.local
-          - http://qbittorrent.atlas.local
-          - http://qui.atlas.local
-          - http://radarr.atlas.local
-          - http://sabnzbd.atlas.local
-          - http://seerr.atlas.local
-          - http://slskd.atlas.local
-          - http://sonarr.atlas.local
-          - http://speedtest.atlas.local
-          - http://spottarr.atlas.local
-          - http://ugos.atlas.local
+          - https://adguard.atlas.vandaele.io
+          - https://auth.atlas.vandaele.io
+          - https://autobrr.atlas.vandaele.io
+          - https://backrest.atlas.vandaele.io
+          - https://bazarr.atlas.vandaele.io
+          - https://caddy.atlas.vandaele.io
+          - https://grafana.atlas.vandaele.io
+          - https://houndarr.atlas.vandaele.io
+          - https://komodo.atlas.vandaele.io
+          - https://lidarr.atlas.vandaele.io
+          - https://plex.atlas.vandaele.io
+          - https://prowlarr.atlas.vandaele.io
+          - https://qbittorrent.atlas.vandaele.io
+          - https://qui.atlas.vandaele.io
+          - https://radarr.atlas.vandaele.io
+          - https://sabnzbd.atlas.vandaele.io
+          - https://seerr.atlas.vandaele.io
+          - https://slskd.atlas.vandaele.io
+          - https://sonarr.atlas.vandaele.io
+          - https://speedtest.atlas.vandaele.io
+          - https://spottarr.atlas.vandaele.io
+          - https://ugos.atlas.vandaele.io
     relabel_configs: &probe_relabel
       - source_labels: [__address__]
         target_label: __param_target
@@ -303,7 +305,8 @@ scrape_configs:
           service: roon
     relabel_configs: *probe_relabel
 
-  # UniFi serves the *.atlas.local wildcard; it must resolve to the NAS.
+  # UniFi serves the *.atlas.local wildcard (redirects to HTTPS); it must
+  # resolve to the NAS.
   - job_name: probe_dns_atlas_local
     scrape_interval: 60s
     metrics_path: /probe
@@ -313,6 +316,22 @@ scrape_configs:
       - targets: ["192.168.2.1:53"]
         labels:
           service: unifi-dns
+    relabel_configs: *probe_relabel
+
+  # Atlas DNS for *.atlas.vandaele.io: UniFi (LAN, the NAS, containers) and
+  # AdGuard (Tailscale) must both send it to the NAS, not to Cloudflare.
+  - job_name: probe_dns_split
+    scrape_interval: 60s
+    metrics_path: /probe
+    params:
+      module: [dns_split]
+    static_configs:
+      - targets: ["192.168.2.1:53"]
+        labels:
+          service: unifi-dns
+      - targets: ["192.168.2.200:53"]
+        labels:
+          service: adguard-dns
     relabel_configs: *probe_relabel
 
   # AdGuard must resolve external names.
@@ -327,20 +346,59 @@ scrape_configs:
           service: adguard-dns
     relabel_configs: *probe_relabel
 
-  # Public hostnames must answer with the Cloudflare Access login redirect.
-  # This proves DNS and the Cloudflare edge, not the tunnel itself (see
-  # cloudflared metrics in Phase 4b). Probed from blackbox-public, which
-  # resolves through public DNS.
-  - job_name: probe_cloudflare_access
-    scrape_interval: 300s
+  # Every public route from the internet: Cloudflare DNS, the Cloudflare
+  # Tunnel, Caddy's :8080 listener, and the app (401 and 403 count as up).
+  # Probed from blackbox-public, which resolves through public DNS. rclone has
+  # no public route.
+  - job_name: probe_routes_public
+    scrape_interval: 120s
     metrics_path: /probe
-    params:
-      module: [http_cloudflare_access]
     static_configs:
-      - targets:
-          - https://grafana.atlas.vandaele.io
-          - https://seerr.atlas.vandaele.io
+      - targets: ["https://adguard.atlas.vandaele.io"]
+        labels: {module: http_route, service: adguard-public}
+      - targets: ["https://auth.atlas.vandaele.io"]
+        labels: {module: http_route, service: auth-public}
+      - targets: ["https://autobrr.atlas.vandaele.io"]
+        labels: {module: http_route, service: autobrr-public}
+      - targets: ["https://bazarr.atlas.vandaele.io"]
+        labels: {module: http_route, service: bazarr-public}
+      - targets: ["https://caddy.atlas.vandaele.io"]
+        labels: {module: http_route, service: caddy-public}
+      - targets: ["https://grafana.atlas.vandaele.io"]
+        labels: {module: http_route, service: grafana-public}
+      - targets: ["https://houndarr.atlas.vandaele.io"]
+        labels: {module: http_route, service: houndarr-public}
+      - targets: ["https://komodo.atlas.vandaele.io"]
+        labels: {module: http_route, service: komodo-public}
+      - targets: ["https://lidarr.atlas.vandaele.io"]
+        labels: {module: http_route, service: lidarr-public}
+      - targets: ["https://plex.atlas.vandaele.io"]
+        labels: {module: http_route, service: plex-public}
+      - targets: ["https://prowlarr.atlas.vandaele.io"]
+        labels: {module: http_route, service: prowlarr-public}
+      - targets: ["https://qbittorrent.atlas.vandaele.io"]
+        labels: {module: http_route, service: qbittorrent-public}
+      - targets: ["https://qui.atlas.vandaele.io"]
+        labels: {module: http_route, service: qui-public}
+      - targets: ["https://radarr.atlas.vandaele.io"]
+        labels: {module: http_route, service: radarr-public}
+      - targets: ["https://sabnzbd.atlas.vandaele.io"]
+        labels: {module: http_route, service: sabnzbd-public}
+      - targets: ["https://seerr.atlas.vandaele.io"]
+        labels: {module: http_route, service: seerr-public}
+      - targets: ["https://slskd.atlas.vandaele.io"]
+        labels: {module: http_route, service: slskd-public}
+      - targets: ["https://sonarr.atlas.vandaele.io"]
+        labels: {module: http_route, service: sonarr-public}
+      - targets: ["https://speedtest.atlas.vandaele.io"]
+        labels: {module: http_route, service: speedtest-public}
+      - targets: ["https://spottarr.atlas.vandaele.io"]
+        labels: {module: http_route, service: spottarr-public}
+      - targets: ["https://ugos.atlas.vandaele.io"]
+        labels: {module: http_route, service: ugos-public}
     relabel_configs:
+      - source_labels: [module]
+        target_label: __param_module
       - source_labels: [__address__]
         target_label: __param_target
       - source_labels: [__param_target]

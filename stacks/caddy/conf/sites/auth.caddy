@@ -1,17 +1,7 @@
-# authentik login, public only (PUBLIC_ONLY_CADDY_ROUTES; README "authentik").
+# authentik login (README "authentik").
 # Clients use HTTPS on every path, so authentik is told the scheme is https (its
 # OIDC URLs and secure cookies depend on it). authentik reads the client only
 # from X-Forwarded-For.
-
-# The Cloudflare Tunnel on port 80: the client is CF-Connecting-IP, because
-# Caddy would otherwise report the cloudflared container.
-http://auth.atlas.vandaele.io {
-	import atlas_hide_metrics
-	reverse_proxy authentik-server:9000 {
-		header_up X-Forwarded-Proto https
-		header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-	}
-}
 
 # HTTPS on :443 (LAN, Tailscale) and the tunnel on :8080, where {client_ip}
 # comes from CF-Connecting-IP (servers :8080 in the Caddyfile).

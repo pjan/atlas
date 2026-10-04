@@ -80,17 +80,6 @@ modules:
       fail_if_body_not_matches_regexp:
         - '^ok$'
 
-  http_cloudflare_access:
-    prober: http
-    timeout: 15s
-    http:
-      preferred_ip_protocol: ip4
-      follow_redirects: false
-      valid_status_codes: [302]
-      fail_if_header_not_matches:
-        - header: Location
-          regexp: 'cloudflareaccess\.com'
-
   # Caddy's HTTPS listener: the TLS handshake must succeed with a certificate
   # valid for *.atlas.vandaele.io. Exports probe_ssl_earliest_cert_expiry.
   tls_caddy:
@@ -115,6 +104,19 @@ modules:
       preferred_ip_protocol: ip4
       transport_protocol: udp
       query_name: sonarr.atlas.local
+      query_type: A
+      valid_rcodes: [NOERROR]
+      validate_answer_rrs:
+        fail_if_none_matches_regexp:
+          - '.*\t192\.168\.2\.200$'
+
+  dns_split:
+    prober: dns
+    timeout: 5s
+    dns:
+      preferred_ip_protocol: ip4
+      transport_protocol: udp
+      query_name: sonarr.atlas.vandaele.io
       query_type: A
       valid_rcodes: [NOERROR]
       validate_answer_rrs:

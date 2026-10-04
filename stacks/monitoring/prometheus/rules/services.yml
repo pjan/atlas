@@ -7,14 +7,17 @@
 groups:
   - name: services
     rules:
-      # Caddy's own metrics endpoint on the Docker network and its LAN port,
-      # neither through DNS. Inhibits ProbeFailed except plex-direct.
+      # Caddy's own metrics endpoint on the Docker network, its LAN port, and
+      # its HTTPS listener with a valid certificate (job probe_tls_caddy), none
+      # through DNS. Inhibits ProbeFailed except plex-direct and authentik.
       - alert: CaddyDown
         expr: |
           (
               up{job="caddy"} == 0
             or
               probe_success{job="probe_tcp", service="caddy"} == 0
+            or
+              probe_success{job="probe_tls_caddy"} == 0
           )
           unless on () atlas:maintenance == 1
         for: 3m
@@ -24,24 +27,20 @@ groups:
           source: prometheus
         annotations:
           title: Caddy down
-          description: Caddy is not answering, so every *.atlas.local route and the tunnel's public hostnames are down. Check the caddy stack and its logs in Komodo and redeploy it.
+          description: Caddy is not answering, or its HTTPS listener has no valid certificate, so the *.atlas.vandaele.io routes are down on the LAN, and on the tunnel too unless only the certificate failed. Check the caddy stack and its logs in Komodo and redeploy it.
           target: "{{ $labels.instance }}"
           details: "{{ $labels.job }} = 0"
-          link: http://komodo.atlas.local
+          link: https://komodo.atlas.vandaele.io
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
           runbook: https://github.com/pjan/atlas#caddy
 
-      # Caddy's *.atlas.vandaele.io certificate on :443 (job probe_tls_caddy):
-      # under 10 days left, or no valid certificate at all. Caddy renews with
-      # a third of the lifetime left (30 days of 90), so this means renewals
-      # have failed for days.
-      - alert: CaddyCertificateFailing
+      # Caddy's *.atlas.vandaele.io certificate on :443 (job probe_tls_caddy)
+      # has under 10 days left. Caddy renews with a third of the lifetime left
+      # (30 days of 90), so renewals have failed for days. No valid certificate
+      # at all is CaddyDown.
+      - alert: CaddyCertificateExpiring
         expr: |
-          (
-              probe_ssl_earliest_cert_expiry{job="probe_tls_caddy"} - time() < 10 * 86400
-            or
-              probe_success{job="probe_tls_caddy"} == 0
-          )
+          probe_ssl_earliest_cert_expiry{job="probe_tls_caddy"} - time() < 10 * 86400
           unless on () atlas:maintenance == 1
         for: 30m
         labels:
@@ -49,19 +48,21 @@ groups:
           severity: warning
           source: prometheus
         annotations:
-          title: Caddy certificate failing
-          description: Caddy's *.atlas.vandaele.io certificate expires within 10 days or is not valid, so renewals through the Cloudflare DNS challenge are failing. Check the caddy logs and CLOUDFLARE_DNS_API_TOKEN in Komodo, then redeploy caddy.
+          title: Caddy certificate expiring
+          description: Caddy's *.atlas.vandaele.io certificate expires within 10 days, so renewals through the Cloudflare DNS challenge are failing. Check the caddy logs and CLOUDFLARE_DNS_API_TOKEN in Komodo, then redeploy caddy.
           target: "{{ $labels.instance }}"
-          details: "{{ $value | humanizeDuration }} left (0s when the TLS handshake fails)"
-          link: http://komodo.atlas.local
+          details: "{{ $value | humanizeDuration }} left"
+          link: https://komodo.atlas.vandaele.io
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
           runbook: https://github.com/pjan/atlas#caddy
 
-      # Application health endpoints (job probe_health). Caddy's own probe is
-      # left to CaddyDown; Plex has the critical rule below.
+      # Application health endpoints (job probe_health) and the public routes
+      # through the Cloudflare Tunnel (job probe_routes_public, services
+      # <app>-public). Caddy's own health probe is left to CaddyDown; Plex has
+      # the critical rule below.
       - alert: ProbeFailed
         expr: |
-          probe_success{job="probe_health", service!~"caddy|plex|plex-direct"} == 0
+          probe_success{job=~"probe_health|probe_routes_public", service!~"caddy|plex|plex-direct"} == 0
           unless on () atlas:maintenance == 1
         for: 5m
         labels:
@@ -109,7 +110,7 @@ groups:
           description: cloudflared has no connection to Cloudflare, or its metrics are missing, so the public *.atlas.vandaele.io hostnames are down. Check the cloudflared stack and its logs in Komodo.
           target: cloudflared
           details: '{{ with query "cloudflared_tunnel_ha_connections" }}ha_connections = 0{{ else }}no cloudflared_tunnel_ha_connections{{ end }}'
-          link: http://komodo.atlas.local
+          link: https://komodo.atlas.vandaele.io
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
           runbook: https://github.com/pjan/atlas#cloudflare-tunnel
 
@@ -129,7 +130,7 @@ groups:
           description: Komodo has reported the {{ $labels.stack }} stack as {{ $labels.state }} for 15 minutes. Open it in Komodo, check its containers and logs, and deploy it again.
           target: "{{ $labels.stack }}"
           details: "state = {{ $labels.state }}"
-          link: http://komodo.atlas.local
+          link: https://komodo.atlas.vandaele.io
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
           runbook: https://github.com/pjan/atlas#stack-health
 
@@ -150,7 +151,7 @@ groups:
           description: Docker has reported the {{ $labels.container }} container of the {{ $labels.stack }} stack as unhealthy for 10 minutes. Docker does not restart it; check its logs and healthcheck, then restart the stack in Komodo.
           target: "{{ $labels.stack }} · {{ $labels.container }}"
           details: health = unhealthy
-          link: http://komodo.atlas.local
+          link: https://komodo.atlas.vandaele.io
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-containers
           runbook: https://github.com/pjan/atlas#container-health
 
@@ -177,7 +178,7 @@ groups:
           description: The {{ $labels.container }} container of the {{ $labels.stack }} stack keeps exiting and Docker keeps restarting it. Read its logs in Komodo, fix the cause, and deploy the stack again.
           target: "{{ $labels.stack }} · {{ $labels.container }}"
           details: restarting in the last 10 minutes, or 3 or more unexpected restarts in 15 minutes
-          link: http://komodo.atlas.local
+          link: https://komodo.atlas.vandaele.io
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-containers
           runbook: https://github.com/pjan/atlas#container-crash-loop
 
@@ -198,6 +199,6 @@ groups:
           description: The kernel killed a process for lack of memory in the last 15 minutes, usually a container at its mem_limit. Find it in the OOM column on Atlas Containers, then raise its mem_limit or fix its leak.
           target: Atlas
           details: '{{ printf "%.0f" $value }} OOM kills in 15 minutes'
-          link: http://komodo.atlas.local
+          link: https://komodo.atlas.vandaele.io
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-containers
           runbook: https://github.com/pjan/atlas#container-oom-kill

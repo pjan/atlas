@@ -100,9 +100,6 @@ ATLAS_MAX_FIELD_VALUES = {
 }
 # Routes that must stay LAN-only: they expose every backup secret.
 LOCAL_ONLY_CADDY_ROUTES = {"backrest"}
-# Routes that are public only: the authentik login must be the same HTTPS
-# origin for every client (README "authentik").
-PUBLIC_ONLY_CADDY_ROUTES = {"auth"}
 # One address of a Caddy site block, as written in conf/sites/*.caddy.
 CADDY_SITE_ADDRESS_PATTERN = re.compile(
     r"(?:(?P<scheme>https?)://)?(?P<name>[a-z0-9-]+)\.atlas\."
@@ -149,7 +146,7 @@ DEPRECATED_VARIABLE_NAMES = {
 VALIDATION_VALUES = {
     "ALERTMANAGER_DATA_DIR": "/volume2/appdata/alertmanager",
     "APPDATA_DIR": "/volume2/appdata",
-    "APP_URL": "http://speedtest.atlas.local",
+    "APP_URL": "https://speedtest.atlas.vandaele.io",
     "AUTHENTIK_DATA_DIR": "/volume2/appdata/authentik/data",
     "AUTHENTIK_POSTGRES_DIR": "/volume2/appdata/authentik/postgres",
     "BACKREST_CACHE_DIR": "/volume2/tmp/backrest/cache",
@@ -724,9 +721,11 @@ def validate_caddy(stacks_by_name: dict[str, dict], validation: Validation) -> N
         f"Caddy site registration mismatch: {sorted(site_paths ^ registered_sites)}",
     )
 
-    # Route name -> the listeners it is served on: "local" (http://*.atlas.local),
-    # "public-http" (http://*.atlas.vandaele.io on :80), "https" (:443), and
-    # "tunnel" (http://*.atlas.vandaele.io:8080, the Cloudflare Tunnel's origin).
+    # Route name -> the listeners it is served on: "https" (:443, LAN and
+    # Tailscale) and "tunnel" (http://*.atlas.vandaele.io:8080, the Cloudflare
+    # Tunnel's origin). "local" (http://*.atlas.local) and "public-http"
+    # (http://*.atlas.vandaele.io on :80) are recognised only to be rejected:
+    # the Caddyfile redirects both to HTTPS.
     route_listeners: dict[str, set[str]] = {}
     for site_path in (STACKS_ROOT / "caddy" / "conf" / "sites").glob("*.caddy"):
         site_text = site_path.read_text(encoding="utf-8")
@@ -760,45 +759,36 @@ def validate_caddy(stacks_by_name: dict[str, dict], validation: Validation) -> N
                     continue
                 route_listeners.setdefault(name, set()).add(listener)
         for match in re.finditer(
-            r"(?m)^\s*import\s+(?:atlas_reverse_proxy|atlas_rclone)\s+([a-z0-9-]+)\b",
+            r"(?m)^\s*import\s+(atlas_reverse_proxy|atlas_rclone|atlas_lan_proxy)\s+([a-z0-9-]+)\b",
             site_text,
         ):
-            route_listeners.setdefault(match.group(1), set()).update(
-                {"local", "public-http", "https", "tunnel"}
+            snippet, name = match.groups()
+            route_listeners.setdefault(name, set()).update(
+                {"https"} if snippet == "atlas_lan_proxy" else {"https", "tunnel"}
             )
 
-    local_route_names = {
-        name for name, listeners in route_listeners.items() if "local" in listeners
-    }
-    public_route_names = {
-        name
-        for name, listeners in route_listeners.items()
-        if listeners & {"public-http", "https", "tunnel"}
-    }
-    for name in sorted(public_route_names):
-        missing = {"https", "tunnel"} - route_listeners[name]
+    for name, listeners in sorted(route_listeners.items()):
         validation.require(
-            not missing,
-            f"Caddy public route {name} must be served on HTTPS (:443) and on the "
-            f"tunnel listener (:8080); missing: {sorted(missing)}",
+            not (listeners & {"local", "public-http"}),
+            f"Caddy route {name} must not define http://{name}.atlas.local or "
+            f"http://{name}.atlas.vandaele.io on port 80; the Caddyfile redirects both",
         )
-    validation.require(
-        not (LOCAL_ONLY_CADDY_ROUTES & public_route_names),
-        "LAN-only Caddy routes must not define public hostnames: "
-        f"{sorted(LOCAL_ONLY_CADDY_ROUTES & public_route_names)}",
-    )
-    validation.require(
-        not (PUBLIC_ONLY_CADDY_ROUTES & local_route_names),
-        "Public-only Caddy routes must not define local hostnames: "
-        f"{sorted(PUBLIC_ONLY_CADDY_ROUTES & local_route_names)}",
-    )
-    paired_local = local_route_names - LOCAL_ONLY_CADDY_ROUTES
-    paired_public = public_route_names - PUBLIC_ONLY_CADDY_ROUTES
-    validation.require(
-        paired_local == paired_public,
-        "Caddy routes must define matching local and public hostnames: "
-        f"{sorted(paired_local ^ paired_public)}",
-    )
+        validation.require(
+            "https" in listeners,
+            f"Caddy route {name} must be served on HTTPS (:443)",
+        )
+        if name in LOCAL_ONLY_CADDY_ROUTES:
+            validation.require(
+                "tunnel" not in listeners,
+                f"LAN-only Caddy route {name} must not be on the tunnel listener (:8080)",
+            )
+        else:
+            validation.require(
+                "tunnel" in listeners,
+                f"Caddy route {name} must be on the tunnel listener (:8080)",
+            )
+    for name in sorted(LOCAL_ONLY_CADDY_ROUTES - set(route_listeners)):
+        validation.errors.append(f"LAN-only Caddy route {name} has no site")
 
     for item in config.get("config_files", []):
         if item.get("path", "").startswith("conf/"):

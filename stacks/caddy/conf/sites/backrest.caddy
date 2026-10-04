@@ -1,4 +1,2 @@
 # LAN only: the Backrest UI holds every backup secret and must not be public.
-http://backrest.atlas.local {
-	reverse_proxy backrest:9898
-}
+import atlas_lan_proxy backrest backrest:9898

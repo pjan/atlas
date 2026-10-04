@@ -35,10 +35,10 @@ tests:
               instance: caddy:2020
             exp_annotations:
               title: Caddy down
-              description: Caddy is not answering, so every *.atlas.local route and the tunnel's public hostnames are down. Check the caddy stack and its logs in Komodo and redeploy it.
+              description: Caddy is not answering, or its HTTPS listener has no valid certificate, so the *.atlas.vandaele.io routes are down on the LAN, and on the tunnel too unless only the certificate failed. Check the caddy stack and its logs in Komodo and redeploy it.
               target: caddy:2020
               details: caddy = 0
-              link: http://komodo.atlas.local
+              link: https://komodo.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
               runbook: https://github.com/pjan/atlas#caddy
     promql_expr_test:
@@ -64,13 +64,13 @@ tests:
         values: '1x30'
     alert_rule_test:
       - eval_time: 1h25m
-        alertname: CaddyCertificateFailing
+        alertname: CaddyCertificateExpiring
         exp_alerts: []
       - eval_time: 2h
-        alertname: CaddyCertificateFailing
+        alertname: CaddyCertificateExpiring
         exp_alerts:
           - exp_labels:
-              alertname: CaddyCertificateFailing
+              alertname: CaddyCertificateExpiring
               check: services.caddy
               severity: warning
               source: prometheus
@@ -78,13 +78,16 @@ tests:
               instance: 192.168.2.200:443
               service: caddy
             exp_annotations:
-              title: Caddy certificate failing
-              description: Caddy's *.atlas.vandaele.io certificate expires within 10 days or is not valid, so renewals through the Cloudflare DNS challenge are failing. Check the caddy logs and CLOUDFLARE_DNS_API_TOKEN in Komodo, then redeploy caddy.
+              title: Caddy certificate expiring
+              description: Caddy's *.atlas.vandaele.io certificate expires within 10 days, so renewals through the Cloudflare DNS challenge are failing. Check the caddy logs and CLOUDFLARE_DNS_API_TOKEN in Komodo, then redeploy caddy.
               target: 192.168.2.200:443
-              details: 9d 23h 0m 0s left (0s when the TLS handshake fails)
-              link: http://komodo.atlas.local
+              details: 9d 23h 0m 0s left
+              link: https://komodo.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
               runbook: https://github.com/pjan/atlas#caddy
+      - eval_time: 2h
+        alertname: CaddyDown
+        exp_alerts: []
     promql_expr_test:
       - expr: atlas:check_status{check="services.caddy"}
         eval_time: 2h
@@ -92,49 +95,92 @@ tests:
           - labels: 'atlas:check_status{check="services.caddy"}'
             value: 1
 
-  # The TLS handshake fails from 10m (no valid certificate): the expiry
-  # metric disappears, the probe itself fails.
+  # The TLS handshake on :443 fails from 5m (no valid certificate) while
+  # Caddy's metrics and port 80 stay up: CaddyDown, red.
   - name: caddy certificate invalid
-    interval: 5m
+    interval: 1m
     input_series:
-      - series: 'probe_ssl_earliest_cert_expiry{job="probe_tls_caddy", instance="192.168.2.200:443", service="caddy"}'
-        values: '9999999999x1 _x20'
+      - series: 'up{job="caddy", instance="caddy:2020"}'
+        values: '1x14'
+      - series: 'probe_success{job="probe_tcp", instance="192.168.2.200:80", service="caddy"}'
+        values: '1x14'
       - series: 'probe_success{job="probe_tls_caddy", instance="192.168.2.200:443", service="caddy"}'
-        values: '1x1 0x20'
+        values: '1x4 0x10'
     alert_rule_test:
-      - eval_time: 35m
-        alertname: CaddyCertificateFailing
+      - eval_time: 7m
+        alertname: CaddyDown
         exp_alerts: []
-      - eval_time: 45m
-        alertname: CaddyCertificateFailing
+      - eval_time: 9m
+        alertname: CaddyDown
         exp_alerts:
           - exp_labels:
-              alertname: CaddyCertificateFailing
+              alertname: CaddyDown
               check: services.caddy
-              severity: warning
+              severity: critical
               source: prometheus
               job: probe_tls_caddy
               instance: 192.168.2.200:443
               service: caddy
             exp_annotations:
-              title: Caddy certificate failing
-              description: Caddy's *.atlas.vandaele.io certificate expires within 10 days or is not valid, so renewals through the Cloudflare DNS challenge are failing. Check the caddy logs and CLOUDFLARE_DNS_API_TOKEN in Komodo, then redeploy caddy.
+              title: Caddy down
+              description: Caddy is not answering, or its HTTPS listener has no valid certificate, so the *.atlas.vandaele.io routes are down on the LAN, and on the tunnel too unless only the certificate failed. Check the caddy stack and its logs in Komodo and redeploy it.
               target: 192.168.2.200:443
-              details: 0s left (0s when the TLS handshake fails)
-              link: http://komodo.atlas.local
+              details: probe_tls_caddy = 0
+              link: https://komodo.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
               runbook: https://github.com/pjan/atlas#caddy
+    promql_expr_test:
+      - expr: atlas:check_status{check="services.caddy"}
+        eval_time: 9m
+        exp_samples:
+          - labels: 'atlas:check_status{check="services.caddy"}'
+            value: 2
+
+  # sonarr's public route through the Cloudflare Tunnel fails from 2m (for
+  # example a DNS record that no longer points at the tunnel); its LAN health
+  # probe stays up.
+  - name: public route failed
+    interval: 1m
+    input_series:
+      - series: 'probe_success{job="probe_routes_public", instance="https://sonarr.atlas.vandaele.io", module="http_route", service="sonarr-public"}'
+        values: '1 1 0x12'
+      - series: 'probe_success{job="probe_health", instance="https://sonarr.atlas.vandaele.io/ping", module="http_servarr_ping", service="sonarr"}'
+        values: '1x13'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: ProbeFailed
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: ProbeFailed
+        exp_alerts:
+          - exp_labels:
+              alertname: ProbeFailed
+              check: services.apps
+              severity: warning
+              source: prometheus
+              job: probe_routes_public
+              instance: https://sonarr.atlas.vandaele.io
+              module: http_route
+              service: sonarr-public
+            exp_annotations:
+              title: Probe failed · sonarr-public
+              description: sonarr-public has not answered its health check for 5 minutes. Check the stack and its logs in Komodo and redeploy it if it does not recover.
+              target: sonarr-public
+              details: https://sonarr.atlas.vandaele.io (http_route)
+              link: https://sonarr.atlas.vandaele.io
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#application-probes
 
   # sonarr and Caddy's own health probe fail from 2m, Plex's direct probe
   # from 4m. Caddy's probe is left to CaddyDown; Plex is critical.
   - name: probe failed
     interval: 1m
     input_series:
-      - series: 'probe_success{job="probe_health", instance="http://sonarr.atlas.local/ping", module="http_servarr_ping", service="sonarr"}'
+      - series: 'probe_success{job="probe_health", instance="https://sonarr.atlas.vandaele.io/ping", module="http_servarr_ping", service="sonarr"}'
         values: '1 1 0x12'
-      - series: 'probe_success{job="probe_health", instance="http://caddy.atlas.local/", module="http_caddy_ok", service="caddy"}'
+      - series: 'probe_success{job="probe_health", instance="https://caddy.atlas.vandaele.io/", module="http_caddy_ok", service="caddy"}'
         values: '1 1 0x12'
-      - series: 'probe_success{job="probe_health", instance="http://radarr.atlas.local/ping", module="http_servarr_ping", service="radarr"}'
+      - series: 'probe_success{job="probe_health", instance="https://radarr.atlas.vandaele.io/ping", module="http_servarr_ping", service="radarr"}'
         values: '1x13'
       - series: 'probe_success{job="probe_health", instance="http://192.168.2.200:32400/identity", module="http_plex_identity", service="plex-direct"}'
         values: '1x3 0x10'
@@ -151,15 +197,15 @@ tests:
               severity: warning
               source: prometheus
               job: probe_health
-              instance: http://sonarr.atlas.local/ping
+              instance: https://sonarr.atlas.vandaele.io/ping
               module: http_servarr_ping
               service: sonarr
             exp_annotations:
               title: Probe failed · sonarr
               description: sonarr has not answered its health check for 5 minutes. Check the stack and its logs in Komodo and redeploy it if it does not recover.
               target: sonarr
-              details: http://sonarr.atlas.local/ping (http_servarr_ping)
-              link: http://sonarr.atlas.local
+              details: https://sonarr.atlas.vandaele.io/ping (http_servarr_ping)
+              link: https://sonarr.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
               runbook: https://github.com/pjan/atlas#application-probes
       - eval_time: 10m
@@ -171,15 +217,15 @@ tests:
               severity: warning
               source: prometheus
               job: probe_health
-              instance: http://sonarr.atlas.local/ping
+              instance: https://sonarr.atlas.vandaele.io/ping
               module: http_servarr_ping
               service: sonarr
             exp_annotations:
               title: Probe failed · sonarr
               description: sonarr has not answered its health check for 5 minutes. Check the stack and its logs in Komodo and redeploy it if it does not recover.
               target: sonarr
-              details: http://sonarr.atlas.local/ping (http_servarr_ping)
-              link: http://sonarr.atlas.local
+              details: https://sonarr.atlas.vandaele.io/ping (http_servarr_ping)
+              link: https://sonarr.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
               runbook: https://github.com/pjan/atlas#application-probes
           - exp_labels:
@@ -226,9 +272,9 @@ tests:
         values: '0x29 stale'
       - series: 'atlas_backup_last_run_timestamp_seconds{job="node", instance="atlas", set="appdata", mode="run"}'
         values: '_x30 1800x30'
-      - series: 'probe_success{job="probe_health", instance="http://sonarr.atlas.local/ping", module="http_servarr_ping", service="sonarr"}'
+      - series: 'probe_success{job="probe_health", instance="https://sonarr.atlas.vandaele.io/ping", module="http_servarr_ping", service="sonarr"}'
         values: '1 0x39 1x20'
-      - series: 'probe_success{job="probe_health", instance="http://plex.atlas.local/identity", module="http_plex_identity", service="plex"}'
+      - series: 'probe_success{job="probe_health", instance="https://plex.atlas.vandaele.io/identity", module="http_plex_identity", service="plex"}'
         values: '1 0x39 1x20'
       - series: 'komodo_stack_info{job="json_apis", instance="http://192.168.2.200:9120/read/ListStacks", module="komodo_stacks", service="komodo", stack="sonarr", state="stopped"}'
         values: '_ 1x39 stale'
@@ -284,7 +330,7 @@ tests:
               description: cloudflared has no connection to Cloudflare, or its metrics are missing, so the public *.atlas.vandaele.io hostnames are down. Check the cloudflared stack and its logs in Komodo.
               target: cloudflared
               details: ha_connections = 0
-              link: http://komodo.atlas.local
+              link: https://komodo.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
               runbook: https://github.com/pjan/atlas#cloudflare-tunnel
       - eval_time: 20m
@@ -300,7 +346,7 @@ tests:
               description: cloudflared has no connection to Cloudflare, or its metrics are missing, so the public *.atlas.vandaele.io hostnames are down. Check the cloudflared stack and its logs in Komodo.
               target: cloudflared
               details: no cloudflared_tunnel_ha_connections
-              link: http://komodo.atlas.local
+              link: https://komodo.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
               runbook: https://github.com/pjan/atlas#cloudflare-tunnel
     promql_expr_test:
@@ -348,7 +394,7 @@ tests:
               description: Komodo has reported the seerr stack as unhealthy for 15 minutes. Open it in Komodo, check its containers and logs, and deploy it again.
               target: seerr
               details: state = unhealthy
-              link: http://komodo.atlas.local
+              link: https://komodo.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
               runbook: https://github.com/pjan/atlas#stack-health
     promql_expr_test:
@@ -390,7 +436,7 @@ tests:
               description: Docker has reported the seerr container of the seerr stack as unhealthy for 10 minutes. Docker does not restart it; check its logs and healthcheck, then restart the stack in Komodo.
               target: seerr · seerr
               details: health = unhealthy
-              link: http://komodo.atlas.local
+              link: https://komodo.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-containers
               runbook: https://github.com/pjan/atlas#container-health
     promql_expr_test:
@@ -440,7 +486,7 @@ tests:
               description: The radarr container of the radarr stack keeps exiting and Docker keeps restarting it. Read its logs in Komodo, fix the cause, and deploy the stack again.
               target: radarr · radarr
               details: restarting in the last 10 minutes, or 3 or more unexpected restarts in 15 minutes
-              link: http://komodo.atlas.local
+              link: https://komodo.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-containers
               runbook: https://github.com/pjan/atlas#container-crash-loop
     promql_expr_test:
@@ -478,7 +524,7 @@ tests:
               description: The radarr container of the radarr stack keeps exiting and Docker keeps restarting it. Read its logs in Komodo, fix the cause, and deploy the stack again.
               target: radarr · radarr
               details: restarting in the last 10 minutes, or 3 or more unexpected restarts in 15 minutes
-              link: http://komodo.atlas.local
+              link: https://komodo.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-containers
               runbook: https://github.com/pjan/atlas#container-crash-loop
 
@@ -505,7 +551,7 @@ tests:
               description: The kernel killed a process for lack of memory in the last 15 minutes, usually a container at its mem_limit. Find it in the OOM column on Atlas Containers, then raise its mem_limit or fix its leak.
               target: Atlas
               details: 1 OOM kills in 15 minutes
-              link: http://komodo.atlas.local
+              link: https://komodo.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-containers
               runbook: https://github.com/pjan/atlas#container-oom-kill
       - eval_time: 25m

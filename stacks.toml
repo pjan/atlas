@@ -112,7 +112,7 @@ file_paths = ["compose.yaml"]
 extra_args = ["--force-recreate"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://sonarr.atlas.local"]
+links = ["https://sonarr.atlas.vandaele.io"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
@@ -154,7 +154,7 @@ file_paths = ["compose.yaml"]
 extra_args = ["--force-recreate"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://radarr.atlas.local"]
+links = ["https://radarr.atlas.vandaele.io"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
@@ -238,7 +238,7 @@ run_directory = "stacks/houndarr"
 file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://houndarr.atlas.local"]
+links = ["https://houndarr.atlas.vandaele.io"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
@@ -314,7 +314,7 @@ file_paths = ["compose.yaml"]
 extra_args = ["--force-recreate"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://prowlarr.atlas.local"]
+links = ["https://prowlarr.atlas.vandaele.io"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
@@ -373,7 +373,7 @@ file_paths = ["compose.yaml"]
 extra_args = ["--force-recreate"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://lidarr.atlas.local"]
+links = ["https://lidarr.atlas.vandaele.io"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
@@ -416,7 +416,7 @@ file_paths = ["compose.yaml"]
 extra_args = ["--force-recreate"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://slskd.atlas.local"]
+links = ["https://slskd.atlas.vandaele.io"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
@@ -507,7 +507,7 @@ file_paths = ["compose.yaml"]
 extra_args = ["--force-recreate"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://bazarr.atlas.local"]
+links = ["https://bazarr.atlas.vandaele.io"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
@@ -547,7 +547,7 @@ file_paths = ["compose.yaml"]
 extra_args = ["--force-recreate"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://spottarr.atlas.local"]
+links = ["https://spottarr.atlas.vandaele.io"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
@@ -588,7 +588,7 @@ run_directory = "stacks/adguard"
 file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://adguard.atlas.local"]
+links = ["https://adguard.atlas.vandaele.io"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
@@ -654,7 +654,7 @@ run_directory = "stacks/plex"
 file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://plex.atlas.local"]
+links = ["https://plex.atlas.vandaele.io"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
@@ -748,7 +748,7 @@ run_directory = "stacks/seerr"
 file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://seerr.atlas.local"]
+links = ["https://seerr.atlas.vandaele.io"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
@@ -814,7 +814,7 @@ file_paths = ["compose.yaml"]
 extra_args = ["--force-recreate"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://autobrr.atlas.local"]
+links = ["https://autobrr.atlas.vandaele.io"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
@@ -848,7 +848,7 @@ file_paths = ["compose.yaml"]
 extra_args = ["--force-recreate"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://qbittorrent.atlas.local"]
+links = ["https://qbittorrent.atlas.vandaele.io"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
@@ -892,7 +892,7 @@ file_paths = ["compose.yaml"]
 extra_args = ["--force-recreate"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://sabnzbd.atlas.local"]
+links = ["https://sabnzbd.atlas.vandaele.io"]
 config_files = [
   { path = "custom-cont-init.d/10-set-sabnzbd-port.sh", services = ["sabnzbd"], requires = "Restart" },
 ]
@@ -939,7 +939,7 @@ run_directory = "stacks/qui"
 file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://qui.atlas.local"]
+links = ["https://qui.atlas.vandaele.io"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
@@ -975,7 +975,7 @@ run_directory = "stacks/rclone"
 file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://rclone.atlas.local/"]
+links = ["https://rclone.atlas.vandaele.io/"]
 config_files = [
   { path = "user-dirs.dirs", services = ["rclone"], requires = "Redeploy" },
 ]
@@ -1014,7 +1014,7 @@ run_directory = "stacks/speedtest-tracker"
 file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://speedtest.atlas.local"]
+links = ["https://speedtest.atlas.vandaele.io"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
@@ -1028,7 +1028,7 @@ PUID = [[PUID]]
 PGID = [[PGID]]
 TZ = [[TZ]]
 SPEEDTEST_TRACKER_APP_KEY = [[SPEEDTEST_TRACKER_APP_KEY]]
-APP_URL = http://speedtest.atlas.local
+APP_URL = https://speedtest.atlas.vandaele.io
 SPEEDTEST_TRACKER_SCHEDULE = [[SPEEDTEST_TRACKER_SCHEDULE]]
 SPEEDTEST_TRACKER_SERVERS = [[SPEEDTEST_TRACKER_SERVERS]]
 SPEEDTEST_TRACKER_PRUNE_RESULTS_OLDER_THAN = [[SPEEDTEST_TRACKER_PRUNE_RESULTS_OLDER_THAN]]
@@ -1146,7 +1146,7 @@ run_directory = "stacks/backrest"
 file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://backrest.atlas.local"]
+links = ["https://backrest.atlas.vandaele.io"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
@@ -1188,7 +1188,7 @@ run_directory = "stacks/monitoring"
 file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
-links = ["http://grafana.atlas.local"]
+links = ["https://grafana.atlas.vandaele.io"]
 # Prometheus (including its rules) and blackbox reload their files
 # automatically; post_deploy restarts Grafana and json-exporter and reloads
 # Alertmanager. Resource Sync only runs compose up -d.

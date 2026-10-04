@@ -40,7 +40,7 @@ tests:
               description: Gluetun has not reported its VPN as running for 5 minutes, so every VPN-bound application is offline. Check the gluetun stack and its logs in Komodo.
               target: gluetun
               details: status = stopped
-              link: http://komodo.atlas.local
+              link: https://komodo.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
               runbook: https://github.com/pjan/atlas#vpn
       - eval_time: 20m
@@ -57,7 +57,7 @@ tests:
               description: Gluetun has not reported its VPN as running for 5 minutes, so every VPN-bound application is offline. Check the gluetun stack and its logs in Komodo.
               target: gluetun
               details: no gluetun_vpn_status_info (control server unreachable)
-              link: http://komodo.atlas.local
+              link: https://komodo.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
               runbook: https://github.com/pjan/atlas#vpn
     promql_expr_test:
@@ -98,7 +98,7 @@ tests:
               description: qBittorrent does not listen on the port Gluetun forwards, or Gluetun has no forwarded port, so torrents are firewalled. Check the port forwarding lines in the gluetun logs, then set the forwarded port in qBittorrent.
               target: qbittorrent
               details: listen_port = 49000, forwarded_port = 51000
-              link: http://qbittorrent.atlas.local
+              link: https://qbittorrent.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
               runbook: https://github.com/pjan/atlas#port-forward
       - eval_time: 40m
@@ -114,7 +114,7 @@ tests:
               description: qBittorrent does not listen on the port Gluetun forwards, or Gluetun has no forwarded port, so torrents are firewalled. Check the port forwarding lines in the gluetun logs, then set the forwarded port in qBittorrent.
               target: qbittorrent
               details: listen_port = 49000, forwarded_port = 0
-              link: http://qbittorrent.atlas.local
+              link: https://qbittorrent.atlas.vandaele.io
               dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
               runbook: https://github.com/pjan/atlas#port-forward
     promql_expr_test:

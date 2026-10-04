@@ -20,7 +20,7 @@ groups:
           description: The nightly appdata snapshot failed in backup {{ $labels.mode }}. Read the appdata-backup Action log in Komodo, fix the cause, and run appdata-backup again.
           target: /volume1/backups/appdata
           details: backup.sh {{ $labels.mode }} exited with {{ $value }}
-          link: http://komodo.atlas.local
+          link: https://komodo.atlas.vandaele.io
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
           runbook: https://github.com/pjan/atlas#appdata-backup
 
@@ -39,7 +39,7 @@ groups:
           description: No appdata snapshot has succeeded for more than 26 hours, or the backup metrics are missing. Check that the appdata-backup Action ran at 05:00 in Komodo, then run it by hand.
           target: /volume1/backups/appdata
           details: '{{ if $labels.job }}last success {{ $value | humanizeDuration }} ago{{ else }}no atlas_backup_last_success_timestamp_seconds in /volume1/backups/.metrics{{ end }}'
-          link: http://komodo.atlas.local
+          link: https://komodo.atlas.vandaele.io
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
           runbook: https://github.com/pjan/atlas#appdata-backup
 
@@ -56,7 +56,7 @@ groups:
           description: Backrest could not back up /volume1/backups to Google Drive; the previous off-site snapshots are intact. Fix the cause and run the plan again in Backrest.
           target: atlas-volume1-backups → gdrive-atlas-backups
           details: '{{ with query `atlas_offsite_last_error_info{error!=""}` }}{{ . | first | label "error" }}{{ else }}exit code {{ $value }}{{ end }}'
-          link: http://backrest.atlas.local
+          link: https://backrest.atlas.vandaele.io
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
           runbook: https://github.com/pjan/atlas#off-site-backup
 
@@ -73,7 +73,7 @@ groups:
           description: Backrest wrote a snapshot, but some files could not be read and are missing off-site. Find them in the plan's last operation in Backrest, fix their permissions, and run the plan again.
           target: atlas-volume1-backups → gdrive-atlas-backups
           details: '{{ with query `atlas_offsite_last_error_info{error!=""}` }}{{ . | first | label "error" }}{{ else }}exit code {{ $value }}{{ end }}'
-          link: http://backrest.atlas.local
+          link: https://backrest.atlas.vandaele.io
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
           runbook: https://github.com/pjan/atlas#off-site-backup
 
@@ -93,6 +93,6 @@ groups:
           description: No off-site snapshot has succeeded for more than 30 hours, or the Backrest hook metrics are missing. Check the plan's schedule and hooks in Backrest, then run the plan.
           target: atlas-volume1-backups → gdrive-atlas-backups
           details: '{{ if $labels.job }}last success {{ $value | humanizeDuration }} ago{{ else }}no atlas_offsite_last_success_timestamp_seconds in /volume1/backups/.metrics{{ end }}'
-          link: http://backrest.atlas.local
+          link: https://backrest.atlas.vandaele.io
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
           runbook: https://github.com/pjan/atlas#off-site-backup
