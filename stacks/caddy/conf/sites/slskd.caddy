@@ -1,1 +1,1 @@
-import atlas_reverse_proxy slskd downloaders-vpn:5030
+import atlas_protected_proxy slskd downloaders-vpn:5030

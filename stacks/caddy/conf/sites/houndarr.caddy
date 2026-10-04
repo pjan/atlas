@@ -1,1 +1,1 @@
-import atlas_reverse_proxy houndarr houndarr:8877
+import atlas_protected_proxy houndarr houndarr:8877

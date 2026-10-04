@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+# Speedtest Tracker behind authentik forward auth (README "authentik"): a proxy provider
+# in single-application mode, served by the embedded outpost (outpost.yaml),
+# and open only to admins. Speedtest Tracker's own login stays on. Nothing skips the
+# check.
+version: 1
+metadata:
+  name: Atlas - Forward auth - speedtest
+entries:
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Atlas - Groups
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Default - Provider authorization flow (implicit consent)
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Default - Provider invalidation flow
+      required: true
+
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider
+    identifiers:
+      name: speedtest
+    attrs:
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      mode: forward_single
+      external_host: https://speedtest.atlas.vandaele.io
+      access_token_validity: hours=24
+
+  - model: authentik_core.application
+    id: application
+    identifiers:
+      slug: speedtest
+    attrs:
+      name: Speedtest Tracker
+      provider: !KeyOf provider
+      meta_launch_url: https://speedtest.atlas.vandaele.io
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf application
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0

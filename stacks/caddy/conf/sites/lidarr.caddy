@@ -1,1 +1,1 @@
-import atlas_reverse_proxy lidarr downloaders-vpn:8686
+import atlas_protected_proxy lidarr downloaders-vpn:8686

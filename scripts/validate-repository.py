@@ -106,23 +106,7 @@ LOCAL_ONLY_CADDY_ROUTES = {"backrest", "komodo"}
 # cannot follow a login redirect, and the LAN-only routes.
 UNGATED_CADDY_ROUTES = {"auth", "backrest", "caddy", "grafana", "komodo", "plex", "seerr"}
 # Routes still on their own login only; each moves to atlas_protected_proxy.
-NOT_YET_GATED_CADDY_ROUTES = {
-    "adguard",
-    "autobrr",
-    "bazarr",
-    "houndarr",
-    "lidarr",
-    "prowlarr",
-    "qbittorrent",
-    "qui",
-    "radarr",
-    "sabnzbd",
-    "slskd",
-    "sonarr",
-    "speedtest",
-    "spottarr",
-    "ugos",
-}
+NOT_YET_GATED_CADDY_ROUTES = {"autobrr", "qui"}
 AUTHENTIK_BLUEPRINTS_ROOT = STACKS_ROOT / "authentik" / "blueprints"
 # One address of a Caddy site block, as written in conf/sites/*.caddy.
 CADDY_SITE_ADDRESS_PATTERN = re.compile(

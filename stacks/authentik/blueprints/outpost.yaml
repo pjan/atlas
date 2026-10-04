@@ -9,7 +9,72 @@ entries:
   - model: authentik_blueprints.metaapplyblueprint
     attrs:
       identifiers:
+        name: Atlas - Forward auth - adguard
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Atlas - Forward auth - bazarr
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Atlas - Forward auth - houndarr
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Atlas - Forward auth - lidarr
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Atlas - Forward auth - prowlarr
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Atlas - Forward auth - qbittorrent
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Atlas - Forward auth - radarr
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
         name: Atlas - Forward auth - rclone
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Atlas - Forward auth - sabnzbd
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Atlas - Forward auth - slskd
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Atlas - Forward auth - sonarr
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Atlas - Forward auth - speedtest
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Atlas - Forward auth - spottarr
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Atlas - Forward auth - ugos
       required: true
 
   - model: authentik_outposts.outpost
@@ -19,7 +84,20 @@ entries:
       name: authentik Embedded Outpost
       type: proxy
       providers:
+        - !Find [authentik_providers_proxy.proxyprovider, [name, adguard]]
+        - !Find [authentik_providers_proxy.proxyprovider, [name, bazarr]]
+        - !Find [authentik_providers_proxy.proxyprovider, [name, houndarr]]
+        - !Find [authentik_providers_proxy.proxyprovider, [name, lidarr]]
+        - !Find [authentik_providers_proxy.proxyprovider, [name, prowlarr]]
+        - !Find [authentik_providers_proxy.proxyprovider, [name, qbittorrent]]
+        - !Find [authentik_providers_proxy.proxyprovider, [name, radarr]]
         - !Find [authentik_providers_proxy.proxyprovider, [name, rclone]]
+        - !Find [authentik_providers_proxy.proxyprovider, [name, sabnzbd]]
+        - !Find [authentik_providers_proxy.proxyprovider, [name, slskd]]
+        - !Find [authentik_providers_proxy.proxyprovider, [name, sonarr]]
+        - !Find [authentik_providers_proxy.proxyprovider, [name, speedtest]]
+        - !Find [authentik_providers_proxy.proxyprovider, [name, spottarr]]
+        - !Find [authentik_providers_proxy.proxyprovider, [name, ugos]]
       # Login, callback, and logout URLs the browser follows.
       config:
         authentik_host: https://auth.atlas.vandaele.io

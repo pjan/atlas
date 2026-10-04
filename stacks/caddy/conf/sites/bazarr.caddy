@@ -1,1 +1,1 @@
-import atlas_reverse_proxy bazarr downloaders-vpn:6767
+import atlas_protected_proxy bazarr downloaders-vpn:6767

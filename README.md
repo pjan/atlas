@@ -951,7 +951,7 @@ Start with small batches, conservative per-instance hourly API caps, download-qu
 
 Operational notes:
 
-- Houndarr has no direct host port. Require Cloudflare Access before reaching `houndarr.atlas.vandaele.io`.
+- Houndarr has no direct host port. `houndarr.atlas.vandaele.io` is behind authentik forward auth for `admins` (see [Forward Auth](#forward-auth)), and Houndarr's own login stays on.
 - The container runs explicitly as `999:10` with all capabilities dropped, a read-only root filesystem, and writable state only at `/volume2/appdata/houndarr`.
 - `/volume2/appdata/houndarr` contains the SQLite database, encrypted Arr credentials, and encryption master key. It is provisioned as `0700`; back it up with ownership and permissions preserved.
 - The healthcheck uses the unauthenticated `/api/health` endpoint. Its ten-minute start period accommodates database migrations without marking an upgrade unhealthy prematurely.
@@ -1001,7 +1001,7 @@ https://slskd.atlas.vandaele.io
 http://slskd.atlas.vandaele.io
 ```
 
-Soularr and slskd are separate Komodo stacks so the automation worker can be updated without interrupting the Soulseek client or its downloads. Soularr's built-in UI is intentionally disabled in v1 because it has no authentication. It has no route or direct host port; inspect its logs through Komodo or Docker. slskd is Caddy-only and requires the configured web credentials. Protect `slskd.atlas.vandaele.io` with Cloudflare Access and route that tunnel hostname to `http://caddy:8080`. slskd reuses the existing Gluetun namespace used by qBittorrent and SABnzbd, and its UI is reachable through Gluetun's `downloaders-vpn` alias.
+Soularr and slskd are separate Komodo stacks so the automation worker can be updated without interrupting the Soulseek client or its downloads. Soularr's built-in UI is intentionally disabled in v1 because it has no authentication. It has no route or direct host port; inspect its logs through Komodo or Docker. slskd is Caddy-only and requires the configured web credentials. `slskd.atlas.vandaele.io` is behind authentik forward auth for `admins` (see [Forward Auth](#forward-auth)); its tunnel hostname routes to `http://caddy:8080`. slskd reuses the existing Gluetun namespace used by qBittorrent and SABnzbd, and its UI is reachable through Gluetun's `downloaders-vpn` alias.
 
 Before deploying, create these Komodo variables. Use a dedicated Soulseek account and separate random values of at least 16 characters for the slskd API key and JWT key:
 
@@ -1442,7 +1442,7 @@ Apps without their own authentik login sit behind authentik forward auth in Cadd
 - A provider's `skip_path_regex` lets health probe paths through without a session; nothing else bypasses the check. Client-supplied `X-Authentik-*` headers are always stripped.
 - When authentik is down, every forward-auth app answers `502`.
 
-Gated today: rclone. `UNGATED_CADDY_ROUTES` in `scripts/validate-repository.py` lists the routes that stay outside forward auth (authentik itself, Caddy's health route, Grafana with its own authentik login, Plex and Seerr whose clients cannot follow a login redirect, and the LAN-only Backrest and Komodo); `NOT_YET_GATED_CADDY_ROUTES` lists the apps that still rely on their own login. For every gated route the validator requires its `forward-auth-<app>.yaml`, its place in `outpost.yaml`, the server restart in `config_files`, its `probe_gate` targets, and its place in the authentik inhibition in `alertmanager.yml`.
+Gated today: AdGuard Home, Bazarr, Houndarr, Lidarr, Prowlarr, qBittorrent, Radarr, rclone, SABnzbd, slskd, Sonarr, Speedtest Tracker, Spottarr, and UGOS, each with its own login still on. Only health probe paths skip the check: `/ping` (Sonarr, Radarr, Lidarr, Prowlarr), `/api` (SABnzbd, whose API needs its key except `mode=version`), `/api/health` (Houndarr), and `/healthz` (Spottarr). `UNGATED_CADDY_ROUTES` in `scripts/validate-repository.py` lists the routes that stay outside forward auth (authentik itself, Caddy's health route, Grafana with its own authentik login, Plex and Seerr whose clients cannot follow a login redirect, and the LAN-only Backrest and Komodo); `NOT_YET_GATED_CADDY_ROUTES` lists the apps that still rely on their own login. For every gated route the validator requires its `forward-auth-<app>.yaml`, its place in `outpost.yaml`, the server restart in `config_files`, its `probe_gate` targets, and its place in the authentik inhibition in `alertmanager.yml`.
 
 To put an app behind forward auth: add `forward-auth-<app>.yaml` (copy `forward-auth-rclone.yaml`; add a `skip_path_regex` for its probe path only), list it in `outpost.yaml`, register it in the authentik `config_files` with `services = ["worker", "server"]`, switch its site to `import atlas_protected_proxy <app> <upstream>`, move it from `NOT_YET_GATED_CADDY_ROUTES`, and add its `probe_gate` targets and inhibition entry. Only after its gate probes are green, relax the app's own login if wanted; to roll back, restore the app's own login first.
 

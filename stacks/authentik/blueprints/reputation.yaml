@@ -14,7 +14,6 @@ entries:
       required: true
 
   - model: authentik_policies_reputation.reputationpolicy
-    id: policy
     identifiers:
       name: atlas-login-reputation-ip
     attrs:
@@ -22,10 +21,13 @@ entries:
       check_username: false
       threshold: -5
 
+  # Both by !Find, not !KeyOf, and the target is the flow's policy binding
+  # model (its pbm_uuid, not its flow_uuid): otherwise the existing binding is
+  # not found when the blueprint is applied again, and creating it twice fails.
   - model: authentik_policies.policybinding
     identifiers:
-      target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
-      policy: !KeyOf policy
-    attrs:
+      target: !Find [authentik_policies.policybindingmodel, [flow__slug, default-authentication-flow]]
+      policy: !Find [authentik_policies_reputation.reputationpolicy, [name, atlas-login-reputation-ip]]
       order: 0
+    attrs:
       negate: true

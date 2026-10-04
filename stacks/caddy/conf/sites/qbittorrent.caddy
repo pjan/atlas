@@ -1,1 +1,1 @@
-import atlas_reverse_proxy qbittorrent downloaders-vpn:8080
+import atlas_protected_proxy qbittorrent downloaders-vpn:8080

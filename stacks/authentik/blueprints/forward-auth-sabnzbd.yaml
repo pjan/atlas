@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+# SABnzbd behind authentik forward auth (README "authentik"): a proxy provider
+# in single-application mode, served by the embedded outpost (outpost.yaml),
+# and open only to admins. SABnzbd's own login stays on. Only the health probe
+# (/api?mode=version) skips the check; every other API mode needs SABnzbd's own
+# API key.
+version: 1
+metadata:
+  name: Atlas - Forward auth - sabnzbd
+entries:
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Atlas - Groups
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Default - Provider authorization flow (implicit consent)
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Default - Provider invalidation flow
+      required: true
+
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider
+    identifiers:
+      name: sabnzbd
+    attrs:
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      mode: forward_single
+      external_host: https://sabnzbd.atlas.vandaele.io
+      access_token_validity: hours=24
+      skip_path_regex: "^/(sabnzbd/)?api/?$"
+
+  - model: authentik_core.application
+    id: application
+    identifiers:
+      slug: sabnzbd
+    attrs:
+      name: SABnzbd
+      provider: !KeyOf provider
+      meta_launch_url: https://sabnzbd.atlas.vandaele.io
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf application
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0

@@ -1,1 +1,1 @@
-import atlas_reverse_proxy sabnzbd downloaders-vpn:8085
+import atlas_protected_proxy sabnzbd downloaders-vpn:8085

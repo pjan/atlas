@@ -416,10 +416,62 @@ scrape_configs:
     scrape_interval: 120s
     metrics_path: /probe
     static_configs:
+      - targets: ["https://adguard.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: adguard-gate}
+      - targets: ["https://adguard.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: adguard-gate-public}
+      - targets: ["https://bazarr.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: bazarr-gate}
+      - targets: ["https://bazarr.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: bazarr-gate-public}
+      - targets: ["https://houndarr.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: houndarr-gate}
+      - targets: ["https://houndarr.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: houndarr-gate-public}
+      - targets: ["https://lidarr.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: lidarr-gate}
+      - targets: ["https://lidarr.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: lidarr-gate-public}
+      - targets: ["https://prowlarr.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: prowlarr-gate}
+      - targets: ["https://prowlarr.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: prowlarr-gate-public}
+      - targets: ["https://qbittorrent.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: qbittorrent-gate}
+      - targets: ["https://qbittorrent.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: qbittorrent-gate-public}
+      - targets: ["https://radarr.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: radarr-gate}
+      - targets: ["https://radarr.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: radarr-gate-public}
       - targets: ["https://rclone.atlas.vandaele.io/"]
         labels: {module: http_gate, service: rclone-gate}
       - targets: ["https://rclone.atlas.vandaele.io/"]
         labels: {module: http_gate, __exporter: "blackbox-public:9115", service: rclone-gate-public}
+      - targets: ["https://sabnzbd.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: sabnzbd-gate}
+      - targets: ["https://sabnzbd.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: sabnzbd-gate-public}
+      - targets: ["https://slskd.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: slskd-gate}
+      - targets: ["https://slskd.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: slskd-gate-public}
+      - targets: ["https://sonarr.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: sonarr-gate}
+      - targets: ["https://sonarr.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: sonarr-gate-public}
+      - targets: ["https://speedtest.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: speedtest-gate}
+      - targets: ["https://speedtest.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: speedtest-gate-public}
+      - targets: ["https://spottarr.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: spottarr-gate}
+      - targets: ["https://spottarr.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: spottarr-gate-public}
+      - targets: ["https://ugos.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: ugos-gate}
+      - targets: ["https://ugos.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: ugos-gate-public}
     relabel_configs:
       - source_labels: [module]
         target_label: __param_module
