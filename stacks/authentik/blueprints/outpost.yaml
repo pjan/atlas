@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+# The embedded outpost, inside authentik-server, answers Caddy's forward_auth
+# checks (README "authentik"). This file alone lists its providers: every
+# forward-auth-*.yaml provider must be required and listed here.
+version: 1
+metadata:
+  name: Atlas - Embedded outpost
+entries:
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Atlas - Forward auth - rclone
+      required: true
+
+  - model: authentik_outposts.outpost
+    identifiers:
+      managed: goauthentik.io/outposts/embedded
+    attrs:
+      name: authentik Embedded Outpost
+      type: proxy
+      providers:
+        - !Find [authentik_providers_proxy.proxyprovider, [name, rclone]]
+      # Login, callback, and logout URLs the browser follows.
+      config:
+        authentik_host: https://auth.atlas.vandaele.io
+        authentik_host_insecure: false
+        authentik_host_browser: ""
+        log_level: info
+        refresh_interval: minutes=5

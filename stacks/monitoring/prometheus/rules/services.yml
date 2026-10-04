@@ -56,13 +56,14 @@ groups:
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
           runbook: https://github.com/pjan/atlas#caddy
 
-      # Application health endpoints (job probe_health) and the public routes
+      # Application health endpoints (job probe_health), the public routes
       # through the Cloudflare Tunnel (job probe_routes_public, services
-      # <app>-public). Caddy's own health probe is left to CaddyDown; Plex has
-      # the critical rule below.
+      # <app>-public), and the authentik gates (job probe_gate, services
+      # <app>-gate and <app>-gate-public). Caddy's own health probe is left to
+      # CaddyDown; Plex and authentik have the critical rule below.
       - alert: ProbeFailed
         expr: |
-          probe_success{job=~"probe_health|probe_routes_public", service!~"caddy|plex|plex-direct"} == 0
+          probe_success{job=~"probe_health|probe_routes_public|probe_gate", service!~"caddy|plex|plex-direct|authentik|authentik-public"} == 0
           unless on () atlas:maintenance == 1
         for: 5m
         labels:
@@ -80,7 +81,7 @@ groups:
 
       - alert: ProbeFailed
         expr: |
-          probe_success{job="probe_health", service=~"plex|plex-direct"} == 0
+          probe_success{job="probe_health", service=~"plex|plex-direct|authentik|authentik-public"} == 0
           unless on () atlas:maintenance == 1
         for: 5m
         labels:
@@ -89,7 +90,7 @@ groups:
           source: prometheus
         annotations:
           title: Probe failed · {{ $labels.service }}
-          description: "Plex has not answered its health check ({{ $labels.service }}) for 5 minutes, so streaming is down. Check the plex stack and its logs in Komodo and redeploy it if it does not recover."
+          description: "{{ $labels.service }} has not answered its health check for 5 minutes: without Plex streaming is down, without authentik every app behind it is locked. Check the stack and its logs in Komodo and redeploy it if it does not recover."
           target: "{{ $labels.service }}"
           details: "{{ $labels.instance }} ({{ $labels.module }})"
           link: '{{ reReplaceAll "^(https?://[^/]+).*$" "$1" $labels.instance }}'

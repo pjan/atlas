@@ -13,6 +13,19 @@ modules:
       follow_redirects: false
       valid_status_codes: [200, 204, 301, 302, 303, 307, 308, 401, 403]
 
+  # A route behind authentik forward auth: an anonymous request must be sent
+  # to the authentik login. 200 would mean the gate is open.
+  http_gate:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      follow_redirects: false
+      valid_status_codes: [302]
+      fail_if_header_not_matches:
+        - header: Location
+          regexp: '^https://auth\.atlas\.vandaele\.io/'
+
   http_2xx:
     prober: http
     timeout: 10s

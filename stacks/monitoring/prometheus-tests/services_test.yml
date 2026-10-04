@@ -136,6 +136,63 @@ tests:
           - labels: 'atlas:check_status{check="services.caddy"}'
             value: 2
 
+  # authentik's server stops answering from 2m: critical, because every app
+  # behind forward auth is locked.
+  - name: authentik down
+    interval: 1m
+    input_series:
+      - series: 'probe_success{job="probe_health", instance="http://authentik-server:9000/-/health/ready/", module="http_health_200", service="authentik"}'
+        values: '1 1 0x12'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: ProbeFailed
+        exp_alerts:
+          - exp_labels:
+              alertname: ProbeFailed
+              check: services.apps
+              severity: critical
+              source: prometheus
+              job: probe_health
+              instance: http://authentik-server:9000/-/health/ready/
+              module: http_health_200
+              service: authentik
+            exp_annotations:
+              title: Probe failed · authentik
+              description: "authentik has not answered its health check for 5 minutes: without Plex streaming is down, without authentik every app behind it is locked. Check the stack and its logs in Komodo and redeploy it if it does not recover."
+              target: authentik
+              details: http://authentik-server:9000/-/health/ready/ (http_health_200)
+              link: http://authentik-server:9000
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#application-probes
+
+  # rclone's authentik gate answers 200 instead of the login redirect from 2m.
+  - name: gate open
+    interval: 1m
+    input_series:
+      - series: 'probe_success{job="probe_gate", instance="https://rclone.atlas.vandaele.io/", module="http_gate", service="rclone-gate"}'
+        values: '1 1 0x12'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: ProbeFailed
+        exp_alerts:
+          - exp_labels:
+              alertname: ProbeFailed
+              check: services.apps
+              severity: warning
+              source: prometheus
+              job: probe_gate
+              instance: https://rclone.atlas.vandaele.io/
+              module: http_gate
+              service: rclone-gate
+            exp_annotations:
+              title: Probe failed · rclone-gate
+              description: rclone-gate has not answered its health check for 5 minutes. Check the stack and its logs in Komodo and redeploy it if it does not recover.
+              target: rclone-gate
+              details: https://rclone.atlas.vandaele.io/ (http_gate)
+              link: https://rclone.atlas.vandaele.io
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-health
+              runbook: https://github.com/pjan/atlas#application-probes
+
   # sonarr's public route through the Cloudflare Tunnel fails from 2m (for
   # example a DNS record that no longer points at the tunnel); its LAN health
   # probe stays up.
@@ -239,7 +296,7 @@ tests:
               service: plex-direct
             exp_annotations:
               title: Probe failed · plex-direct
-              description: Plex has not answered its health check (plex-direct) for 5 minutes, so streaming is down. Check the plex stack and its logs in Komodo and redeploy it if it does not recover.
+              description: "plex-direct has not answered its health check for 5 minutes: without Plex streaming is down, without authentik every app behind it is locked. Check the stack and its logs in Komodo and redeploy it if it does not recover."
               target: plex-direct
               details: http://192.168.2.200:32400/identity (http_plex_identity)
               link: http://192.168.2.200:32400

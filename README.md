@@ -1325,7 +1325,7 @@ https://rclone.atlas.vandaele.io/
 Operational notes:
 
 - `rclone.atlas.vandaele.io` is a privileged management surface. Anyone who reaches either hostname can manage configured remotes and read or write the mounted local data path.
-- The rclone RC API runs with `--no-auth` on a dedicated `rclone_network` that only Caddy and rclone join. Require Cloudflare Access on `rclone.atlas.vandaele.io`; application-level authentication does not protect this endpoint.
+- The rclone RC API runs with `--no-auth` on a dedicated `rclone_network` that only Caddy and rclone join. `rclone.atlas.vandaele.io` is behind authentik forward auth for `admins`, with no bypass (see [Forward Auth](#forward-auth)); application-level authentication does not protect this endpoint.
 - This stack mounts all of `[[DATA_DIR]]` at `/data`. That was chosen for flexibility, not least privilege.
 - `rclone.conf` contains remote credentials and tokens. It is provisioned with `0600` permissions and should be backed up from `[[APPDATA_DIR]]/rclone`.
 - `user-dirs.dirs` is repository-managed and triggers a redeploy so its read-only bind always references the current file.
@@ -1422,9 +1422,35 @@ Never change `AUTHENTIK_SECRET_KEY` after the first start: it signs sessions and
 
 - `groups.yaml`: the groups `admins` (pjan; also authentik superusers) and `family`.
 - `admins-mfa.yaml`: members of `admins` without TOTP or a passkey must set one up before they are logged in (stage `atlas-admins-mfa-setup` at order 35 of the default authentication flow). Everyone else is asked for TOTP or a passkey only once they have set one up in their user settings.
-- `grafana.yaml`: the OAuth2/OIDC provider and application `grafana`, open only to `admins`.
+- `grafana.yaml`: the OAuth2/OIDC provider and application `grafana`, open to `admins` and `family` (Viewer).
+- `forward-auth-<app>.yaml`: one proxy provider per app behind forward auth (see [Forward Auth](#forward-auth)), its application, and its group binding.
+- `outpost.yaml`: the embedded outpost and the list of every forward-auth provider it serves.
+- `reputation.yaml`: brute-force protection. An IP whose login reputation reaches `-5` (five failed logins more than successful ones, decaying after a day) cannot start the login flow. Usernames are not scored, so nobody can lock out a known user.
+
+Changing `outpost.yaml` or a `forward-auth-*.yaml` restarts the server as well as the worker: the embedded outpost serves a new provider only after a restart. Logins pause for those seconds.
 
 Users are created in the authentik UI, never in blueprints: they carry passwords. Without email (SMTP), pjan sets family passwords by hand.
+
+#### Forward Auth
+
+Apps without their own authentik login sit behind authentik forward auth in Caddy. Their site imports `atlas_protected_proxy` (or, for rclone, `atlas_rclone`), which runs `atlas_forward_auth` before anything else:
+
+- An anonymous request is redirected to `https://auth.atlas.vandaele.io` and, after login, back to the app. The embedded outpost in `authentik-server` answers Caddy's checks; there is no separate outpost container.
+- Each app has its own provider in single-application mode, so access is per app per group: an app bound to `admins` refuses a `family` user. Every forward-auth app is `admins` only.
+- Caddy always sets `X-Forwarded-Host` to the request's own host. The outpost picks the provider (and its group policy) by that header, and on the tunnel listener Caddy would otherwise pass a client-supplied value through, letting a session for one app open another.
+- Paths with encoded dots, slashes, or backslashes, or dot segments, get `400` before the check, so the outpost and the app always see the same path.
+- A provider's `skip_path_regex` lets health probe paths through without a session; nothing else bypasses the check. Client-supplied `X-Authentik-*` headers are always stripped.
+- When authentik is down, every forward-auth app answers `502`.
+
+Gated today: rclone. `UNGATED_CADDY_ROUTES` in `scripts/validate-repository.py` lists the routes that stay outside forward auth (authentik itself, Caddy's health route, Grafana with its own authentik login, Plex and Seerr whose clients cannot follow a login redirect, and the LAN-only Backrest and Komodo); `NOT_YET_GATED_CADDY_ROUTES` lists the apps that still rely on their own login. For every gated route the validator requires its `forward-auth-<app>.yaml`, its place in `outpost.yaml`, the server restart in `config_files`, its `probe_gate` targets, and its place in the authentik inhibition in `alertmanager.yml`.
+
+To put an app behind forward auth: add `forward-auth-<app>.yaml` (copy `forward-auth-rclone.yaml`; add a `skip_path_regex` for its probe path only), list it in `outpost.yaml`, register it in the authentik `config_files` with `services = ["worker", "server"]`, switch its site to `import atlas_protected_proxy <app> <upstream>`, move it from `NOT_YET_GATED_CADDY_ROUTES`, and add its `probe_gate` targets and inhibition entry. Only after its gate probes are green, relax the app's own login if wanted; to roll back, restore the app's own login first.
+
+#### Break-Glass
+
+- authentik down: on the LAN or Tailscale, open `https://komodo.atlas.vandaele.io` or `http://192.168.2.200:9120` (never behind authentik) and redeploy `authentik`. If Komodo is down too, SSH to the NAS and run `docker start authentik-postgresql authentik-server authentik-worker`.
+- Locked out of authentik (a lost password or MFA device, or an IP blocked by `reputation.yaml`): log in as `akadmin` with the break-glass password from the password manager, or create a one-time recovery link over SSH with `docker exec authentik-worker ak create_recovery_key 1 pjan`.
+- Grafana: its local `admin` login (`GRAFANA_ADMIN_PASSWORD`).
 
 #### First Setup
 
@@ -1438,7 +1464,7 @@ Users are created in the authentik UI, never in blueprints: they carry passwords
 
 #### Grafana Login
 
-Grafana's login page has **Sign in with authentik** (`GF_AUTH_GENERIC_OAUTH_*` in `stacks/monitoring/compose.yaml`). Members of `admins` get Grafana's Admin role and everyone else Viewer, from the `groups` claim; authentik itself lets only `admins` in. Grafana matches authentik users by username, never by email, because users can change their email in authentik. It therefore cannot take over an existing local Grafana user with the same username: that login fails with `unable to create user` until the local user is deleted. Dashboards live in Git Sync, so a deleted local user loses only its preferences and stars.
+Grafana's login page has **Sign in with authentik** (`GF_AUTH_GENERIC_OAUTH_*` in `stacks/monitoring/compose.yaml`). Members of `admins` get Grafana's Admin role and everyone else Viewer, from the `groups` claim; authentik lets in `admins` and `family`. Grafana matches authentik users by username, never by email, because users can change their email in authentik. It therefore cannot take over an existing local Grafana user with the same username: that login fails with `unable to create user` until the local user is deleted. Dashboards live in Git Sync, so a deleted local user loses only its preferences and stars.
 
 Grafana's own login form (the `admin` user from `GRAFANA_ADMIN_PASSWORD`) stays on as break-glass until every application uses authentik. Grafana's token and userinfo calls go to `https://auth.atlas.vandaele.io`, which Atlas DNS sends to Caddy's `443`, so they depend on Caddy's certificate on every network: when it is invalid ([`CaddyDown`](#caddy)), use the local `admin` login.
 
@@ -1448,7 +1474,7 @@ The nightly `appdata-backup` Action stops `authentik` (it is not in `NEVER_STOP`
 
 #### Monitoring
 
-Prometheus scrapes the server's metrics (job `authentik`). `probe_health` checks `http://authentik-server:9000/-/health/ready/` directly (service `authentik`) and `https://auth.atlas.vandaele.io/-/health/live/` through Cloudflare (service `authentik-public`, from `blackbox-public`, which resolves through public DNS), so [`ProbeFailed`](#application-probes) warns when either fails, gated during the backup. Both appear as tiles in the Application health panel on Atlas Health. The `authentik` job is not in `MonitoringTargetDown`: that alert is not gated, so it would fire during every nightly backup, and the probe already covers a down server.
+Prometheus scrapes the server's metrics (job `authentik`). `probe_health` checks `http://authentik-server:9000/-/health/ready/` directly (service `authentik`) and `https://auth.atlas.vandaele.io/-/health/live/` through Cloudflare (service `authentik-public`, from `blackbox-public`, which resolves through public DNS), so [`ProbeFailed`](#application-probes) is critical when either fails, gated during the backup: every app behind forward auth is locked while authentik is down. Both appear as tiles in the Application health panel on Atlas Health. The `authentik` job is not in `MonitoringTargetDown`: that alert is not gated, so it would fire during every nightly backup, and the probe already covers a down server.
 
 ## Monitoring
 
@@ -1466,6 +1492,7 @@ Current signals:
 | `cadvisor` | Per-container CPU (usage, the `cpus` limit, and throttling at it), memory (working set, RSS, limit), block I/O, pressure (PSI: CPU, memory, and I/O waiting), threads and the PIDs limit, start time, and OOM events, keyed by `container_id` |
 | `smartctl` | SMART health, NVMe wear, spare, critical warnings, media errors, and temperatures for `sda` (Seagate 12 TB, Volume 1), `nvme0` (Lexar 512 GB, Volume 2), and `nvme1` (TWSC 128 GB, UGOS system disk) |
 | `probe_routes` | Every Caddy route on `https://<app>.atlas.vandaele.io` from the LAN (UniFi DNS, Caddy and its certificate, and the application; 401 and 403 count as healthy) |
+| `probe_gate` | Every route behind authentik forward auth sends an anonymous request to the authentik login (module `http_gate`: exactly `302` to `https://auth.atlas.vandaele.io/`), from the LAN and through Cloudflare; services `<app>-gate` and `<app>-gate-public` |
 | `probe_routes_public` | Every public route through Cloudflare and the tunnel (from `blackbox-public`, through public DNS; services `<app>-public`) |
 | `probe_tcp` | AdGuard DNS `:53`, Caddy `:80`, Komodo `:9120`, Plex `:32400`, and Roon Server `:9330` on `192.168.2.200` |
 | `probe_dns_split` | UniFi and AdGuard resolve `sonarr.atlas.vandaele.io` to `192.168.2.200` |
@@ -1695,7 +1722,7 @@ cp /tmp/atlas_backups.prom.saved atlas_backups.prom.tmp && mv atlas_backups.prom
 
 #### Application Probes
 
-`ProbeFailed` (`services.apps`): for 5 minutes, an application's health endpoint (job `probe_health`, through Caddy on the LAN) or its public route through Cloudflare and the tunnel (job `probe_routes_public`, service `<app>-public`) has failed. Warning for every application; critical for Plex (`plex` through Caddy, `plex-direct` on port 32400). Caddy's own probe is covered by [`CaddyDown`](#caddy). `authentik` probes its server directly. [`TunnelDown`](#cloudflare-tunnel) suppresses every `<app>-public` alert, and [`VpnDown`](#vpn) those of the VPN-bound applications. A failing `<app>-public` alone means its tunnel route or its Cloudflare DNS record no longer reaches Caddy (see [Cloudflared](#cloudflared)). The link opens the application.
+`ProbeFailed` (`services.apps`): for 5 minutes, an application's health endpoint (job `probe_health`, through Caddy on the LAN), its public route through Cloudflare and the tunnel (job `probe_routes_public`, service `<app>-public`), or its authentik gate (job `probe_gate`, services `<app>-gate` and `<app>-gate-public`) has failed. Warning for every application; critical for Plex (`plex` through Caddy, `plex-direct` on port 32400) and authentik (`authentik`, `authentik-public`), which locks every app behind forward auth; `ProbeFailed` for `authentik` suppresses the alerts of those apps. A failing `<app>-gate` means the app answers without the authentik login: check its Caddy site and provider at once (see [Forward Auth](#forward-auth)). Caddy's own probe is covered by [`CaddyDown`](#caddy). `authentik` probes its server directly. [`TunnelDown`](#cloudflare-tunnel) suppresses every `<app>-public` alert, and [`VpnDown`](#vpn) those of the VPN-bound applications. A failing `<app>-public` alone means its tunnel route or its Cloudflare DNS record no longer reaches Caddy (see [Cloudflared](#cloudflared)). The link opens the application.
 
 1. Check the stack and its logs in Komodo, and redeploy it if it does not recover.
 2. If many probes fail at once, check Caddy, Atlas DNS (`*.atlas.vandaele.io` from UniFi, `probe_dns_split`), and, for the VPN-bound applications, [the VPN](#vpn).
@@ -1778,7 +1805,7 @@ To add a new app route:
 3. Ensure the app container joins `proxy_network`, or proxy to `host.docker.internal` for host services.
 4. Push to `main`, execute Resource Sync, then explicitly deploy or redeploy `caddy` so the `post_deploy` reload hook applies the live config.
 
-Most application UIs are exposed only through Caddy, at `https://<app>.atlas.vandaele.io`. The validator requires every route to be served on `443` and, except LAN-only routes, on the tunnel listener `8080`, and rejects `*.atlas.local` and port-80 addresses in site files. Public hostnames must be protected by appropriate Cloudflare Access policies. Routes listed in `LOCAL_ONLY_CADDY_ROUTES` in `scripts/validate-repository.py` (currently `backrest`) are LAN-only: they use the `atlas_lan_proxy` snippet, are not on `8080`, and must not get a tunnel route or a public DNS record. Plex is the direct-port exception and still publishes `192.168.2.200:32400/tcp` for native client discovery and direct access.
+Most application UIs are exposed only through Caddy, at `https://<app>.atlas.vandaele.io`. The validator requires every route to be served on `443` and, except LAN-only routes, on the tunnel listener `8080`, and rejects `*.atlas.local` and port-80 addresses in site files. Public hostnames must be protected by appropriate Cloudflare Access policies. Every route is either behind authentik forward auth or listed as ungated (see [Forward Auth](#forward-auth)). Routes listed in `LOCAL_ONLY_CADDY_ROUTES` in `scripts/validate-repository.py` (currently `backrest` and `komodo`) are LAN-only: they use the `atlas_lan_proxy` snippet, are not on `8080`, and must not get a tunnel route or a public DNS record. Plex is the direct-port exception and still publishes `192.168.2.200:32400/tcp` for native client discovery and direct access.
 
 Validation note:
 

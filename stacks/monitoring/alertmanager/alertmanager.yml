@@ -27,6 +27,10 @@ inhibit_rules:
   # Every probe except plex-direct and authentik goes through Caddy.
   - source_matchers: ['alertname="CaddyDown"']
     target_matchers: ['alertname="ProbeFailed"', 'service!~"plex-direct|authentik"']
+  # Every probe of an app behind authentik forward auth passes through its
+  # embedded outpost, health paths included.
+  - source_matchers: ['alertname="ProbeFailed"', 'service="authentik"']
+    target_matchers: ['alertname="ProbeFailed"', 'service=~"(rclone)(-public|-gate|-gate-public)?"']
   # The public probes (<app>-public) go through the Cloudflare Tunnel.
   - source_matchers: ['alertname="TunnelDown"']
     target_matchers: ['alertname="ProbeFailed"', 'service=~".+-public"']

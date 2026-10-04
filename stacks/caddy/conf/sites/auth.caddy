@@ -8,6 +8,7 @@
 auth.atlas.vandaele.io, http://auth.atlas.vandaele.io:8080 {
 	import atlas_hide_metrics
 	reverse_proxy authentik-server:9000 {
+		header_up X-Forwarded-Host {host}
 		header_up X-Forwarded-Proto https
 		header_up X-Forwarded-For {client_ip}
 	}

@@ -266,6 +266,7 @@ scrape_configs:
           - https://qbittorrent.atlas.vandaele.io
           - https://qui.atlas.vandaele.io
           - https://radarr.atlas.vandaele.io
+          - https://rclone.atlas.vandaele.io
           - https://sabnzbd.atlas.vandaele.io
           - https://seerr.atlas.vandaele.io
           - https://slskd.atlas.vandaele.io
@@ -347,9 +348,9 @@ scrape_configs:
     relabel_configs: *probe_relabel
 
   # Every public route from the internet: Cloudflare DNS, the Cloudflare
-  # Tunnel, Caddy's :8080 listener, and the app (401 and 403 count as up).
-  # Probed from blackbox-public, which resolves through public DNS. rclone has
-  # no public route.
+  # Tunnel, Caddy's :8080 listener, and the app (401 and 403 count as up; for
+  # a route behind authentik this proves only Caddy and the outpost).
+  # Probed from blackbox-public, which resolves through public DNS.
   - job_name: probe_routes_public
     scrape_interval: 120s
     metrics_path: /probe
@@ -382,6 +383,8 @@ scrape_configs:
         labels: {module: http_route, service: qui-public}
       - targets: ["https://radarr.atlas.vandaele.io"]
         labels: {module: http_route, service: radarr-public}
+      - targets: ["https://rclone.atlas.vandaele.io"]
+        labels: {module: http_route, service: rclone-public}
       - targets: ["https://sabnzbd.atlas.vandaele.io"]
         labels: {module: http_route, service: sabnzbd-public}
       - targets: ["https://seerr.atlas.vandaele.io"]
@@ -405,6 +408,30 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: blackbox-public:9115
+
+  # Every route behind authentik forward auth must send an anonymous request
+  # to the authentik login (module http_gate), from the LAN and through
+  # Cloudflare (blackbox-public). A gate that opens raises ProbeFailed.
+  - job_name: probe_gate
+    scrape_interval: 120s
+    metrics_path: /probe
+    static_configs:
+      - targets: ["https://rclone.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: rclone-gate}
+      - targets: ["https://rclone.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: rclone-gate-public}
+    relabel_configs:
+      - source_labels: [module]
+        target_label: __param_module
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+      - source_labels: [__exporter]
+        regex: (.+)
+        target_label: __address__
 
   # Caddy's HTTPS listener and the *.atlas.vandaele.io certificate it serves,
   # without DNS (CertificateExpiringSoon).

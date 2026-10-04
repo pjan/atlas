@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+# Brute-force protection (README "authentik"): an IP with a reputation of -5 or
+# less (five failed logins, decaying after a day) cannot start the login flow.
+# Usernames are not checked, so nobody can lock out a known user. A reputation
+# policy passes at or below its threshold, so the binding is negated.
+version: 1
+metadata:
+  name: Atlas - Login reputation
+entries:
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Default - Authentication flow
+      required: true
+
+  - model: authentik_policies_reputation.reputationpolicy
+    id: policy
+    identifiers:
+      name: atlas-login-reputation-ip
+    attrs:
+      check_ip: true
+      check_username: false
+      threshold: -5
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      policy: !KeyOf policy
+    attrs:
+      order: 0
+      negate: true

@@ -1,1 +1,3 @@
-import atlas_reverse_proxy komodo host.docker.internal:9120
+# LAN and Tailscale only: Komodo deploys every stack and is the break-glass
+# when authentik is down, so it is never public and never gated.
+import atlas_lan_proxy komodo host.docker.internal:9120

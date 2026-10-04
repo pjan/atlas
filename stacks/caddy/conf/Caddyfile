@@ -50,6 +50,41 @@ http://*.atlas.local {
 	}
 }
 
+# authentik forward auth (README "authentik"), imported first inside a site's
+# route so it runs before every other handler. The outpost is the embedded one
+# in authentik-server. X-Forwarded-Host is always this request's host: the
+# outpost picks the provider (and its group policy) by it, and on :8080 Caddy
+# would otherwise pass a client-supplied value through. Paths with encoded
+# dots, slashes, or backslashes, or dot segments, are refused before the check,
+# so the outpost's normalised path and the path the app receives never differ.
+(atlas_forward_auth) {
+	@unsafe_path vars_regexp {http.request.uri} `(?i)^[^?]*(%2e|%2f|%5c|\\|/\.\.?(/|\?|$))`
+	respond @unsafe_path 400
+	reverse_proxy /outpost.goauthentik.io/* authentik-server:9000 {
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-For {client_ip}
+	}
+	forward_auth authentik-server:9000 {
+		uri /outpost.goauthentik.io/auth/caddy
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-For {client_ip}
+		copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Entitlements X-Authentik-Email X-Authentik-Name X-Authentik-Uid X-Authentik-Jwt X-Authentik-Meta-Jwks X-Authentik-Meta-Outpost X-Authentik-Meta-Provider X-Authentik-Meta-App X-Authentik-Meta-Version
+	}
+}
+
+# atlas_reverse_proxy behind authentik forward auth.
+(atlas_protected_proxy) {
+	{args[0]}.atlas.vandaele.io, http://{args[0]}.atlas.vandaele.io:8080 {
+		import atlas_hide_metrics
+		route {
+			import atlas_forward_auth
+			reverse_proxy {args[1]}
+		}
+	}
+}
+
 # LAN-only routes: HTTPS on :443, never on the tunnel listener.
 (atlas_lan_proxy) {
 	{args[0]}.atlas.vandaele.io {
@@ -57,24 +92,30 @@ http://*.atlas.local {
 	}
 }
 
+# rclone behind authentik forward auth: its RC API runs without auth. Every
+# handler sits inside the route, after forward auth.
 (atlas_rclone) {
 	{args[0]}.atlas.vandaele.io, http://{args[0]}.atlas.vandaele.io:8080 {
 		@rclone_bootstrap `path('/') || (path('/login') && !query({'url': '*'}) )`
 
-		handle @rclone_bootstrap {
-			route {
-				rewrite * /login
-				uri query url https://{host}/api/
-				redir {uri} 302
+		route {
+			import atlas_forward_auth
+
+			handle @rclone_bootstrap {
+				route {
+					rewrite * /login
+					uri query url https://{host}/api/
+					redir {uri} 302
+				}
 			}
-		}
 
-		handle_path /api/* {
-			reverse_proxy {args[1]}
-		}
+			handle_path /api/* {
+				reverse_proxy {args[1]}
+			}
 
-		handle {
-			reverse_proxy {args[2]}
+			handle {
+				reverse_proxy {args[2]}
+			}
 		}
 	}
 }

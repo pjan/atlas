@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
 # Grafana logs in through authentik with OpenID Connect (README "authentik").
-# Only admins may use it; Grafana maps admins to its Admin role and everyone
+# Open to admins and family; Grafana maps admins to its Admin role and everyone
 # else to Viewer (GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH in
 # stacks/monitoring/compose.yaml). The client secret is the Komodo variable
 # GRAFANA_OIDC_CLIENT_SECRET, which the monitoring stack receives too.
@@ -68,3 +68,10 @@ entries:
       target: !KeyOf application
       group: !Find [authentik_core.group, [name, admins]]
       order: 0
+
+  # family as Viewer (GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH).
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf application
+      group: !Find [authentik_core.group, [name, family]]
+      order: 1

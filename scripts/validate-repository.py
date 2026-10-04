@@ -98,8 +98,32 @@ ATLAS_MAX_FIELD_VALUES = {
     "Details": 358,
     "Links": 300,
 }
-# Routes that must stay LAN-only: they expose every backup secret.
-LOCAL_ONLY_CADDY_ROUTES = {"backrest"}
+# Routes that must stay LAN-only: Backrest holds every backup secret, and
+# Komodo deploys every stack and is the break-glass when authentik is down.
+LOCAL_ONLY_CADDY_ROUTES = {"backrest", "komodo"}
+# Routes not behind authentik forward auth (README "authentik"): its login,
+# Caddy's health route, apps with their own authentik OIDC or clients that
+# cannot follow a login redirect, and the LAN-only routes.
+UNGATED_CADDY_ROUTES = {"auth", "backrest", "caddy", "grafana", "komodo", "plex", "seerr"}
+# Routes still on their own login only; each moves to atlas_protected_proxy.
+NOT_YET_GATED_CADDY_ROUTES = {
+    "adguard",
+    "autobrr",
+    "bazarr",
+    "houndarr",
+    "lidarr",
+    "prowlarr",
+    "qbittorrent",
+    "qui",
+    "radarr",
+    "sabnzbd",
+    "slskd",
+    "sonarr",
+    "speedtest",
+    "spottarr",
+    "ugos",
+}
+AUTHENTIK_BLUEPRINTS_ROOT = STACKS_ROOT / "authentik" / "blueprints"
 # One address of a Caddy site block, as written in conf/sites/*.caddy.
 CADDY_SITE_ADDRESS_PATTERN = re.compile(
     r"(?:(?P<scheme>https?)://)?(?P<name>[a-z0-9-]+)\.atlas\."
@@ -727,8 +751,10 @@ def validate_caddy(stacks_by_name: dict[str, dict], validation: Validation) -> N
     # (http://*.atlas.vandaele.io on :80) are recognised only to be rejected:
     # the Caddyfile redirects both to HTTPS.
     route_listeners: dict[str, set[str]] = {}
+    gated_routes: set[str] = set()
     for site_path in (STACKS_ROOT / "caddy" / "conf" / "sites").glob("*.caddy"):
         site_text = site_path.read_text(encoding="utf-8")
+        site_routes: set[str] = set()
         for line in site_text.splitlines():
             # Site addresses open a top-level block.
             if not line or line[0].isspace() or not line.rstrip().endswith("{"):
@@ -758,14 +784,19 @@ def validate_caddy(stacks_by_name: dict[str, dict], validation: Validation) -> N
                     )
                     continue
                 route_listeners.setdefault(name, set()).add(listener)
+                site_routes.add(name)
+        if re.search(r"(?m)^\s*import\s+atlas_forward_auth\s*$", site_text):
+            gated_routes.update(site_routes)
         for match in re.finditer(
-            r"(?m)^\s*import\s+(atlas_reverse_proxy|atlas_rclone|atlas_lan_proxy)\s+([a-z0-9-]+)\b",
+            r"(?m)^\s*import\s+(atlas_reverse_proxy|atlas_protected_proxy|atlas_rclone|atlas_lan_proxy)\s+([a-z0-9-]+)\b",
             site_text,
         ):
             snippet, name = match.groups()
             route_listeners.setdefault(name, set()).update(
                 {"https"} if snippet == "atlas_lan_proxy" else {"https", "tunnel"}
             )
+            if snippet in {"atlas_protected_proxy", "atlas_rclone"}:
+                gated_routes.add(name)
 
     for name, listeners in sorted(route_listeners.items()):
         validation.require(
@@ -790,6 +821,10 @@ def validate_caddy(stacks_by_name: dict[str, dict], validation: Validation) -> N
     for name in sorted(LOCAL_ONLY_CADDY_ROUTES - set(route_listeners)):
         validation.errors.append(f"LAN-only Caddy route {name} has no site")
 
+    validate_forward_auth(
+        set(route_listeners), gated_routes, stacks_by_name, validation
+    )
+
     for item in config.get("config_files", []):
         if item.get("path", "").startswith("conf/"):
             validation.require(
@@ -805,6 +840,86 @@ def validate_caddy(stacks_by_name: dict[str, dict], validation: Validation) -> N
         "Caddy live config is missing expected hostname",
     ):
         validation.require(required in post_deploy, f"Caddy post_deploy lacks: {required}")
+
+
+def validate_forward_auth(
+    routes: set[str],
+    gated_routes: set[str],
+    stacks_by_name: dict[str, dict],
+    validation: Validation,
+) -> None:
+    """Every route is gated by authentik or deliberately ungated, and every
+    gated route has its provider, its place in the outpost, and gate probes."""
+    ungated = UNGATED_CADDY_ROUTES | NOT_YET_GATED_CADDY_ROUTES
+    validation.require(
+        not (UNGATED_CADDY_ROUTES & NOT_YET_GATED_CADDY_ROUTES),
+        "UNGATED_CADDY_ROUTES and NOT_YET_GATED_CADDY_ROUTES overlap",
+    )
+    for name in sorted(routes):
+        validation.require(
+            (name in gated_routes) != (name in ungated),
+            f"Caddy route {name} must be either behind authentik forward auth "
+            "or listed in UNGATED_CADDY_ROUTES or NOT_YET_GATED_CADDY_ROUTES",
+        )
+    for name in sorted(ungated - routes):
+        validation.errors.append(f"ungated Caddy route {name} has no site")
+
+    outpost = (AUTHENTIK_BLUEPRINTS_ROOT / "outpost.yaml").read_text(encoding="utf-8")
+    prometheus = (MONITORING_ROOT / "prometheus" / "prometheus.yml").read_text(
+        encoding="utf-8"
+    )
+    worker_files = {
+        item["path"]: item
+        for item in stacks_by_name.get("authentik", {})
+        .get("config", {})
+        .get("config_files", [])
+    }
+    # An authentik outage fails every probe of a gated app; one alert is enough.
+    inhibition = re.search(
+        r"'service=\"authentik\"'\]\n\s+target_matchers: \['alertname=\"ProbeFailed\"', "
+        r"'service=~\"\(([a-z0-9|-]+)\)\(-public\|-gate\|-gate-public\)\?\"'\]",
+        (ALERTMANAGER_DIRECTORY / "alertmanager.yml").read_text(encoding="utf-8"),
+    )
+    inhibited = set(inhibition.group(1).split("|")) if inhibition else set()
+    validation.require(
+        inhibited == gated_routes,
+        "alertmanager.yml must inhibit ProbeFailed of exactly the gated routes "
+        f"while authentik is down: {sorted(inhibited ^ gated_routes)}",
+    )
+    for name in sorted(gated_routes):
+        blueprint = AUTHENTIK_BLUEPRINTS_ROOT / f"forward-auth-{name}.yaml"
+        if not blueprint.is_file():
+            validation.errors.append(f"gated route {name} has no {relative(blueprint)}")
+            continue
+        text = blueprint.read_text(encoding="utf-8")
+        for required in (
+            f"name: Atlas - Forward auth - {name}",
+            "mode: forward_single",
+            f"external_host: https://{name}.atlas.vandaele.io",
+            "access_token_validity:",
+        ):
+            validation.require(
+                required in text, f"{relative(blueprint)} lacks: {required}"
+            )
+        for required in (
+            f"name: Atlas - Forward auth - {name}",
+            f"[authentik_providers_proxy.proxyprovider, [name, {name}]]",
+        ):
+            validation.require(
+                required in outpost, f"outpost.yaml does not list gated route {name}"
+            )
+        # The server's embedded outpost only serves a new provider after a restart.
+        registered = worker_files.get(f"blueprints/forward-auth-{name}.yaml", {})
+        validation.require(
+            set(registered.get("services", [])) == {"worker", "server"},
+            f"authentik config_files must restart worker and server for "
+            f"forward-auth-{name}.yaml",
+        )
+        for service in (f"{name}-gate", f"{name}-gate-public"):
+            validation.require(
+                f"service: {service}}}" in prometheus,
+                f"prometheus.yml lacks the probe_gate target {service}",
+            )
 
 
 def validate_hooks(stacks_by_name: dict[str, dict], validation: Validation) -> None:
