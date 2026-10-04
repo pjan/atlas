@@ -244,6 +244,15 @@ def relative(path: Path) -> str:
     return path.relative_to(REPO_ROOT).as_posix()
 
 
+def is_utf8_text(path: Path) -> bool:
+    """Komodo reads config_files as UTF-8 text and fails the deploy on anything else."""
+    try:
+        path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return False
+    return True
+
+
 def compose_input_names(compose_text: str) -> set[str]:
     return set(COMPOSE_VARIABLE_PATTERN.findall(compose_text)) | set(
         COMPOSE_SECRET_ENVIRONMENT_PATTERN.findall(compose_text)
@@ -371,6 +380,11 @@ def validate_stack_inventory(
             validation.require(
                 declared_file.is_file(),
                 f"stack {name} declares missing config_file: {relative(declared_file)}",
+            )
+            validation.require(
+                not declared_file.is_file() or is_utf8_text(declared_file),
+                f"stack {name} declares a binary config_file, which Komodo cannot read: "
+                f"{relative(declared_file)}",
             )
 
     validation.require("komodo" not in stacks_by_name, "Komodo must not be managed")
@@ -692,13 +706,14 @@ def validate_relative_binds(
             except ValueError:
                 continue
 
+            # Binary files (fonts) cannot be config_files: Komodo reads those as text.
             if source.is_file():
-                required_files = {source}
+                required_files = {source} if is_utf8_text(source) else set()
             else:
                 required_files = {
                     path.resolve()
                     for path in source.rglob("*")
-                    if path.is_file() and path.name != ".DS_Store"
+                    if path.is_file() and path.name != ".DS_Store" and is_utf8_text(path)
                 }
             missing = required_files - config_paths
             for path in sorted(missing):
