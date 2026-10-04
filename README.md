@@ -762,7 +762,15 @@ All writable Arr bind mounts use `create_host_path: false`. The corresponding pr
 
 ### Arr Authentication
 
-In Sonarr, Radarr, Lidarr, and Prowlarr, set `Authentication` to `Forms` and `Authentication Required` to `Enabled`. Enable `Forms` authentication in Bazarr as well. Do not choose `Disabled for Local Addresses`: every request, including public Cloudflare Tunnel traffic, reaches these applications from Caddy's private Docker address, so all clients would be treated as local.
+Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, and SABnzbd have no login of their own: authentik forward auth (`admins` only, see [Forward Auth](#forward-auth)) is the gate, so one authentik login opens all of them.
+
+- Sonarr, Radarr, Lidarr, and Prowlarr: `<APP>__AUTH__METHOD=External` in their compose files, which overrides `config.xml`. Their APIs still require each app's API key; only `/ping` skips forward auth. The validator refuses `External` for an app that is not behind forward auth.
+- Bazarr (by hand, stored in `config.yaml` in its appdata): **Settings → General → Security → Authentication: None**. Its API still requires its API key.
+- SABnzbd (by hand, stored in `sabnzbd.ini`): **Config → General → Security**: empty **Username** and **Password**; **Config → Special**: `inet_exposure` = `4` (full web interface), because requests through the Cloudflare Tunnel carry public addresses in `X-Forwarded-For`, which the default refuses. `host_whitelist` stays. Its API still requires its API key, except `mode=version`.
+
+Without their own logins, these UIs (and the Arr `/initialize.json`, which contains the API key) are open to every container on `proxy_network` and `media_network`; that is the trade for a single login. qBittorrent, slskd, AdGuard Home, Speedtest Tracker, UGOS, and Houndarr keep their own logins, which protect APIs, hooks, or credentials that other containers could reach.
+
+To take an app out of forward auth, restore its own login first (`Forms` and `Authentication Required: Enabled` in the Arrs; never `Disabled for Local Addresses`, because every request reaches them from Caddy's private Docker address), then change its Caddy site.
 
 ### Bazarr
 

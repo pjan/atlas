@@ -11,6 +11,9 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
       - UMASK=${UMASK}
+      # No login of its own: authentik forward auth is the gate (README "Arr
+      # Authentication"); the validator requires it. The API still needs the key.
+      - SONARR__AUTH__METHOD=External
     volumes:
       - type: bind
         source: ${CONFIG_DIR:?CONFIG_DIR is required}

@@ -858,6 +858,16 @@ def validate_forward_auth(
         .get("config", {})
         .get("config_files", [])
     }
+    # An app without a login of its own is only safe behind forward auth.
+    for compose_file in sorted(STACKS_ROOT.glob("*/compose.yaml")):
+        if "__AUTH__METHOD=External" in compose_file.read_text(encoding="utf-8"):
+            name = compose_file.parent.name
+            validation.require(
+                name in gated_routes,
+                f"{relative(compose_file)} turns its login off (External) but "
+                f"route {name} is not behind authentik forward auth",
+            )
+
     # An authentik outage fails every probe of a gated app; one alert is enough.
     inhibition = re.search(
         r"'service=\"authentik\"'\]\n\s+target_matchers: \['alertname=\"ProbeFailed\"', "
