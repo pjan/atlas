@@ -1052,33 +1052,32 @@ file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
 links = ["https://auth.atlas.vandaele.io"]
-# The worker applies the blueprints when it starts.
+# A blueprint change redeploys the stack, so post_deploy applies the
+# blueprints (scripts/authentik-apply-blueprints.sh; README "Blueprints").
 config_files = [
-  { path = "blueprints/groups.yaml", services = ["worker"], requires = "Restart" },
-  { path = "blueprints/admins-mfa.yaml", services = ["worker"], requires = "Restart" },
-  { path = "blueprints/grafana.yaml", services = ["worker"], requires = "Restart" },
-  { path = "blueprints/oidc-autobrr.yaml", services = ["worker"], requires = "Restart" },
-  { path = "blueprints/oidc-qui.yaml", services = ["worker"], requires = "Restart" },
-  # The server's embedded outpost serves a new forward-auth provider only after
-  # a restart (README "authentik").
-  { path = "blueprints/forward-auth-adguard.yaml", services = ["worker", "server"], requires = "Restart" },
-  { path = "blueprints/forward-auth-autobrr.yaml", services = ["worker", "server"], requires = "Restart" },
-  { path = "blueprints/forward-auth-bazarr.yaml", services = ["worker", "server"], requires = "Restart" },
-  { path = "blueprints/forward-auth-houndarr.yaml", services = ["worker", "server"], requires = "Restart" },
-  { path = "blueprints/forward-auth-lidarr.yaml", services = ["worker", "server"], requires = "Restart" },
-  { path = "blueprints/forward-auth-prowlarr.yaml", services = ["worker", "server"], requires = "Restart" },
-  { path = "blueprints/forward-auth-qbittorrent.yaml", services = ["worker", "server"], requires = "Restart" },
-  { path = "blueprints/forward-auth-radarr.yaml", services = ["worker", "server"], requires = "Restart" },
-  { path = "blueprints/forward-auth-qui.yaml", services = ["worker", "server"], requires = "Restart" },
-  { path = "blueprints/forward-auth-rclone.yaml", services = ["worker", "server"], requires = "Restart" },
-  { path = "blueprints/forward-auth-sabnzbd.yaml", services = ["worker", "server"], requires = "Restart" },
-  { path = "blueprints/forward-auth-slskd.yaml", services = ["worker", "server"], requires = "Restart" },
-  { path = "blueprints/forward-auth-sonarr.yaml", services = ["worker", "server"], requires = "Restart" },
-  { path = "blueprints/forward-auth-speedtest.yaml", services = ["worker", "server"], requires = "Restart" },
-  { path = "blueprints/forward-auth-spottarr.yaml", services = ["worker", "server"], requires = "Restart" },
-  { path = "blueprints/forward-auth-ugos.yaml", services = ["worker", "server"], requires = "Restart" },
-  { path = "blueprints/outpost.yaml", services = ["worker", "server"], requires = "Restart" },
-  { path = "blueprints/reputation.yaml", services = ["worker"], requires = "Restart" },
+  { path = "blueprints/admins-mfa.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-adguard.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-autobrr.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-bazarr.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-houndarr.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-lidarr.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-prowlarr.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-qbittorrent.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-qui.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-radarr.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-rclone.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-sabnzbd.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-slskd.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-sonarr.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-speedtest.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-spottarr.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-ugos.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/grafana.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/groups.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/oidc-autobrr.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/oidc-qui.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/outpost.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/reputation.yaml", services = ["worker"], requires = "Redeploy" },
 ]
 pre_deploy.path = "."
 pre_deploy.command = """
@@ -1093,6 +1092,12 @@ sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/authentik/data" 1000 1000 0700
 """
 pre_deploy.shell_mode = true
+post_deploy.path = "."
+post_deploy.shell_mode = true
+post_deploy.command = """
+set -eu
+sh ../../scripts/authentik-apply-blueprints.sh
+"""
 environment = """
 TZ = [[TZ]]
 AUTHENTIK_POSTGRES_DIR = [[APPDATA_DIR]]/authentik/postgres

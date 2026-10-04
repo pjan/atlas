@@ -874,6 +874,8 @@ def validate_forward_auth(
         "alertmanager.yml must inhibit ProbeFailed of exactly the gated routes "
         f"while authentik is down: {sorted(inhibited ^ gated_routes)}",
     )
+    validate_authentik_blueprints(worker_files, stacks_by_name, validation)
+
     for name in sorted(gated_routes):
         blueprint = AUTHENTIK_BLUEPRINTS_ROOT / f"forward-auth-{name}.yaml"
         if not blueprint.is_file():
@@ -889,25 +891,65 @@ def validate_forward_auth(
             validation.require(
                 required in text, f"{relative(blueprint)} lacks: {required}"
             )
-        for required in (
-            f"name: Atlas - Forward auth - {name}",
-            f"[authentik_providers_proxy.proxyprovider, [name, {name}]]",
-        ):
-            validation.require(
-                required in outpost, f"outpost.yaml does not list gated route {name}"
-            )
-        # The server's embedded outpost only serves a new provider after a restart.
-        registered = worker_files.get(f"blueprints/forward-auth-{name}.yaml", {})
         validation.require(
-            set(registered.get("services", [])) == {"worker", "server"},
-            f"authentik config_files must restart worker and server for "
-            f"forward-auth-{name}.yaml",
+            f"[authentik_providers_proxy.proxyprovider, [name, {name}]]" in outpost,
+            f"outpost.yaml does not list gated route {name}",
         )
         for service in (f"{name}-gate", f"{name}-gate-public"):
             validation.require(
                 f"service: {service}}}" in prometheus,
                 f"prometheus.yml lacks the probe_gate target {service}",
             )
+
+
+def validate_authentik_blueprints(
+    worker_files: dict[str, dict],
+    stacks_by_name: dict[str, dict],
+    validation: Validation,
+) -> None:
+    """authentik blueprints are applied by the stack's post_deploy, in the order
+    of scripts/authentik-apply-blueprints.sh, never by the worker's queue."""
+    script = (REPO_ROOT / "scripts" / "authentik-apply-blueprints.sh").read_text(
+        encoding="utf-8"
+    )
+    match = re.search(r'(?m)^BLUEPRINTS="([^"]*)"', script)
+    order = match.group(1).split() if match else []
+    files = sorted(path.stem for path in AUTHENTIK_BLUEPRINTS_ROOT.glob("*.yaml"))
+    validation.require(
+        sorted(order) == files and len(order) == len(set(order)),
+        "scripts/authentik-apply-blueprints.sh BLUEPRINTS must list every authentik "
+        f"blueprint once: {sorted(set(order) ^ set(files))}",
+    )
+    validation.require(
+        bool(order) and order[0] == "groups" and order[-1] == "outpost",
+        "authentik blueprints must apply groups first and outpost last",
+    )
+    for stem in files:
+        text = (AUTHENTIK_BLUEPRINTS_ROOT / f"{stem}.yaml").read_text(encoding="utf-8")
+        validation.require(
+            'blueprints.goauthentik.io/instantiate: "false"' in text,
+            f"authentik blueprint {stem}.yaml must not be instantiated by the worker",
+        )
+        validation.require(
+            "metaapplyblueprint" not in text,
+            f"authentik blueprint {stem}.yaml must not apply other blueprints; "
+            "the order in authentik-apply-blueprints.sh replaces that",
+        )
+        registered = worker_files.get(f"blueprints/{stem}.yaml", {})
+        validation.require(
+            registered.get("requires") == "Redeploy",
+            f"authentik config_files must redeploy for blueprints/{stem}.yaml",
+        )
+    post_deploy = (
+        stacks_by_name.get("authentik", {})
+        .get("config", {})
+        .get("post_deploy", {})
+        .get("command", "")
+    )
+    validation.require(
+        "sh ../../scripts/authentik-apply-blueprints.sh" in post_deploy,
+        "the authentik post_deploy must run scripts/authentik-apply-blueprints.sh",
+    )
 
 
 def validate_hooks(stacks_by_name: dict[str, dict], validation: Validation) -> None:

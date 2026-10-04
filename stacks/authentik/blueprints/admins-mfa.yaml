@@ -8,23 +8,11 @@
 version: 1
 metadata:
   name: Atlas - MFA for admins
+  labels:
+    # Applied by the authentik stack's post_deploy, in order, never by the
+    # worker's queue (README "Blueprints").
+    blueprints.goauthentik.io/instantiate: "false"
 entries:
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Default - Authentication flow
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Default - TOTP MFA setup flow
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Default - WebAuthn MFA setup flow
-      required: true
-
   - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
     id: admins-mfa-setup
     identifiers:

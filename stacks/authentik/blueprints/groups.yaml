@@ -4,6 +4,10 @@
 version: 1
 metadata:
   name: Atlas - Groups
+  labels:
+    # Applied by the authentik stack's post_deploy, in order, never by the
+    # worker's queue (README "Blueprints").
+    blueprints.goauthentik.io/instantiate: "false"
 entries:
   # pjan. Also authentik superusers, so akadmin can be disabled.
   - model: authentik_core.group

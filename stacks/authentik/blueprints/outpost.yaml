@@ -1,92 +1,15 @@
 # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
 # The embedded outpost, inside authentik-server, answers Caddy's forward_auth
 # checks (README "authentik"). This file alone lists its providers: every
-# forward-auth-*.yaml provider must be required and listed here.
+# forward-auth-*.yaml provider must be listed here.
 version: 1
 metadata:
   name: Atlas - Embedded outpost
+  labels:
+    # Applied by the authentik stack's post_deploy, in order, never by the
+    # worker's queue (README "Blueprints").
+    blueprints.goauthentik.io/instantiate: "false"
 entries:
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Atlas - Forward auth - adguard
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Atlas - Forward auth - autobrr
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Atlas - Forward auth - bazarr
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Atlas - Forward auth - houndarr
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Atlas - Forward auth - lidarr
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Atlas - Forward auth - prowlarr
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Atlas - Forward auth - qbittorrent
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Atlas - Forward auth - qui
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Atlas - Forward auth - radarr
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Atlas - Forward auth - rclone
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Atlas - Forward auth - sabnzbd
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Atlas - Forward auth - slskd
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Atlas - Forward auth - sonarr
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Atlas - Forward auth - speedtest
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Atlas - Forward auth - spottarr
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Atlas - Forward auth - ugos
-      required: true
-
   - model: authentik_outposts.outpost
     identifiers:
       managed: goauthentik.io/outposts/embedded

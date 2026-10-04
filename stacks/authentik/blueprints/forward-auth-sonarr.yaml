@@ -6,23 +6,11 @@
 version: 1
 metadata:
   name: Atlas - Forward auth - sonarr
+  labels:
+    # Applied by the authentik stack's post_deploy, in order, never by the
+    # worker's queue (README "Blueprints").
+    blueprints.goauthentik.io/instantiate: "false"
 entries:
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Atlas - Groups
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Default - Provider authorization flow (implicit consent)
-      required: true
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Default - Provider invalidation flow
-      required: true
-
   - model: authentik_providers_proxy.proxyprovider
     id: provider
     identifiers:

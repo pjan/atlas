@@ -6,13 +6,11 @@
 version: 1
 metadata:
   name: Atlas - Login reputation
+  labels:
+    # Applied by the authentik stack's post_deploy, in order, never by the
+    # worker's queue (README "Blueprints").
+    blueprints.goauthentik.io/instantiate: "false"
 entries:
-  - model: authentik_blueprints.metaapplyblueprint
-    attrs:
-      identifiers:
-        name: Default - Authentication flow
-      required: true
-
   - model: authentik_policies_reputation.reputationpolicy
     identifiers:
       name: atlas-login-reputation-ip
