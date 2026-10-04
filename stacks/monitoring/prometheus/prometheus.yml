@@ -420,6 +420,10 @@ scrape_configs:
         labels: {module: http_gate, service: adguard-gate}
       - targets: ["https://adguard.atlas.vandaele.io/"]
         labels: {module: http_gate, __exporter: "blackbox-public:9115", service: adguard-gate-public}
+      - targets: ["https://autobrr.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: autobrr-gate}
+      - targets: ["https://autobrr.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: autobrr-gate-public}
       - targets: ["https://bazarr.atlas.vandaele.io/"]
         labels: {module: http_gate, service: bazarr-gate}
       - targets: ["https://bazarr.atlas.vandaele.io/"]
@@ -440,6 +444,10 @@ scrape_configs:
         labels: {module: http_gate, service: qbittorrent-gate}
       - targets: ["https://qbittorrent.atlas.vandaele.io/"]
         labels: {module: http_gate, __exporter: "blackbox-public:9115", service: qbittorrent-gate-public}
+      - targets: ["https://qui.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: qui-gate}
+      - targets: ["https://qui.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: qui-gate-public}
       - targets: ["https://radarr.atlas.vandaele.io/"]
         labels: {module: http_gate, service: radarr-gate}
       - targets: ["https://radarr.atlas.vandaele.io/"]

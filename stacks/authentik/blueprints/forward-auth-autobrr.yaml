@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+# autobrr behind authentik forward auth (README "authentik"), for admins, in front
+# of its OIDC login (oidc-autobrr.yaml), which the forward-auth session makes
+# silent. Only the health probe skips the check.
+version: 1
+metadata:
+  name: Atlas - Forward auth - autobrr
+entries:
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Atlas - Groups
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Default - Provider authorization flow (implicit consent)
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Default - Provider invalidation flow
+      required: true
+
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider
+    identifiers:
+      name: autobrr
+    attrs:
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      mode: forward_single
+      external_host: https://autobrr.atlas.vandaele.io
+      access_token_validity: hours=24
+      skip_path_regex: "^/api/healthz/(liveness|readiness)$"
+
+  - model: authentik_core.application
+    id: application
+    identifiers:
+      slug: autobrr-forward-auth
+    attrs:
+      name: autobrr (forward auth)
+      provider: !KeyOf provider
+      meta_launch_url: https://autobrr.atlas.vandaele.io
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf application
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0

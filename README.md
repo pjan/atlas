@@ -591,6 +591,7 @@ AUTHENTIK_BOOTSTRAP_EMAIL
 AUTHENTIK_BOOTSTRAP_PASSWORD
 AUTHENTIK_POSTGRES_PASSWORD
 AUTHENTIK_SECRET_KEY
+AUTOBRR_OIDC_CLIENT_SECRET
 BAZARR_API_KEY
 CLOUDFLARE_DNS_API_TOKEN
 CLOUDFLARE_TUNNEL_TOKEN
@@ -610,6 +611,7 @@ LIDARR_API_KEY
 PROTONVPN_WIREGUARD_PRIVATE_KEY
 PROWLARR_API_KEY
 QBITTORRENT_API_KEY
+QUI_OIDC_CLIENT_SECRET
 RADARR_API_KEY
 SABNZBD_API_KEY
 SLSKD_API_KEY
@@ -766,7 +768,7 @@ Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, and SABnzbd have no login of their own
 
 - Sonarr, Radarr, Lidarr, and Prowlarr: `<APP>__AUTH__METHOD=External` in their compose files, which overrides `config.xml`. Their APIs still require each app's API key; only `/ping` skips forward auth. The validator refuses `External` for an app that is not behind forward auth.
 - Bazarr (by hand, stored in `config.yaml` in its appdata): **Settings → General → Security → Authentication: None**. Its API still requires its API key.
-- SABnzbd (by hand, stored in `sabnzbd.ini`): **Config → General → Security**: empty **Username** and **Password**; **Config → Special**: `inet_exposure` = `4` (full web interface), because requests through the Cloudflare Tunnel carry public addresses in `X-Forwarded-For`, which the default refuses. `host_whitelist` stays. Its API still requires its API key, except `mode=version`.
+- SABnzbd (by hand, stored in `sabnzbd.ini`): **Config → General → Security**: empty **Username** and **Password**, and **External internet access** = **Full Web interface** (`inet_exposure` = `4`), because requests through the Cloudflare Tunnel carry public addresses in `X-Forwarded-For`, which the default refuses. `host_whitelist` stays. Its API still requires its API key, except `mode=version`.
 
 Without their own logins, these UIs (and the Arr `/initialize.json`, which contains the API key) are open to every container on `proxy_network` and `media_network`; that is the trade for a single login. qBittorrent, slskd, AdGuard Home, Speedtest Tracker, UGOS, and Houndarr keep their own logins, which protect APIs, hooks, or credentials that other containers could reach.
 
@@ -1174,7 +1176,7 @@ Then restart the container:
 docker start sabnzbd
 ```
 
-On first startup, configure SABnzbd through Caddy and keep `External internet access` disabled or limited. Configure these paths:
+On first startup, configure SABnzbd through Caddy. Keep `External internet access` limited until `sabnzbd.atlas.vandaele.io` is behind authentik forward auth, then set it as in [Arr Authentication](#arr-authentication). Configure these paths:
 
 ```text
 Incomplete downloads: /data/downloads/usenet/incomplete
@@ -1256,7 +1258,7 @@ Lidarr: http://127.0.0.1:8686
 
 Operational notes:
 
-- Autobrr has no direct host port. Require Cloudflare Access before reaching `autobrr.atlas.vandaele.io`.
+- Autobrr has no direct host port. `autobrr.atlas.vandaele.io` is behind authentik forward auth for `admins`, and autobrr logs in through authentik with OIDC (`AUTOBRR__OIDC_*`, provider `oidc-autobrr.yaml`), so the gate's session makes it one login. `AUTOBRR__OIDC_DISABLE_BUILT_IN_LOGIN` only hides the password form; forward auth is what closes it. autobrr reaches authentik through Gluetun's VPN and retries OIDC discovery until it answers.
 - `/volume2/appdata/autobrr` contains its SQLite database, login state, tracker credentials, and downloader credentials. It is provisioned as `0700`; back it up with ownership and permissions preserved.
 - The image's own update check is disabled because Renovate manages the pinned Docker tag.
 - The readiness healthcheck verifies both the HTTP server and SQLite database.
@@ -1309,7 +1311,7 @@ Operational notes:
 - Keep qui authentication enabled. Do not set `QUI__AUTH_DISABLED=true`.
 - The stack mounts `[[DATA_DIR]]/downloads/torrents` at the container path `/data/downloads/torrents` (via `TORRENTS_DIR`) to enable qui's filesystem-dependent features. This path deliberately matches qBittorrent's own `/data/downloads/torrents` mapping so the save paths qui reads from the qBittorrent API resolve correctly on qui's filesystem. This mount grants qui read/write/delete capability over torrent downloads; switch it to `:ro` in `stacks/qui/compose.yaml` if only read-only browsing is wanted.
 - `[[APPDATA_DIR]]/qui` contains the qui database, admin/session state, and qBittorrent credentials. It is provisioned as private appdata with mode `0700` and should be backed up; never recursively change ownership across the shared torrent tree during recovery.
-- Require Cloudflare Access before reaching qui through `qui.atlas.vandaele.io`.
+- `qui.atlas.vandaele.io` is behind authentik forward auth for `admins`, and qui logs in through authentik with OIDC (`QUI__OIDC_*`, provider `oidc-qui.yaml`), one login. Its password form is only hidden; forward auth closes it. qui retries the issuer at start and then exits, so it comes up once authentik answers (`restart: unless-stopped`).
 
 ### Rclone
 
@@ -1420,9 +1422,11 @@ AUTHENTIK_POSTGRES_PASSWORD   openssl rand -hex 32
 AUTHENTIK_BOOTSTRAP_EMAIL     pjan's email address
 AUTHENTIK_BOOTSTRAP_PASSWORD  openssl rand -base64 32
 GRAFANA_OIDC_CLIENT_SECRET    openssl rand -hex 32
+AUTOBRR_OIDC_CLIENT_SECRET    openssl rand -hex 32
+QUI_OIDC_CLIENT_SECRET        openssl rand -hex 32
 ```
 
-Never change `AUTHENTIK_SECRET_KEY` after the first start: it signs sessions and tokens. `AUTHENTIK_POSTGRES_PASSWORD` only applies when the database is created. The bootstrap values are read only when the database is empty: they create `akadmin`, and a set password closes authentik's initial-setup flow, which would otherwise let anyone on the public hostname choose the admin password. Set them before the first deploy and empty them (keep the variables) once setup is done. `GRAFANA_OIDC_CLIENT_SECRET` goes to both the authentik worker (the Grafana blueprint) and Grafana.
+Never change `AUTHENTIK_SECRET_KEY` after the first start: it signs sessions and tokens. `AUTHENTIK_POSTGRES_PASSWORD` only applies when the database is created. The bootstrap values are read only when the database is empty: they create `akadmin`, and a set password closes authentik's initial-setup flow, which would otherwise let anyone on the public hostname choose the admin password. Set them before the first deploy and empty them (keep the variables) once setup is done. Each `<APP>_OIDC_CLIENT_SECRET` goes to both the authentik worker (the app's OIDC blueprint) and the app: Grafana, autobrr, qui.
 
 #### Blueprints
 
@@ -1431,6 +1435,7 @@ Never change `AUTHENTIK_SECRET_KEY` after the first start: it signs sessions and
 - `groups.yaml`: the groups `admins` (pjan; also authentik superusers) and `family`.
 - `admins-mfa.yaml`: members of `admins` without TOTP or a passkey must set one up before they are logged in (stage `atlas-admins-mfa-setup` at order 35 of the default authentication flow). Everyone else is asked for TOTP or a passkey only once they have set one up in their user settings.
 - `grafana.yaml`: the OAuth2/OIDC provider and application `grafana`, open to `admins` and `family` (Viewer).
+- `oidc-autobrr.yaml`, `oidc-qui.yaml`: the OAuth2/OIDC providers and applications `autobrr` and `qui` (the slug sets the issuer, `https://auth.atlas.vandaele.io/application/o/<slug>/`), open only to `admins`. Their forward-auth applications have the slug `<app>-forward-auth`.
 - `forward-auth-<app>.yaml`: one proxy provider per app behind forward auth (see [Forward Auth](#forward-auth)), its application, and its group binding.
 - `outpost.yaml`: the embedded outpost and the list of every forward-auth provider it serves.
 - `reputation.yaml`: brute-force protection. An IP whose login reputation reaches `-5` (five failed logins more than successful ones, decaying after a day) cannot start the login flow. Usernames are not scored, so nobody can lock out a known user.
@@ -1450,15 +1455,16 @@ Apps without their own authentik login sit behind authentik forward auth in Cadd
 - A provider's `skip_path_regex` lets health probe paths through without a session; nothing else bypasses the check. Client-supplied `X-Authentik-*` headers are always stripped.
 - When authentik is down, every forward-auth app answers `502`.
 
-Gated today: AdGuard Home, Bazarr, Houndarr, Lidarr, Prowlarr, qBittorrent, Radarr, rclone, SABnzbd, slskd, Sonarr, Speedtest Tracker, Spottarr, and UGOS, each with its own login still on. Only health probe paths skip the check: `/ping` (Sonarr, Radarr, Lidarr, Prowlarr), `/api` (SABnzbd, whose API needs its key except `mode=version`), `/api/health` (Houndarr), and `/healthz` (Spottarr). `UNGATED_CADDY_ROUTES` in `scripts/validate-repository.py` lists the routes that stay outside forward auth (authentik itself, Caddy's health route, Grafana with its own authentik login, Plex and Seerr whose clients cannot follow a login redirect, and the LAN-only Backrest and Komodo); `NOT_YET_GATED_CADDY_ROUTES` lists the apps that still rely on their own login. For every gated route the validator requires its `forward-auth-<app>.yaml`, its place in `outpost.yaml`, the server restart in `config_files`, its `probe_gate` targets, and its place in the authentik inhibition in `alertmanager.yml`.
+Gated: AdGuard Home, autobrr, Bazarr, Houndarr, Lidarr, Prowlarr, qBittorrent, qui, Radarr, rclone, SABnzbd, slskd, Sonarr, Speedtest Tracker, Spottarr, and UGOS (see [Arr Authentication](#arr-authentication) for which keep their own login; autobrr and qui log in through authentik with OIDC behind the gate, so it is one login). Only health probe paths skip the check: `/ping` (Sonarr, Radarr, Lidarr, Prowlarr), `/api` (SABnzbd, whose API needs its key except `mode=version`), `/api/health` (Houndarr), `/healthz` (Spottarr), `/api/healthz/liveness` and `/api/healthz/readiness` (autobrr), and `/health` (qui). `UNGATED_CADDY_ROUTES` in `scripts/validate-repository.py` lists the routes that stay outside forward auth (authentik itself, Caddy's health route, Grafana with its own authentik login, Plex and Seerr whose clients cannot follow a login redirect, and the LAN-only Backrest and Komodo). For every gated route the validator requires its `forward-auth-<app>.yaml`, its place in `outpost.yaml`, the server restart in `config_files`, its `probe_gate` targets, and its place in the authentik inhibition in `alertmanager.yml`.
 
-To put an app behind forward auth: add `forward-auth-<app>.yaml` (copy `forward-auth-rclone.yaml`; add a `skip_path_regex` for its probe path only), list it in `outpost.yaml`, register it in the authentik `config_files` with `services = ["worker", "server"]`, switch its site to `import atlas_protected_proxy <app> <upstream>`, move it from `NOT_YET_GATED_CADDY_ROUTES`, and add its `probe_gate` targets and inhibition entry. Only after its gate probes are green, relax the app's own login if wanted; to roll back, restore the app's own login first.
+To put an app behind forward auth: add `forward-auth-<app>.yaml` (copy `forward-auth-rclone.yaml`; add a `skip_path_regex` for its probe path only), list it in `outpost.yaml`, register it in the authentik `config_files` with `services = ["worker", "server"]`, switch its site to `import atlas_protected_proxy <app> <upstream>`, and add its `probe_gate` targets and inhibition entry. Only after its gate probes are green, relax the app's own login if wanted; to roll back, restore the app's own login first.
 
 #### Break-Glass
 
 - authentik down: on the LAN or Tailscale, open `https://komodo.atlas.vandaele.io` or `http://192.168.2.200:9120` (never behind authentik) and redeploy `authentik`. If Komodo is down too, SSH to the NAS and run `docker start authentik-postgresql authentik-server authentik-worker`.
 - Locked out of authentik (a lost password or MFA device, or an IP blocked by `reputation.yaml`): log in as `akadmin` with the break-glass password from the password manager, or create a one-time recovery link over SSH with `docker exec authentik-worker ak create_recovery_key 1 pjan`.
-- Grafana: its local `admin` login (`GRAFANA_ADMIN_PASSWORD`).
+- Grafana: its login form is off; the API still accepts basic auth as `admin` (`GRAFANA_ADMIN_PASSWORD`), for example `curl -u admin:… https://grafana.atlas.vandaele.io/api/health`. To get the form back, set `GF_AUTH_DISABLE_LOGIN_FORM=false` in `stacks/monitoring/compose.yaml` and redeploy `monitoring`.
+- autobrr and qui: set `AUTOBRR__OIDC_ENABLED=false` or `QUI__OIDC_ENABLED=false` and redeploy; their password logins still work behind forward auth.
 
 #### First Setup
 
@@ -1474,7 +1480,7 @@ To put an app behind forward auth: add `forward-auth-<app>.yaml` (copy `forward-
 
 Grafana's login page has **Sign in with authentik** (`GF_AUTH_GENERIC_OAUTH_*` in `stacks/monitoring/compose.yaml`). Members of `admins` get Grafana's Admin role and everyone else Viewer, from the `groups` claim; authentik lets in `admins` and `family`. Grafana matches authentik users by username, never by email, because users can change their email in authentik. It therefore cannot take over an existing local Grafana user with the same username: that login fails with `unable to create user` until the local user is deleted. Dashboards live in Git Sync, so a deleted local user loses only its preferences and stars.
 
-Grafana's own login form (the `admin` user from `GRAFANA_ADMIN_PASSWORD`) stays on as break-glass until every application uses authentik. Grafana's token and userinfo calls go to `https://auth.atlas.vandaele.io`, which Atlas DNS sends to Caddy's `443`, so they depend on Caddy's certificate on every network: when it is invalid ([`CaddyDown`](#caddy)), use the local `admin` login.
+Grafana's login form is off (`GF_AUTH_DISABLE_LOGIN_FORM=true`) and `GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN=true` sends every visit straight to authentik; see [Break-Glass](#break-glass) for the local `admin`. Grafana's token and userinfo calls go to `https://auth.atlas.vandaele.io`, which Atlas DNS sends to Caddy's `443`, so they depend on Caddy's certificate on every network: when it is invalid ([`CaddyDown`](#caddy)), use the local `admin` login.
 
 #### Backups And Restore
 

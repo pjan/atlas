@@ -105,8 +105,6 @@ LOCAL_ONLY_CADDY_ROUTES = {"backrest", "komodo"}
 # Caddy's health route, apps with their own authentik OIDC or clients that
 # cannot follow a login redirect, and the LAN-only routes.
 UNGATED_CADDY_ROUTES = {"auth", "backrest", "caddy", "grafana", "komodo", "plex", "seerr"}
-# Routes still on their own login only; each moves to atlas_protected_proxy.
-NOT_YET_GATED_CADDY_ROUTES = {"autobrr", "qui"}
 AUTHENTIK_BLUEPRINTS_ROOT = STACKS_ROOT / "authentik" / "blueprints"
 # One address of a Caddy site block, as written in conf/sites/*.caddy.
 CADDY_SITE_ADDRESS_PATTERN = re.compile(
@@ -834,16 +832,12 @@ def validate_forward_auth(
 ) -> None:
     """Every route is gated by authentik or deliberately ungated, and every
     gated route has its provider, its place in the outpost, and gate probes."""
-    ungated = UNGATED_CADDY_ROUTES | NOT_YET_GATED_CADDY_ROUTES
-    validation.require(
-        not (UNGATED_CADDY_ROUTES & NOT_YET_GATED_CADDY_ROUTES),
-        "UNGATED_CADDY_ROUTES and NOT_YET_GATED_CADDY_ROUTES overlap",
-    )
+    ungated = UNGATED_CADDY_ROUTES
     for name in sorted(routes):
         validation.require(
             (name in gated_routes) != (name in ungated),
             f"Caddy route {name} must be either behind authentik forward auth "
-            "or listed in UNGATED_CADDY_ROUTES or NOT_YET_GATED_CADDY_ROUTES",
+            "or listed in UNGATED_CADDY_ROUTES",
         )
     for name in sorted(ungated - routes):
         validation.errors.append(f"ungated Caddy route {name} has no site")

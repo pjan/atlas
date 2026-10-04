@@ -20,6 +20,15 @@ services:
       - QUI__LOG_LEVEL=INFO
       - QUI__CHECK_FOR_UPDATES=false
       - QUI__DATABASE_ENGINE=sqlite
+      # Login through authentik with OpenID Connect, behind forward auth
+      # (README "qui"). qui retries the issuer at start and then exits, so
+      # restart: unless-stopped brings it up once authentik answers.
+      - QUI__OIDC_ENABLED=true
+      - QUI__OIDC_ISSUER=https://auth.atlas.vandaele.io/application/o/qui/
+      - QUI__OIDC_CLIENT_ID=qui
+      - QUI__OIDC_CLIENT_SECRET=${QUI_OIDC_CLIENT_SECRET:?QUI_OIDC_CLIENT_SECRET is required}
+      - QUI__OIDC_REDIRECT_URL=https://qui.atlas.vandaele.io/api/auth/oidc/callback
+      - QUI__OIDC_DISABLE_BUILT_IN_LOGIN=true
     volumes:
       - type: bind
         source: ${CONFIG_DIR:?CONFIG_DIR is required}

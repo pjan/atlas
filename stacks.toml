@@ -830,6 +830,7 @@ PUID = [[PUID]]
 PGID = [[PGID]]
 TZ = [[TZ]]
 CONFIG_DIR = [[APPDATA_DIR]]/autobrr
+AUTOBRR_OIDC_CLIENT_SECRET = [[AUTOBRR_OIDC_CLIENT_SECRET]]
 """
 
 [[stack]]
@@ -958,6 +959,7 @@ TZ = [[TZ]]
 UMASK = 002
 CONFIG_DIR = [[APPDATA_DIR]]/qui
 TORRENTS_DIR = [[DATA_DIR]]/downloads/torrents
+QUI_OIDC_CLIENT_SECRET = [[QUI_OIDC_CLIENT_SECRET]]
 """
 
 [[stack]]
@@ -1055,15 +1057,19 @@ config_files = [
   { path = "blueprints/groups.yaml", services = ["worker"], requires = "Restart" },
   { path = "blueprints/admins-mfa.yaml", services = ["worker"], requires = "Restart" },
   { path = "blueprints/grafana.yaml", services = ["worker"], requires = "Restart" },
+  { path = "blueprints/oidc-autobrr.yaml", services = ["worker"], requires = "Restart" },
+  { path = "blueprints/oidc-qui.yaml", services = ["worker"], requires = "Restart" },
   # The server's embedded outpost serves a new forward-auth provider only after
   # a restart (README "authentik").
   { path = "blueprints/forward-auth-adguard.yaml", services = ["worker", "server"], requires = "Restart" },
+  { path = "blueprints/forward-auth-autobrr.yaml", services = ["worker", "server"], requires = "Restart" },
   { path = "blueprints/forward-auth-bazarr.yaml", services = ["worker", "server"], requires = "Restart" },
   { path = "blueprints/forward-auth-houndarr.yaml", services = ["worker", "server"], requires = "Restart" },
   { path = "blueprints/forward-auth-lidarr.yaml", services = ["worker", "server"], requires = "Restart" },
   { path = "blueprints/forward-auth-prowlarr.yaml", services = ["worker", "server"], requires = "Restart" },
   { path = "blueprints/forward-auth-qbittorrent.yaml", services = ["worker", "server"], requires = "Restart" },
   { path = "blueprints/forward-auth-radarr.yaml", services = ["worker", "server"], requires = "Restart" },
+  { path = "blueprints/forward-auth-qui.yaml", services = ["worker", "server"], requires = "Restart" },
   { path = "blueprints/forward-auth-rclone.yaml", services = ["worker", "server"], requires = "Restart" },
   { path = "blueprints/forward-auth-sabnzbd.yaml", services = ["worker", "server"], requires = "Restart" },
   { path = "blueprints/forward-auth-slskd.yaml", services = ["worker", "server"], requires = "Restart" },
@@ -1096,6 +1102,8 @@ AUTHENTIK_POSTGRES_PASSWORD = [[AUTHENTIK_POSTGRES_PASSWORD]]
 AUTHENTIK_BOOTSTRAP_EMAIL = [[AUTHENTIK_BOOTSTRAP_EMAIL]]
 AUTHENTIK_BOOTSTRAP_PASSWORD = [[AUTHENTIK_BOOTSTRAP_PASSWORD]]
 GRAFANA_OIDC_CLIENT_SECRET = [[GRAFANA_OIDC_CLIENT_SECRET]]
+AUTOBRR_OIDC_CLIENT_SECRET = [[AUTOBRR_OIDC_CLIENT_SECRET]]
+QUI_OIDC_CLIENT_SECRET = [[QUI_OIDC_CLIENT_SECRET]]
 """
 
 [[stack]]
