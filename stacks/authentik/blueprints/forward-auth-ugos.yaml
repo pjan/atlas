@@ -29,6 +29,7 @@ entries:
     attrs:
       name: UGOS
       group: System
+      meta_icon: /static/dist/custom/icons/ugos.svg
       provider: !KeyOf provider
       meta_launch_url: https://ugos.atlas.vandaele.io
       policy_engine_mode: any

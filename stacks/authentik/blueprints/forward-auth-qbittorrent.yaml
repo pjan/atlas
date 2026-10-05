@@ -29,6 +29,7 @@ entries:
     attrs:
       name: qBittorrent
       group: Downloads
+      meta_icon: /static/dist/custom/icons/qbittorrent.svg
       provider: !KeyOf provider
       meta_launch_url: https://qbittorrent.atlas.vandaele.io
       policy_engine_mode: any

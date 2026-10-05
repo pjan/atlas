@@ -31,6 +31,7 @@ entries:
     attrs:
       name: SABnzbd
       group: Downloads
+      meta_icon: /static/dist/custom/icons/sabnzbd.svg
       provider: !KeyOf provider
       meta_launch_url: https://sabnzbd.atlas.vandaele.io
       policy_engine_mode: any

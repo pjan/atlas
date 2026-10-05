@@ -29,6 +29,7 @@ entries:
     attrs:
       name: AdGuard Home
       group: System
+      meta_icon: /static/dist/custom/icons/adguard.svg
       provider: !KeyOf provider
       meta_launch_url: https://adguard.atlas.vandaele.io
       policy_engine_mode: any

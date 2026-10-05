@@ -30,6 +30,7 @@ entries:
     attrs:
       name: Lidarr
       group: Media
+      meta_icon: /static/dist/custom/icons/lidarr.svg
       provider: !KeyOf provider
       meta_launch_url: https://lidarr.atlas.vandaele.io
       policy_engine_mode: any

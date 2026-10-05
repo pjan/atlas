@@ -43,6 +43,7 @@ entries:
     attrs:
       name: autobrr
       group: Media
+      meta_icon: /static/dist/custom/icons/autobrr.svg
       provider: !KeyOf provider
       meta_launch_url: https://autobrr.atlas.vandaele.io
       policy_engine_mode: any

@@ -30,6 +30,7 @@ entries:
     attrs:
       name: Prowlarr
       group: Media
+      meta_icon: /static/dist/custom/icons/prowlarr.svg
       provider: !KeyOf provider
       meta_launch_url: https://prowlarr.atlas.vandaele.io
       policy_engine_mode: any

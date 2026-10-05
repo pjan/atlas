@@ -29,6 +29,7 @@ entries:
     attrs:
       name: Speedtest Tracker
       group: System
+      meta_icon: /static/dist/custom/icons/speedtest.svg
       provider: !KeyOf provider
       meta_launch_url: https://speedtest.atlas.vandaele.io
       policy_engine_mode: any

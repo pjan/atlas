@@ -30,6 +30,7 @@ entries:
     attrs:
       name: Houndarr
       group: Media
+      meta_icon: /static/dist/custom/icons/houndarr.png
       provider: !KeyOf provider
       meta_launch_url: https://houndarr.atlas.vandaele.io
       policy_engine_mode: any

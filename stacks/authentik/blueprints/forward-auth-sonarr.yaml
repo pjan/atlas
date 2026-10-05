@@ -30,6 +30,7 @@ entries:
     attrs:
       name: Sonarr
       group: Media
+      meta_icon: /static/dist/custom/icons/sonarr.svg
       provider: !KeyOf provider
       meta_launch_url: https://sonarr.atlas.vandaele.io
       policy_engine_mode: any

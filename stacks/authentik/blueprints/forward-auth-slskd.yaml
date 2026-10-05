@@ -29,6 +29,7 @@ entries:
     attrs:
       name: slskd
       group: Downloads
+      meta_icon: /static/dist/custom/icons/slskd.svg
       provider: !KeyOf provider
       meta_launch_url: https://slskd.atlas.vandaele.io
       policy_engine_mode: any

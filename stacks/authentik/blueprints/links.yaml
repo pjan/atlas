@@ -19,6 +19,7 @@ entries:
     attrs:
       name: Plex
       group: Media
+      meta_icon: /static/dist/custom/icons/plex.svg
       meta_launch_url: https://plex.atlas.vandaele.io
       policy_engine_mode: any
 
@@ -41,6 +42,7 @@ entries:
     attrs:
       name: Seerr
       group: Media
+      meta_icon: /static/dist/custom/icons/seerr.svg
       meta_launch_url: https://seerr.atlas.vandaele.io
       policy_engine_mode: any
 
@@ -63,6 +65,7 @@ entries:
     attrs:
       name: Komodo
       group: System
+      meta_icon: /static/dist/custom/icons/komodo.svg
       meta_launch_url: https://komodo.atlas.vandaele.io
       policy_engine_mode: any
 
@@ -79,6 +82,7 @@ entries:
     attrs:
       name: Backrest
       group: System
+      meta_icon: /static/dist/custom/icons/backrest.svg
       meta_launch_url: https://backrest.atlas.vandaele.io
       policy_engine_mode: any
 

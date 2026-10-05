@@ -1464,7 +1464,7 @@ A changed file in `branding/` is served at once without a redeploy; browsers may
 
 #### Dashboard
 
-`https://auth.atlas.vandaele.io` is a homepage for Atlas: after login it lists the apps a user may open, in the groups Media, Downloads, and System (authentik sorts the groups and the apps alphabetically). Each application blueprint sets its `group`. `links.yaml` adds Plex and Seerr (`admins` and `family`) and Komodo and Backrest (`admins`) as links only: applications without a provider, so authentik shows them but does not protect them, and each keeps its own login (Komodo and Backrest open only on the LAN and Tailscale). For family the dashboard shows Plex, Seerr, and Grafana.
+`https://auth.atlas.vandaele.io` is a homepage for Atlas: after login it lists the apps a user may open, in the groups Media, Downloads, and System (authentik sorts the groups and the apps alphabetically). Each application blueprint sets its `group` and its `meta_icon`, a file in `stacks/authentik/branding/icons/` (sources and licences in its `NOTICE.md`; mostly [selfh.st/icons](https://github.com/selfhst/icons), CC BY 4.0). A new app's icon goes there too, registered in the authentik `config_files` unless it is binary. `links.yaml` adds Plex and Seerr (`admins` and `family`) and Komodo and Backrest (`admins`) as links only: applications without a provider, so authentik shows them but does not protect them, and each keeps its own login (Komodo and Backrest open only on the LAN and Tailscale). For family the dashboard shows Plex, Seerr, and Grafana.
 
 #### Forward Auth
 

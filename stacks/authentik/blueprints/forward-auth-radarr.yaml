@@ -30,6 +30,7 @@ entries:
     attrs:
       name: Radarr
       group: Media
+      meta_icon: /static/dist/custom/icons/radarr.svg
       provider: !KeyOf provider
       meta_launch_url: https://radarr.atlas.vandaele.io
       policy_engine_mode: any

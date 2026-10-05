@@ -43,6 +43,7 @@ entries:
     attrs:
       name: Grafana
       group: System
+      meta_icon: /static/dist/custom/icons/grafana.svg
       provider: !KeyOf provider
       meta_launch_url: https://grafana.atlas.vandaele.io
       policy_engine_mode: any

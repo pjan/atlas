@@ -29,6 +29,7 @@ entries:
     attrs:
       name: Bazarr
       group: Media
+      meta_icon: /static/dist/custom/icons/bazarr.svg
       provider: !KeyOf provider
       meta_launch_url: https://bazarr.atlas.vandaele.io
       policy_engine_mode: any

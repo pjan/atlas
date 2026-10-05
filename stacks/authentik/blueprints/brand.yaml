@@ -280,6 +280,21 @@ entries:
           accent-color: var(--ak-accent);
         }
 
+        /* Three dashboard icons (branding/icons) are dark marks that vanish on
+           the dark page: Backrest turns white, Radarr gets a light outline,
+           and Komodo is brightened. */
+        :is([data-theme=dark], :host([theme="dark"])) img[src$="/icons/backrest.svg"] {
+          filter: invert(1);
+        }
+
+        :is([data-theme=dark], :host([theme="dark"])) img[src$="/icons/radarr.svg"] {
+          filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff);
+        }
+
+        :is([data-theme=dark], :host([theme="dark"])) img[src$="/icons/komodo.svg"] {
+          filter: brightness(1.8);
+        }
+
         .pf-c-form-control.pf-m-search {
           --pf-c-form-control--focus--BorderBottomColor: var(--ak-accent);
         }

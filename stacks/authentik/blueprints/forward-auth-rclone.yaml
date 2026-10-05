@@ -29,6 +29,7 @@ entries:
     attrs:
       name: rclone
       group: System
+      meta_icon: /static/dist/custom/icons/rclone.svg
       provider: !KeyOf provider
       meta_launch_url: https://rclone.atlas.vandaele.io
       policy_engine_mode: any

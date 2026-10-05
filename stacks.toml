@@ -1054,7 +1054,8 @@ poll_for_updates = true
 links = ["https://auth.atlas.vandaele.io"]
 # A blueprint change redeploys the stack, so post_deploy applies the
 # blueprints (scripts/authentik-apply-blueprints.sh; README "Blueprints").
-# Komodo reads these files as text, so branding/urbanist.woff2 is not listed.
+# Komodo reads these files as text, so the binary branding/urbanist.woff2
+# and branding/icons/houndarr.png are not listed.
 config_files = [
   { path = "blueprints/admins-mfa.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/brand.yaml", services = ["worker"], requires = "Redeploy" },
@@ -1085,6 +1086,27 @@ config_files = [
   { path = "blueprints/outpost.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/reputation.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "branding/favicon.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/NOTICE.md", services = ["server"], requires = "None" },
+  { path = "branding/icons/adguard.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/autobrr.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/backrest.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/bazarr.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/grafana.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/komodo.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/lidarr.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/plex.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/prowlarr.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/qbittorrent.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/qui.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/radarr.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/rclone.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/sabnzbd.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/seerr.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/slskd.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/sonarr.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/speedtest.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/spottarr.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/ugos.svg", services = ["server"], requires = "None" },
   { path = "branding/logo.svg", services = ["server"], requires = "None" },
   { path = "branding/mark.svg", services = ["server"], requires = "None" },
   { path = "branding/Urbanist-OFL.txt", services = ["server"], requires = "None" },

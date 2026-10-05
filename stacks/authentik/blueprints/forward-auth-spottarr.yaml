@@ -30,6 +30,7 @@ entries:
     attrs:
       name: Spottarr
       group: Media
+      meta_icon: /static/dist/custom/icons/spottarr.svg
       provider: !KeyOf provider
       meta_launch_url: https://spottarr.atlas.vandaele.io
       policy_engine_mode: any
