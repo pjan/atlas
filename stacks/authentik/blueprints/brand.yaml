@@ -42,6 +42,14 @@ entries:
           --vio-card: rgb(255 255 255 / 0.82);
           --vio-card-border: rgb(114 128 255 / 0.22);
           --vio-mark-opacity: 0.35;
+          /* Controls on the login card, inputs, and dashboard tiles. */
+          --vio-control: rgb(35 28 69 / 0.05);
+          --vio-control-hover: rgb(35 28 69 / 0.09);
+          --vio-input-bg: rgb(255 255 255 / 0.7);
+          --vio-input-border: rgb(35 28 69 / 0.15);
+          --vio-focus-ring: rgb(91 95 224 / 0.25);
+          --vio-tile: rgb(255 255 255 / 0.6);
+          --vio-tile-hover: rgb(255 255 255 / 0.92);
         }
 
         :is([data-theme=dark], :host([theme="dark"])) {
@@ -55,6 +63,13 @@ entries:
           --vio-card: rgb(35 28 69 / 0.72);
           --vio-card-border: rgb(114 128 255 / 0.28);
           --vio-mark-opacity: 0.6;
+          --vio-control: rgb(255 255 255 / 0.06);
+          --vio-control-hover: rgb(255 255 255 / 0.1);
+          --vio-input-bg: rgb(255 255 255 / 0.05);
+          --vio-input-border: rgb(114 128 255 / 0.3);
+          --vio-focus-ring: rgb(114 128 255 / 0.35);
+          --vio-tile: rgb(255 255 255 / 0.06);
+          --vio-tile-hover: rgb(255 255 255 / 0.11);
         }
 
         /* The page: vandaele.io's background with its V, blurred, behind the
@@ -147,13 +162,14 @@ entries:
           --pf-c-button--m-primary--active--BackgroundColor: #4447c4;
         }
 
-        /* "Continue with Google" (google.yaml): outlined, so "Log in" stays the
-           main button, with authentik's Google G in the text colour. */
+        /* "Continue with Google" (google.yaml): a quiet filled surface, so "Log
+           in" stays the main button, with authentik's Google G in the text
+           colour. */
         .pf-c-button.pf-m-primary.source-button-promoted[name="source-google"] {
-          --pf-c-button--m-primary--BackgroundColor: transparent;
-          --pf-c-button--m-primary--hover--BackgroundColor: rgb(114 128 255 / 0.12);
-          --pf-c-button--m-primary--focus--BackgroundColor: rgb(114 128 255 / 0.12);
-          --pf-c-button--m-primary--active--BackgroundColor: rgb(114 128 255 / 0.12);
+          --pf-c-button--m-primary--BackgroundColor: var(--vio-control);
+          --pf-c-button--m-primary--hover--BackgroundColor: var(--vio-control-hover);
+          --pf-c-button--m-primary--focus--BackgroundColor: var(--vio-control-hover);
+          --pf-c-button--m-primary--active--BackgroundColor: var(--vio-control-hover);
           --pf-c-button--m-primary--Color: var(--pf-global--Color--100);
           --pf-c-button--m-primary--hover--Color: var(--pf-global--Color--100);
           --pf-c-button--m-primary--focus--Color: var(--pf-global--Color--100);
@@ -162,7 +178,7 @@ entries:
           align-items: center;
           justify-content: center;
           gap: 0.6em;
-          border: 1px solid var(--pf-global--primary-color--100);
+          background-image: none;
         }
 
         .source-button-promoted[name="source-google"]::before {
@@ -185,6 +201,92 @@ entries:
           background:
             linear-gradient(rgb(114 128 255 / 0.35), rgb(114 128 255 / 0.35)) left center / calc(50% - 1.75em) 1px no-repeat,
             linear-gradient(rgb(114 128 255 / 0.35), rgb(114 128 255 / 0.35)) right center / calc(50% - 1.75em) 1px no-repeat;
+        }
+
+        /* Inputs, primary buttons, and secondary buttons on the login pages
+           and in the user interface: filled, rounded inputs with an accent
+           border and ring on focus, and a gradient on the primary button.
+           ak-flow-executor and ak-interface-user set these variables; every
+           property falls back to authentik's own variable, so the admin
+           interface is unchanged. */
+        ak-flow-executor,
+        ak-interface-user {
+          --vio-ui-input-bg: var(--vio-input-bg);
+          --vio-ui-input-border: var(--vio-input-border);
+          --vio-ui-input-focus-border: var(--ak-accent);
+          --vio-ui-input-focus-ring: 0 0 0 3px var(--vio-focus-ring);
+          --vio-ui-input-border-width: 1px;
+          --vio-ui-input-radius: 8px;
+          --vio-ui-input-padding-x: 14px;
+          --vio-ui-control: var(--vio-control);
+          --vio-ui-control-hover: var(--vio-control-hover);
+          --vio-ui-secondary-border: transparent;
+          --vio-ui-primary-gradient: linear-gradient(135deg, #5b5fe0, #4447c4);
+          --vio-ui-primary-gradient-hover: linear-gradient(135deg, #4447c4, #3a3db0);
+        }
+
+        /* The login pages: taller controls, as on vandaele.io. */
+        ak-flow-executor {
+          --vio-ui-input-height: 52px;
+          --vio-ui-button-padding-y: 14px;
+          --vio-ui-button-padding-x: 28px;
+          --vio-ui-button-font-size: 1.0625rem;
+        }
+
+        ak-interface-user {
+          --vio-ui-input-height: 44px;
+        }
+
+        .pf-c-form-control {
+          background-color: var(--vio-ui-input-bg, var(--pf-c-form-control--BackgroundColor));
+          border-color:
+            var(--vio-ui-input-border, var(--pf-c-form-control--BorderTopColor))
+            var(--vio-ui-input-border, var(--pf-c-form-control--BorderRightColor))
+            var(--vio-ui-input-border, var(--pf-c-form-control--BorderBottomColor))
+            var(--vio-ui-input-border, var(--pf-c-form-control--BorderLeftColor));
+          border-radius: var(--vio-ui-input-radius, var(--pf-c-form-control--BorderRadius));
+          padding-left: var(--vio-ui-input-padding-x, var(--pf-c-form-control--PaddingLeft));
+          padding-right: var(--vio-ui-input-padding-x, var(--pf-c-form-control--PaddingRight));
+        }
+
+        input.pf-c-form-control {
+          height: var(--vio-ui-input-height, var(--pf-c-form-control--Height));
+        }
+
+        .pf-c-form-control:focus {
+          border-color:
+            var(--vio-ui-input-focus-border, var(--pf-c-form-control--BorderTopColor))
+            var(--vio-ui-input-focus-border, var(--pf-c-form-control--BorderRightColor))
+            var(--vio-ui-input-focus-border, var(--pf-c-form-control--BorderBottomColor))
+            var(--vio-ui-input-focus-border, var(--pf-c-form-control--BorderLeftColor));
+          border-bottom-width: var(--vio-ui-input-border-width, var(--pf-c-form-control--focus--BorderBottomWidth));
+          box-shadow: var(--vio-ui-input-focus-ring, none);
+        }
+
+        .pf-c-button.pf-m-primary {
+          background-image: var(--vio-ui-primary-gradient, none);
+        }
+
+        .pf-c-button.pf-m-primary:hover,
+        .pf-c-button.pf-m-primary:focus,
+        .pf-c-button.pf-m-primary:active {
+          background-image: var(--vio-ui-primary-gradient-hover, none);
+        }
+
+        .pf-c-button.pf-m-primary,
+        .pf-c-button.pf-m-secondary {
+          padding-top: var(--vio-ui-button-padding-y, var(--pf-c-button--PaddingTop));
+          padding-bottom: var(--vio-ui-button-padding-y, var(--pf-c-button--PaddingBottom));
+          padding-left: var(--vio-ui-button-padding-x, var(--pf-c-button--PaddingLeft));
+          padding-right: var(--vio-ui-button-padding-x, var(--pf-c-button--PaddingRight));
+          font-size: var(--vio-ui-button-font-size, var(--pf-c-button--FontSize));
+        }
+
+        /* Messages (a refused password, a wrong code) on the same surface as
+           the other controls; the coloured line keeps their meaning. */
+        .pf-c-alert {
+          background-color: var(--vio-ui-control, var(--pf-c-alert--BackgroundColor));
+          border-radius: var(--vio-ui-input-radius, 0);
         }
 
         /* Inputs: focus in the accent colour (authentik redefines the primary
@@ -244,35 +346,173 @@ entries:
         }
 
         /* Secondary buttons ("Admin interface", "No" to "Stay signed in?") in
-           the accent colour; the header would otherwise use a light blue. */
+           the accent colour; the header would otherwise use a light blue. On
+           the login pages and in the user interface they are a filled surface
+           without a border, like "Continue with Google". */
         .pf-c-button.pf-m-secondary {
           --pf-c-button--m-secondary--Color: var(--ak-accent);
           --pf-c-button--m-secondary--hover--Color: var(--ak-accent);
           --pf-c-button--m-secondary--focus--Color: var(--ak-accent);
           --pf-c-button--m-secondary--active--Color: var(--ak-accent);
-          --pf-c-button--m-secondary--BorderColor: var(--ak-accent);
-          --pf-c-button--m-secondary--hover--BorderColor: var(--ak-accent);
-          --pf-c-button--m-secondary--focus--BorderColor: var(--ak-accent);
-          --pf-c-button--m-secondary--active--BorderColor: var(--ak-accent);
-          --pf-c-button--m-secondary--after--BorderColor: var(--ak-accent);
+          --pf-c-button--m-secondary--BorderColor: var(--vio-ui-secondary-border, var(--ak-accent));
+          --pf-c-button--m-secondary--hover--BorderColor: var(--vio-ui-secondary-border, var(--ak-accent));
+          --pf-c-button--m-secondary--focus--BorderColor: var(--vio-ui-secondary-border, var(--ak-accent));
+          --pf-c-button--m-secondary--active--BorderColor: var(--vio-ui-secondary-border, var(--ak-accent));
+          --pf-c-button--m-secondary--after--BorderColor: var(--vio-ui-secondary-border, var(--ak-accent));
+          --pf-c-button--m-secondary--hover--after--BorderColor: var(--vio-ui-secondary-border, var(--ak-accent));
+          --pf-c-button--m-secondary--BackgroundColor: var(--vio-ui-control, transparent);
+          --pf-c-button--m-secondary--hover--BackgroundColor: var(--vio-ui-control-hover, transparent);
+          --pf-c-button--m-secondary--focus--BackgroundColor: var(--vio-ui-control-hover, transparent);
+          --pf-c-button--m-secondary--active--BackgroundColor: var(--vio-ui-control-hover, transparent);
           border-radius: 8px;
         }
 
-        /* The cards of the user interface (application tiles, settings) look
-           like the login card. ak-interface-user sets the variables, which
-           reach into its shadow roots; the admin interface keeps authentik's
-           cards through the fallbacks. */
+        /* The cards of the user interface (application tiles, settings) are
+           translucent tiles without a border or shadow; a tile gets less
+           translucent under the pointer. ak-interface-user sets the
+           variables, which reach into its shadow roots; the admin interface
+           keeps authentik's cards through the fallbacks. */
         ak-interface-user {
-          --vio-ui-card: var(--vio-card);
-          --vio-ui-card-border: var(--vio-card-border);
-          --vio-ui-card-border-width: 1px;
-          --vio-ui-card-radius: 16px;
+          --vio-ui-card: var(--vio-tile);
+          --vio-ui-card-hover: var(--vio-tile-hover);
+          --vio-ui-card-radius: 12px;
+          --vio-ui-card-shadow: none;
         }
 
         .pf-c-card {
           --pf-c-card--BackgroundColor: var(--vio-ui-card, var(--pf-global--BackgroundColor--100));
-          border: var(--vio-ui-card-border-width, 0) solid var(--vio-ui-card-border, transparent);
           border-radius: var(--vio-ui-card-radius, 0);
+          box-shadow: var(--vio-ui-card-shadow, var(--pf-c-card--BoxShadow));
+        }
+
+        .pf-c-card.pf-m-hoverable:hover {
+          --pf-c-card--BackgroundColor: var(--vio-ui-card-hover, var(--pf-global--BackgroundColor--100));
+          box-shadow: var(--vio-ui-card-shadow, var(--pf-c-card--m-hoverable--hover--BoxShadow));
+        }
+
+        /* The application dashboard as a home screen: each app is its icon on
+           a rounded translucent plate with its name under it, in a dense
+           grid. The parts (app-list, app-group, card, ...) exist only on the
+           dashboard; the selectors start like authentik's own grid rules, so
+           they outrank them, and leave the list view alone. */
+        [part="app-list"]:not([data-view-mode="list"]) [part="app-group"] {
+          grid-template-columns: repeat(auto-fill, 96px);
+          column-gap: 16px;
+          row-gap: 20px;
+        }
+
+        [part="app-group-header"] h2 {
+          font-size: var(--pf-global--FontSize--sm);
+          font-weight: 600;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          color: var(--pf-global--Color--200);
+        }
+
+        [part="app-list"]:not([data-view-mode="list"]) [part="card-wrapper"] {
+          aspect-ratio: auto;
+          height: 104px;
+        }
+
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"].pf-c-card,
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"].pf-c-card.pf-m-hoverable:hover {
+          --pf-c-card--BackgroundColor: transparent;
+          height: 100%;
+          padding: 0;
+          border: 0;
+          border-radius: 0;
+          box-shadow: none;
+          align-items: center;
+          justify-content: flex-start;
+        }
+
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"] ak-app-icon {
+          flex: none;
+          width: 72px;
+          height: 72px;
+        }
+
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"] ak-app-icon::part(icon) {
+          position: static;
+          inset: auto;
+          width: 72px;
+          height: 72px;
+          max-height: none;
+          padding: 14px;
+          box-sizing: border-box;
+          border-radius: 18px;
+          object-fit: contain;
+          background: var(--vio-tile);
+        }
+
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"]:hover ak-app-icon::part(icon) {
+          background: var(--vio-tile-hover);
+        }
+
+        /* Plex and Spottarr bring their own square backgrounds: a thin plate. */
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"] ak-app-icon[icon$="/icons/plex.svg"]::part(icon),
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"] ak-app-icon[icon$="/icons/spottarr.svg"]::part(icon) {
+          padding: 6px;
+        }
+
+        /* The three dark logos (Backrest, Radarr, Komodo) get a light plate on
+           the dark page instead of the filters below, which would also tint
+           the plate. */
+        :is([data-theme=dark], :host([theme="dark"])) [part="app-list"]:not([data-view-mode="list"]) [part="card"] ak-app-icon:is([icon$="/icons/backrest.svg"], [icon$="/icons/radarr.svg"], [icon$="/icons/komodo.svg"])::part(icon) {
+          filter: none;
+          background: rgb(255 255 255 / 0.85);
+        }
+
+        :is([data-theme=dark], :host([theme="dark"])) [part="app-list"]:not([data-view-mode="list"]) [part="card"]:hover ak-app-icon:is([icon$="/icons/backrest.svg"], [icon$="/icons/radarr.svg"], [icon$="/icons/komodo.svg"])::part(icon) {
+          background: rgb(255 255 255 / 0.95);
+        }
+
+        /* The link covers the whole tile; the name sits under the plate, in
+           the text colour, the same under the pointer. */
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"] a.card-header-aspect-wrapper {
+          padding: 0;
+        }
+
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"] a,
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"] a:hover,
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"] a:focus,
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"] a [part="card-title"],
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"] a:hover [part="card-title"],
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"] a:hover .clamp-wrapper {
+          color: var(--pf-global--Color--100);
+          text-decoration: none;
+        }
+
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"] [part="card-header"] {
+          grid-template-rows: 80px auto;
+          height: 100%;
+          padding: 0;
+        }
+
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"] [part="card-title"] {
+          align-items: flex-start;
+          justify-content: center;
+          height: auto;
+          font-size: var(--pf-global--FontSize--sm);
+          font-weight: 500;
+        }
+
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"] .clamp-wrapper {
+          display: block;
+          max-width: 96px;
+          overflow: hidden;
+          white-space: nowrap;
+          text-overflow: ellipsis;
+        }
+
+        /* The actions menu (admins) shows under the pointer or keyboard focus. */
+        [part="app-list"]:not([data-view-mode="list"]) [part="card-header-actions"] {
+          opacity: 0;
+        }
+
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"]:hover [part="card-header-actions"],
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"]:focus-within [part="card-header-actions"] {
+          opacity: 1;
         }
 
         input[type="checkbox"],

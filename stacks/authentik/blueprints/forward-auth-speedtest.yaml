@@ -27,7 +27,7 @@ entries:
     identifiers:
       slug: speedtest
     attrs:
-      name: Speedtest Tracker
+      name: Speedtest
       group: System
       meta_icon: /static/dist/custom/icons/speedtest.svg
       provider: !KeyOf provider

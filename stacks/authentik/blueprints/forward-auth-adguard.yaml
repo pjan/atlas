@@ -27,7 +27,7 @@ entries:
     identifiers:
       slug: adguard
     attrs:
-      name: AdGuard Home
+      name: AdGuard
       group: System
       meta_icon: /static/dist/custom/icons/adguard.svg
       provider: !KeyOf provider
