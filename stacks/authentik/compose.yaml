@@ -121,8 +121,10 @@ services:
 
   # Runs background tasks and applies authentik's own blueprints under
   # /blueprints. This repository's, under /blueprints/custom, are applied by the
-  # stack's post_deploy (scripts/authentik-apply-blueprints.sh). Only on the
-  # internal network: it needs no internet access while authentik sends no email.
+  # stack's post_deploy (scripts/authentik-apply-blueprints.sh). It reaches the
+  # internet only through authentik_egress: the Google login source
+  # (google.yaml) is validated against, and every 3 hours refreshed from,
+  # Google's OpenID configuration and signing keys.
   worker:
     image: ghcr.io/goauthentik/server:2026.8.3
     container_name: authentik-worker
@@ -172,6 +174,7 @@ services:
           create_host_path: false
     networks:
       - authentik_network
+      - authentik_egress
     mem_limit: 1g
     cpus: 1
     pids_limit: 256
@@ -193,6 +196,9 @@ networks:
   authentik_network:
     name: authentik_network
     internal: true
+  # The worker's way to the internet (Google); nothing else joins it.
+  authentik_egress:
+    name: authentik_egress
   proxy_network:
     name: proxy_network
     external: true

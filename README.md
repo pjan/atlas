@@ -1409,7 +1409,7 @@ Layout:
 
 - `postgresql` (`postgres:16`, the version in authentik's reference compose file) runs as UID `70` with its data in `/volume2/appdata/authentik/postgres` (`0700`), only on the internal `authentik_network`, which has no route to the internet. Renovate keeps it on major 16; a major upgrade needs a dump and restore.
 - `server` runs as UID `1000` with `/volume2/appdata/authentik/data` (`0700`, uploaded icons) at `/data` and the login page's files read-only at `/web/dist/custom` (see [Branding](#branding)). It joins `proxy_network` for Caddy and `monitoring_network` for metrics (`:9300`) and the health probe.
-- `worker` runs background tasks and applies the blueprints. It has no Docker socket (only outposts that authentik deploys itself need one; the embedded outpost runs inside the server) and is only on `authentik_network`, which is enough while authentik sends no email.
+- `worker` runs background tasks and applies the blueprints. It has no Docker socket (only outposts that authentik deploys itself need one; the embedded outpost runs inside the server) and is on `authentik_network` and `authentik_egress`, a network of its own with a route to the internet, which it needs for the [Google Login](#google-login) source.
 - Every container has a read-only root filesystem and no capabilities. authentik is not given `TZ`: it expects to run in UTC.
 
 `stacks/caddy/conf/sites/auth.caddy` sends `X-Forwarded-Proto: https`, because authentik builds its OIDC URLs and secure cookies from the scheme, and replaces `X-Forwarded-For` with Cloudflare's `CF-Connecting-IP`, because authentik reads only `X-Forwarded-For` and Caddy would set it to the cloudflared container. authentik trusts `X-Forwarded-For` from private addresses (its default `listen.trusted_proxy_cidrs`); only containers can connect to it.
@@ -1500,7 +1500,7 @@ Grafana's login form is off (`GF_AUTH_DISABLE_LOGIN_FORM=true`) and `GF_AUTH_GEN
 
 #### Google Login
 
-The login page has **Continue with Google** (`google.yaml`). Google never creates users: a Google account works only once it is linked to an existing authentik user, and an unlinked one is refused. authentik matches the link by Google's account ID, never by email. After Google, authentik signs the user in without asking for its own MFA, so a Google account's own 2-Step Verification protects that user, admins included. authentik's server talks to Google itself (it is on `proxy_network`, which reaches the internet).
+The login page has **Continue with Google** (`google.yaml`). Google never creates users: a Google account works only once it is linked to an existing authentik user, and an unlinked one is refused. authentik matches the link by Google's account ID, never by email. After Google, authentik signs the user in without asking for its own MFA, so a Google account's own 2-Step Verification protects that user, admins included. authentik reaches Google itself: the server (on `proxy_network`) for each login, and the worker (on `authentik_egress`) to check the source against Google's OpenID configuration and signing keys when the blueprint is applied and every 3 hours; without that route the blueprint fails to apply.
 
 To link a Google account, the user logs in once with their password, opens **Settings → Connected services** (`https://auth.atlas.vandaele.io/if/user/#/settings`), and clicks **Connect** next to Google. **Disconnect** there removes the link. An admin can remove a user's link under **Directory → Users → the user → Source connections**.
 
