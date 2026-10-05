@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+# Sign in with Google (README "Google Login"). Only existing users can: each
+# links their Google account once in their authentik settings (Connected
+# services), and authentik matches it by Google's account ID, never by email.
+# A Google account that is not linked is refused; no enrollment flow means
+# Google never creates users. After Google, authentik signs the user in
+# without its own MFA (default-source-authentication). The client ID and
+# secret are the Komodo variables GOOGLE_OAUTH_CLIENT_ID and
+# GOOGLE_OAUTH_CLIENT_SECRET.
+version: 1
+metadata:
+  name: Atlas - Google login
+  labels:
+    # Applied by the authentik stack's post_deploy, in order, never by the
+    # worker's queue (README "Blueprints").
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  # The slug is part of the redirect URI registered with Google:
+  # https://auth.atlas.vandaele.io/source/oauth/callback/google/
+  - model: authentik_sources_oauth.oauthsource
+    id: google
+    identifiers:
+      slug: google
+    attrs:
+      name: Google
+      provider_type: google
+      consumer_key: !Env GOOGLE_OAUTH_CLIENT_ID
+      consumer_secret: !Env GOOGLE_OAUTH_CLIENT_SECRET
+      user_matching_mode: identifier
+      # A full-width "Continue with Google" button under "Log in" (brand.yaml
+      # styles it) instead of a small icon.
+      promoted: true
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-source-authentication]]
+      enrollment_flow: null
+
+  # The Google button on the login page.
+  - model: authentik_stages_identification.identificationstage
+    identifiers:
+      name: default-authentication-identification
+    attrs:
+      sources:
+        - !KeyOf google

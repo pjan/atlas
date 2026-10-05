@@ -1074,6 +1074,7 @@ config_files = [
   { path = "blueprints/forward-auth-speedtest.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/forward-auth-spottarr.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/forward-auth-ugos.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/google.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/grafana.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/groups.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/oidc-autobrr.yaml", services = ["worker"], requires = "Redeploy" },
@@ -1115,6 +1116,8 @@ AUTHENTIK_BOOTSTRAP_PASSWORD = [[AUTHENTIK_BOOTSTRAP_PASSWORD]]
 GRAFANA_OIDC_CLIENT_SECRET = [[GRAFANA_OIDC_CLIENT_SECRET]]
 AUTOBRR_OIDC_CLIENT_SECRET = [[AUTOBRR_OIDC_CLIENT_SECRET]]
 QUI_OIDC_CLIENT_SECRET = [[QUI_OIDC_CLIENT_SECRET]]
+GOOGLE_OAUTH_CLIENT_ID = [[GOOGLE_OAUTH_CLIENT_ID]]
+GOOGLE_OAUTH_CLIENT_SECRET = [[GOOGLE_OAUTH_CLIENT_SECRET]]
 """
 
 [[stack]]

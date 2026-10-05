@@ -595,6 +595,8 @@ CLOUDFLARE_DNS_API_TOKEN
 CLOUDFLARE_TUNNEL_TOKEN
 DISCORD_ALERTS_WEBHOOK_URL
 GLUETUN_CONTROL_API_KEY
+GOOGLE_OAUTH_CLIENT_ID
+GOOGLE_OAUTH_CLIENT_SECRET
 GRAFANA_ADMIN_PASSWORD
 GRAFANA_OIDC_CLIENT_SECRET
 GRAFANA_SECRETS_MANAGER_KEY
@@ -1422,6 +1424,8 @@ AUTHENTIK_BOOTSTRAP_PASSWORD  openssl rand -base64 32
 GRAFANA_OIDC_CLIENT_SECRET    openssl rand -hex 32
 AUTOBRR_OIDC_CLIENT_SECRET    openssl rand -hex 32
 QUI_OIDC_CLIENT_SECRET        openssl rand -hex 32
+GOOGLE_OAUTH_CLIENT_ID        from Google Cloud (see Google Login)
+GOOGLE_OAUTH_CLIENT_SECRET    from Google Cloud (see Google Login)
 ```
 
 Never change `AUTHENTIK_SECRET_KEY` after the first start: it signs sessions and tokens. `AUTHENTIK_POSTGRES_PASSWORD` only applies when the database is created. The bootstrap values are read only when the database is empty: they create `akadmin`, and a set password closes authentik's initial-setup flow, which would otherwise let anyone on the public hostname choose the admin password. Set them before the first deploy and empty them (keep the variables) once setup is done. Each `<APP>_OIDC_CLIENT_SECRET` goes to both the authentik worker (the app's OIDC blueprint) and the app: Grafana, autobrr, qui.
@@ -1434,6 +1438,7 @@ Never change `AUTHENTIK_SECRET_KEY` after the first start: it signs sessions and
 - `brand.yaml`: the look of the login pages and the title of the login form (see [Branding](#branding)).
 - `admins-mfa.yaml`: members of `admins` without TOTP or a passkey must set one up before they are logged in (stage `atlas-admins-mfa-setup` at order 35 of the default authentication flow). Everyone else is asked for TOTP or a passkey only once they have set one up in their user settings.
 - `grafana.yaml`: the OAuth2/OIDC provider and application `grafana`, open to `admins` and `family` (Viewer).
+- `google.yaml`: sign in with Google for existing users (see [Google Login](#google-login)).
 - `oidc-autobrr.yaml`, `oidc-qui.yaml`: the OAuth2/OIDC providers and applications `autobrr` and `qui` (the slug sets the issuer, `https://auth.atlas.vandaele.io/application/o/<slug>/`), open only to `admins`. Their forward-auth applications have the slug `<app>-forward-auth`.
 - `forward-auth-<app>.yaml`: one proxy provider per app behind forward auth (see [Forward Auth](#forward-auth)), its application, and its group binding.
 - `outpost.yaml`: the embedded outpost and the list of every forward-auth provider it serves.
@@ -1492,6 +1497,21 @@ To put an app behind forward auth: add `forward-auth-<app>.yaml` (copy `forward-
 Grafana's login page has **Sign in with authentik** (`GF_AUTH_GENERIC_OAUTH_*` in `stacks/monitoring/compose.yaml`). Members of `admins` get Grafana's Admin role and everyone else Viewer, from the `groups` claim; authentik lets in `admins` and `family`. Grafana matches authentik users by username, never by email, because users can change their email in authentik. It therefore cannot take over an existing local Grafana user with the same username: that login fails with `unable to create user` until the local user is deleted. Dashboards live in Git Sync, so a deleted local user loses only its preferences and stars.
 
 Grafana's login form is off (`GF_AUTH_DISABLE_LOGIN_FORM=true`) and `GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN=true` sends every visit straight to authentik; see [Break-Glass](#break-glass) for the local `admin`. Grafana's token and userinfo calls go to `https://auth.atlas.vandaele.io`, which Atlas DNS sends to Caddy's `443`, so they depend on Caddy's certificate on every network: when it is invalid ([`CaddyDown`](#caddy)), use the local `admin` login.
+
+#### Google Login
+
+The login page has **Continue with Google** (`google.yaml`). Google never creates users: a Google account works only once it is linked to an existing authentik user, and an unlinked one is refused. authentik matches the link by Google's account ID, never by email. After Google, authentik signs the user in without asking for its own MFA, so a Google account's own 2-Step Verification protects that user, admins included. authentik's server talks to Google itself (it is on `proxy_network`, which reaches the internet).
+
+To link a Google account, the user logs in once with their password, opens **Settings → Connected services** (`https://auth.atlas.vandaele.io/if/user/#/settings`), and clicks **Connect** next to Google. **Disconnect** there removes the link. An admin can remove a user's link under **Directory → Users → the user → Source connections**.
+
+Google Cloud setup, once, at [console.cloud.google.com](https://console.cloud.google.com) in a project of its own, under **Google Auth Platform**:
+
+1. **Branding:** app name `vandaele.io`, pjan's email as support and developer contact, authorised domain `vandaele.io`. No logo: one makes Google review the app.
+2. **Audience:** External, then **Publish app**. Sign-in needs only the non-sensitive `email` and `profile` scopes, so Google does not review it; in Testing mode only listed test users could sign in.
+3. **Clients → Create client:** type Web application, authorised redirect URI `https://auth.atlas.vandaele.io/source/oauth/callback/google/`.
+4. Put its client ID and secret into the Komodo variables `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`, then redeploy `authentik`.
+
+To stop Google logins at once, delete or disable the client in Google Cloud: every Google login then fails, and passwords keep working.
 
 #### Backups And Restore
 

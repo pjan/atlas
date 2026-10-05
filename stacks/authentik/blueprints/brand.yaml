@@ -145,6 +145,32 @@ entries:
           --pf-c-button--m-primary--active--BackgroundColor: #4447c4;
         }
 
+        /* "Continue with Google" (google.yaml): outlined, so "Log in" stays the
+           main button, with authentik's Google G in the text colour. */
+        .pf-c-button.pf-m-primary.source-button-promoted[name="source-google"] {
+          --pf-c-button--m-primary--BackgroundColor: transparent;
+          --pf-c-button--m-primary--hover--BackgroundColor: rgb(114 128 255 / 0.12);
+          --pf-c-button--m-primary--focus--BackgroundColor: rgb(114 128 255 / 0.12);
+          --pf-c-button--m-primary--active--BackgroundColor: rgb(114 128 255 / 0.12);
+          --pf-c-button--m-primary--Color: var(--pf-global--Color--100);
+          --pf-c-button--m-primary--hover--Color: var(--pf-global--Color--100);
+          --pf-c-button--m-primary--focus--Color: var(--pf-global--Color--100);
+          --pf-c-button--m-primary--active--Color: var(--pf-global--Color--100);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.6em;
+          border: 1px solid var(--pf-global--primary-color--100);
+        }
+
+        .source-button-promoted[name="source-google"]::before {
+          content: "";
+          width: 1.1em;
+          height: 1.1em;
+          background: currentColor;
+          mask: url("/static/authentik/sources/google.svg") center / contain no-repeat;
+        }
+
         /* Inputs: focus in the accent colour (authentik redefines the primary
            colour for form controls, so the colour is explicit). */
         .pf-c-form-control {
