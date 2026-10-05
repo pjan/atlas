@@ -1,9 +1,10 @@
 # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
 # Family members join with an invitation link (README "Invitations"): pjan
-# creates a single-use invitation for the flow atlas-invitation in Directory
-# > Invitations, and its link lets one person choose a username, name, email,
-# and password. They join the group family and are logged in. Without a valid
-# invitation the flow refuses; the login page has no sign-up link.
+# creates a reusable invitation that expires after 2 days for the flow
+# atlas-invitation in Directory > Invitations, and its link lets someone
+# choose a username, name, email, and password. They join the group family
+# and are logged in. Without a valid invitation the flow refuses; the login
+# page has no sign-up link.
 version: 1
 metadata:
   name: Atlas - Invitations

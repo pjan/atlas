@@ -1515,10 +1515,12 @@ Grafana's login form is off (`GF_AUTH_DISABLE_LOGIN_FORM=true`) and `GF_AUTH_GEN
 
 Family members join with a link instead of pjan setting their password:
 
-1. In the admin interface, **Directory → Invitations → Create**: a name, flow `atlas-invitation`, an expiry (for example 7 days), and **Single use** on. Copy the link it shows and send it.
+1. In the admin interface, **Directory → Invitations → Create**: a name, flow `atlas-invitation`, an expiry 2 days ahead, and **Single use** off. Copy the link it shows and send it.
 2. The link opens **Join vandaele.io**: they choose a username, name, email, and password (at least 12 characters, not in a known data breach; authentik's server asks Have I Been Pwned with the first 5 characters of the password's SHA-1 hash, and refuses the sign-up when that check cannot run). They are added to `family` and logged in, and can then link Google or add a passkey.
 
-Without a valid invitation the flow refuses, and the login page has no sign-up link. An unused invitation can be deleted in the same list.
+3. Once they have joined, delete the invitation in the same list.
+
+The invitation is reusable on purpose: authentik deletes a single-use invitation as soon as its link is opened, so opening it in a messaging app's browser and then in Safari, or reloading the page, would leave a dead link. Until it expires or is deleted, anyone with the link can create a `family` account, so send it only to the person it is for. Without a valid invitation the flow refuses, and the login page has no sign-up link.
 
 #### Google Login
 
