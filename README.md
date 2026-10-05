@@ -1438,6 +1438,8 @@ Never change `AUTHENTIK_SECRET_KEY` after the first start: it signs sessions and
 - `brand.yaml`: the look of the login pages and the title of the login form (see [Branding](#branding)).
 - `admins-mfa.yaml`: members of `admins` without TOTP or a passkey must set one up before they are logged in (stage `atlas-admins-mfa-setup` at order 35 of the default authentication flow). Everyone else is asked for TOTP or a passkey only once they have set one up in their user settings.
 - `grafana.yaml`: the OAuth2/OIDC provider and application `grafana`, open to `admins` and `family` (Viewer).
+- `login.yaml`: passkeys, "Remember me", and the session length (see [Login](#login)).
+- `invitations.yaml`: the invitation-only sign-up flow `atlas-invitation` for family (see [Invitations](#invitations)).
 - `google.yaml`: sign in with Google for existing users (see [Google Login](#google-login)).
 - `links.yaml`: dashboard links to Plex, Seerr, Komodo, and Backrest, which authentik does not protect (see [Dashboard](#dashboard)).
 - `oidc-autobrr.yaml`, `oidc-qui.yaml`: the OAuth2/OIDC providers and applications `autobrr` and `qui` (the slug sets the issuer, `https://auth.atlas.vandaele.io/application/o/<slug>/`), open only to `admins`. Their forward-auth applications have the slug `<app>-forward-auth` and are hidden from the application dashboard (`meta_hide`), so each app shows there once.
@@ -1502,6 +1504,21 @@ To put an app behind forward auth: add `forward-auth-<app>.yaml` (copy `forward-
 Grafana's login page has **Sign in with authentik** (`GF_AUTH_GENERIC_OAUTH_*` in `stacks/monitoring/compose.yaml`). Members of `admins` get Grafana's Admin role and everyone else Viewer, from the `groups` claim; authentik lets in `admins` and `family`. Grafana matches authentik users by username, never by email, because users can change their email in authentik. It therefore cannot take over an existing local Grafana user with the same username: that login fails with `unable to create user` until the local user is deleted. Dashboards live in Git Sync, so a deleted local user loses only its preferences and stars.
 
 Grafana's login form is off (`GF_AUTH_DISABLE_LOGIN_FORM=true`) and `GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN=true` sends every visit straight to authentik; see [Break-Glass](#break-glass) for the local `admin`. Grafana's token and userinfo calls go to `https://auth.atlas.vandaele.io`, which Atlas DNS sends to Caddy's `443`, so they depend on Caddy's certificate on every network: when it is invalid ([`CaddyDown`](#caddy)), use the local `admin` login.
+
+#### Login
+
+- **Passkeys:** the username field offers the browser's passkeys for `auth.atlas.vandaele.io` (Face ID, Touch ID, Windows Hello, a security key). A passkey login skips the password and the MFA step, because a passkey is both; it also satisfies the admins' MFA requirement. Users add one under **Settings → MFA devices** (WebAuthn); one registered earlier as MFA works too when the device stored it as a passkey.
+- **Remember me on this device** under the username fills it in next time.
+- **Session length:** a login lasts 24 hours. After the password, passkey, or Google, authentik asks **Stay signed in?**; Yes makes it 14 days (`remember_me_offset` adds 13 days to the 24 hours). Logins with Google use the same settings (`default-source-authentication-login`).
+
+#### Invitations
+
+Family members join with a link instead of pjan setting their password:
+
+1. In the admin interface, **Directory → Invitations → Create**: a name, flow `atlas-invitation`, an expiry (for example 7 days), and **Single use** on. Copy the link it shows and send it.
+2. The link opens **Join vandaele.io**: they choose a username, name, email, and password (at least 12 characters, not in a known data breach; authentik's server asks Have I Been Pwned with the first 5 characters of the password's SHA-1 hash, and refuses the sign-up when that check cannot run). They are added to `family` and logged in, and can then link Google or add a passkey.
+
+Without a valid invitation the flow refuses, and the login page has no sign-up link. An unused invitation can be deleted in the same list.
 
 #### Google Login
 

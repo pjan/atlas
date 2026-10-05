@@ -1,0 +1,160 @@
+# yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+# Family members join with an invitation link (README "Invitations"): pjan
+# creates a single-use invitation for the flow atlas-invitation in Directory
+# > Invitations, and its link lets one person choose a username, name, email,
+# and password. They join the group family and are logged in. Without a valid
+# invitation the flow refuses; the login page has no sign-up link.
+version: 1
+metadata:
+  name: Atlas - Invitations
+  labels:
+    # Applied by the authentik stack's post_deploy, in order, never by the
+    # worker's queue (README "Blueprints").
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  - model: authentik_flows.flow
+    id: flow
+    identifiers:
+      slug: atlas-invitation
+    attrs:
+      name: Atlas invitation
+      title: Join vandaele.io
+      designation: enrollment
+      authentication: require_unauthenticated
+
+  - model: authentik_stages_invitation.invitationstage
+    id: invitation
+    identifiers:
+      name: atlas-invitation
+    attrs:
+      continue_flow_without_invitation: false
+
+  # At least 12 characters, and not in a known data breach (Have I Been
+  # Pwned; only the first 5 characters of the password's SHA-1 leave the
+  # server).
+  - model: authentik_policies_password.passwordpolicy
+    id: password-policy
+    identifiers:
+      name: atlas-invitation-password
+    attrs:
+      password_field: password
+      check_static_rules: true
+      length_min: 12
+      amount_digits: 0
+      amount_uppercase: 0
+      amount_lowercase: 0
+      amount_symbols: 0
+      check_have_i_been_pwned: true
+      hibp_allowed_count: 0
+      check_zxcvbn: false
+      error_message: Use at least 12 characters, and a password that has not appeared in a data breach.
+
+  - model: authentik_stages_prompt.prompt
+    id: prompt-username
+    identifiers:
+      name: atlas-invitation-username
+    attrs:
+      field_key: username
+      label: Username
+      type: username
+      required: true
+      placeholder: Username
+      order: 0
+
+  - model: authentik_stages_prompt.prompt
+    id: prompt-name
+    identifiers:
+      name: atlas-invitation-name
+    attrs:
+      field_key: name
+      label: Name
+      type: text
+      required: true
+      placeholder: Name
+      order: 1
+
+  - model: authentik_stages_prompt.prompt
+    id: prompt-email
+    identifiers:
+      name: atlas-invitation-email
+    attrs:
+      field_key: email
+      label: Email
+      type: email
+      required: true
+      placeholder: Email
+      order: 2
+
+  # The prompt stage checks that password and password_repeat match.
+  - model: authentik_stages_prompt.prompt
+    id: prompt-password
+    identifiers:
+      name: atlas-invitation-password
+    attrs:
+      field_key: password
+      label: Password
+      type: password
+      required: true
+      placeholder: Password
+      order: 3
+
+  - model: authentik_stages_prompt.prompt
+    id: prompt-password-repeat
+    identifiers:
+      name: atlas-invitation-password-repeat
+    attrs:
+      field_key: password_repeat
+      label: Password (again)
+      type: password
+      required: true
+      placeholder: Password (again)
+      order: 4
+
+  - model: authentik_stages_prompt.promptstage
+    id: prompt
+    identifiers:
+      name: atlas-invitation-prompt
+    attrs:
+      fields:
+        - !KeyOf prompt-username
+        - !KeyOf prompt-name
+        - !KeyOf prompt-email
+        - !KeyOf prompt-password
+        - !KeyOf prompt-password-repeat
+      validation_policies:
+        - !KeyOf password-policy
+
+  - model: authentik_stages_user_write.userwritestage
+    id: user-write
+    identifiers:
+      name: atlas-invitation-write
+    attrs:
+      user_creation_mode: always_create
+      create_users_as_inactive: false
+      create_users_group: !Find [authentik_core.group, [name, family]]
+      user_type: internal
+
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf invitation
+      order: 10
+
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf prompt
+      order: 20
+
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf user-write
+      order: 30
+
+  # The same login stage as the login flow (login.yaml): same session length.
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow
+      stage: !Find [authentik_stages_user_login.userloginstage, [name, default-authentication-login]]
+      order: 40

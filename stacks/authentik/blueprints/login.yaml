@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+# How logging in works (README "Login"): passkeys from the username field,
+# the device can remember the username, and a login lasts 24 hours, or 14 days
+# with "Stay signed in".
+version: 1
+metadata:
+  name: Atlas - Login
+  labels:
+    # Applied by the authentik stack's post_deploy, in order, never by the
+    # worker's queue (README "Blueprints").
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  - model: authentik_stages_identification.identificationstage
+    identifiers:
+      name: default-authentication-identification
+    attrs:
+      # authentik's default; validation needs it alongside the other fields.
+      user_fields:
+        - email
+        - username
+      # The browser offers the user's passkey in the username field. A
+      # passkey login skips the password and the MFA stage: it is both.
+      webauthn_stage: !Find [authentik_stages_authenticator_validate.authenticatorvalidatestage, [name, default-authentication-mfa-validation]]
+      # "Remember me on this device": the username is filled in next time.
+      enable_remember_me: true
+
+  - model: authentik_stages_user_login.userloginstage
+    identifiers:
+      name: default-authentication-login
+    attrs:
+      session_duration: hours=24
+      # Added to session_duration when "Stay signed in" is ticked: 14 days.
+      remember_me_offset: days=13
+
+  # Logins with Google (google.yaml) end in this stage instead: the same.
+  - model: authentik_stages_user_login.userloginstage
+    identifiers:
+      name: default-source-authentication-login
+    attrs:
+      session_duration: hours=24
+      remember_me_offset: days=13

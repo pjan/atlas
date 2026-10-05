@@ -243,7 +243,9 @@ entries:
           --pf-c-nav__link--Color: var(--pf-global--Color--100);
         }
 
-        .pf-c-page__header .pf-c-button.pf-m-secondary {
+        /* Secondary buttons ("Admin interface", "No" to "Stay signed in?") in
+           the accent colour; the header would otherwise use a light blue. */
+        .pf-c-button.pf-m-secondary {
           --pf-c-button--m-secondary--Color: var(--ak-accent);
           --pf-c-button--m-secondary--hover--Color: var(--ak-accent);
           --pf-c-button--m-secondary--focus--Color: var(--ak-accent);
@@ -271,6 +273,11 @@ entries:
           --pf-c-card--BackgroundColor: var(--vio-ui-card, var(--pf-global--BackgroundColor--100));
           border: var(--vio-ui-card-border-width, 0) solid var(--vio-ui-card-border, transparent);
           border-radius: var(--vio-ui-card-radius, 0);
+        }
+
+        input[type="checkbox"],
+        input[type="radio"] {
+          accent-color: var(--ak-accent);
         }
 
         .pf-c-form-control.pf-m-search {
