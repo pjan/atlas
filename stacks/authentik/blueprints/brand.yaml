@@ -37,6 +37,7 @@ entries:
           --pf-global--link--Color: #5b5fe0;
           --pf-global--link--Color--hover: #e0307a;
           --pf-global--active-color--100: #5b5fe0;
+          --ak-accent: #5b5fe0;
           --vio-page: #f5f4ff;
           --vio-card: rgb(255 255 255 / 0.82);
           --vio-card-border: rgb(114 128 255 / 0.22);
@@ -49,6 +50,7 @@ entries:
           --pf-global--link--Color: #8c98ff;
           --pf-global--link--Color--hover: #FF3F8F;
           --pf-global--active-color--100: #7280ff;
+          --ak-accent: #8c98ff;
           --vio-page: #231c45;
           --vio-card: rgb(35 28 69 / 0.72);
           --vio-card-border: rgb(114 128 255 / 0.28);
@@ -199,6 +201,66 @@ entries:
         ak-brand-links li[data-kind="text"],
         footer.pf-c-login__footer li:has(span) {
           display: none;
+        }
+
+        /* The application dashboard and the user settings: the page colour
+           without authentik's slanted band, and no V. */
+        body:has(ak-interface-user)::before,
+        body:has(ak-interface-admin)::before {
+          display: none;
+        }
+
+        [part="background-wrapper"] {
+          background-color: var(--vio-page);
+        }
+
+        [part="background-default-slant"] {
+          display: none;
+        }
+
+        .pf-c-page {
+          --pf-c-page__header--BackgroundColor: transparent;
+          --pf-c-page--BackgroundColor: transparent;
+        }
+
+        /* The header sits on the page colour now, so its tabs take the text
+           colour (authentik makes them white for its dark header). */
+        .pf-c-nav.pf-m-horizontal {
+          --pf-c-nav__link--Color: var(--pf-global--Color--100);
+        }
+
+        .pf-c-page__header .pf-c-button.pf-m-secondary {
+          --pf-c-button--m-secondary--Color: var(--ak-accent);
+          --pf-c-button--m-secondary--hover--Color: var(--ak-accent);
+          --pf-c-button--m-secondary--focus--Color: var(--ak-accent);
+          --pf-c-button--m-secondary--active--Color: var(--ak-accent);
+          --pf-c-button--m-secondary--BorderColor: var(--ak-accent);
+          --pf-c-button--m-secondary--hover--BorderColor: var(--ak-accent);
+          --pf-c-button--m-secondary--focus--BorderColor: var(--ak-accent);
+          --pf-c-button--m-secondary--active--BorderColor: var(--ak-accent);
+          --pf-c-button--m-secondary--after--BorderColor: var(--ak-accent);
+          border-radius: 8px;
+        }
+
+        /* The cards of the user interface (application tiles, settings) look
+           like the login card. ak-interface-user sets the variables, which
+           reach into its shadow roots; the admin interface keeps authentik's
+           cards through the fallbacks. */
+        ak-interface-user {
+          --vio-ui-card: var(--vio-card);
+          --vio-ui-card-border: var(--vio-card-border);
+          --vio-ui-card-border-width: 1px;
+          --vio-ui-card-radius: 16px;
+        }
+
+        .pf-c-card {
+          --pf-c-card--BackgroundColor: var(--vio-ui-card, var(--pf-global--BackgroundColor--100));
+          border: var(--vio-ui-card-border-width, 0) solid var(--vio-ui-card-border, transparent);
+          border-radius: var(--vio-ui-card-radius, 0);
+        }
+
+        .pf-c-form-control.pf-m-search {
+          --pf-c-form-control--focus--BorderBottomColor: var(--ak-accent);
         }
 
   # The heading of the login form.

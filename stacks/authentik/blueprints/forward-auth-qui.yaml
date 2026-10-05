@@ -30,6 +30,8 @@ entries:
       name: qui (forward auth)
       provider: !KeyOf provider
       meta_launch_url: https://qui.atlas.vandaele.io
+      # The dashboard shows qui once, as its OIDC application (oidc-qui.yaml).
+      meta_hide: true
       policy_engine_mode: any
 
   - model: authentik_policies.policybinding

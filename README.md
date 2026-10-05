@@ -1439,7 +1439,7 @@ Never change `AUTHENTIK_SECRET_KEY` after the first start: it signs sessions and
 - `admins-mfa.yaml`: members of `admins` without TOTP or a passkey must set one up before they are logged in (stage `atlas-admins-mfa-setup` at order 35 of the default authentication flow). Everyone else is asked for TOTP or a passkey only once they have set one up in their user settings.
 - `grafana.yaml`: the OAuth2/OIDC provider and application `grafana`, open to `admins` and `family` (Viewer).
 - `google.yaml`: sign in with Google for existing users (see [Google Login](#google-login)).
-- `oidc-autobrr.yaml`, `oidc-qui.yaml`: the OAuth2/OIDC providers and applications `autobrr` and `qui` (the slug sets the issuer, `https://auth.atlas.vandaele.io/application/o/<slug>/`), open only to `admins`. Their forward-auth applications have the slug `<app>-forward-auth`.
+- `oidc-autobrr.yaml`, `oidc-qui.yaml`: the OAuth2/OIDC providers and applications `autobrr` and `qui` (the slug sets the issuer, `https://auth.atlas.vandaele.io/application/o/<slug>/`), open only to `admins`. Their forward-auth applications have the slug `<app>-forward-auth` and are hidden from the application dashboard (`meta_hide`), so each app shows there once.
 - `forward-auth-<app>.yaml`: one proxy provider per app behind forward auth (see [Forward Auth](#forward-auth)), its application, and its group binding.
 - `outpost.yaml`: the embedded outpost and the list of every forward-auth provider it serves.
 - `reputation.yaml`: brute-force protection. An IP whose login reputation reaches `-5` (five failed logins more than successful ones, decaying after a day) cannot start the login flow. Usernames are not scored, so nobody can lock out a known user.
@@ -1449,7 +1449,7 @@ Users are created in the authentik UI, never in blueprints: they carry passwords
 
 #### Branding
 
-The login pages (sign-in, MFA, access denied) look like vandaele.io: its logo and favicon, the Urbanist font, and its indigo accent, with its V large and blurred behind the card, light or dark following the device. The card and the V are centred in the window. On a phone the form sits directly on the page colour, without the card and the V. The login form has no heading under the logo (its title, "Sign in to vandaele.io", still names the browser tab), and the language picker and the "Powered by authentik" line are hidden.
+The login pages (sign-in, MFA, access denied) look like vandaele.io: its logo and favicon, the Urbanist font, and its indigo accent, with its V large and blurred behind the card, light or dark following the device. The card and the V are centred in the window. On a phone the form sits directly on the page colour, without the card and the V. The login form has no heading under the logo (its title, "Sign in to vandaele.io", still names the browser tab), and the language picker and the "Powered by authentik" line are hidden. The application dashboard and the user settings use the same page colour (without authentik's slanted band and without the V), accent, and cards; the admin interface keeps authentik's look apart from the logo, font, and accent.
 
 `brand.yaml` sets these on authentik's default brand, with the styles in `branding_custom_css`. authentik adds that CSS to every part of its web interface and to its server-rendered pages, which escape `<`, `>`, and `&` in it, so the CSS must not use them (no child combinator). The files in `stacks/authentik/branding/` are served at `/static/dist/custom/`:
 

@@ -30,6 +30,8 @@ entries:
       name: autobrr (forward auth)
       provider: !KeyOf provider
       meta_launch_url: https://autobrr.atlas.vandaele.io
+      # The dashboard shows autobrr once, as its OIDC application (oidc-autobrr.yaml).
+      meta_hide: true
       policy_engine_mode: any
 
   - model: authentik_policies.policybinding
