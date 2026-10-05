@@ -222,6 +222,8 @@ scrape_configs:
         labels: {module: http_health_200, service: qui}
       - targets: ["https://spottarr.atlas.vandaele.io/healthz"]
         labels: {module: http_health_200, service: spottarr}
+      - targets: ["https://outline.atlas.vandaele.io/_health"]
+        labels: {module: http_health_200, service: outline}
       # authentik directly on monitoring_network, and through the Cloudflare
       # Tunnel and Caddy: the public probe runs on blackbox-public, which
       # resolves through public DNS.
@@ -261,6 +263,7 @@ scrape_configs:
           - https://houndarr.atlas.vandaele.io
           - https://komodo.atlas.vandaele.io
           - https://lidarr.atlas.vandaele.io
+          - https://outline.atlas.vandaele.io
           - https://plex.atlas.vandaele.io
           - https://prowlarr.atlas.vandaele.io
           - https://qbittorrent.atlas.vandaele.io
@@ -358,6 +361,8 @@ scrape_configs:
         labels: {module: http_route, service: houndarr-public}
       - targets: ["https://lidarr.atlas.vandaele.io"]
         labels: {module: http_route, service: lidarr-public}
+      - targets: ["https://outline.atlas.vandaele.io"]
+        labels: {module: http_route, service: outline-public}
       - targets: ["https://plex.atlas.vandaele.io"]
         labels: {module: http_route, service: plex-public}
       - targets: ["https://prowlarr.atlas.vandaele.io"]

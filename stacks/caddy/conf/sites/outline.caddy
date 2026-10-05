@@ -1,0 +1,15 @@
+# Outline (README "Outline"), logging in through authentik with OIDC, so not
+# behind forward auth. Clients use HTTPS on every path, so Outline is told the
+# scheme is https (its secure cookies depend on it). Its rate limiter reads the
+# client from X-Forwarded-For.
+
+# HTTPS on :443 (LAN, Tailscale) and the tunnel on :8080, where {client_ip}
+# comes from CF-Connecting-IP (servers :8080 in the Caddyfile).
+outline.atlas.vandaele.io, http://outline.atlas.vandaele.io:8080 {
+	import atlas_hide_metrics
+	reverse_proxy outline:3000 {
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-For {client_ip}
+	}
+}

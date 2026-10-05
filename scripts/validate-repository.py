@@ -104,7 +104,7 @@ LOCAL_ONLY_CADDY_ROUTES = {"backrest", "komodo"}
 # Routes not behind authentik forward auth (README "authentik"): its login,
 # Caddy's health route, apps with their own authentik OIDC or clients that
 # cannot follow a login redirect, and the LAN-only routes.
-UNGATED_CADDY_ROUTES = {"auth", "backrest", "caddy", "grafana", "komodo", "plex", "seerr"}
+UNGATED_CADDY_ROUTES = {"auth", "backrest", "caddy", "grafana", "komodo", "outline", "plex", "seerr"}
 AUTHENTIK_BLUEPRINTS_ROOT = STACKS_ROOT / "authentik" / "blueprints"
 # One address of a Caddy site block, as written in conf/sites/*.caddy.
 CADDY_SITE_ADDRESS_PATTERN = re.compile(
@@ -184,6 +184,8 @@ VALIDATION_VALUES = {
     "METRICS_DIR": "/volume1/backups/.metrics",
     "MUSIC_DIR": "/volume1/data/media/music",
     "NAS_LAN_IP": "127.0.0.1",
+    "OUTLINE_DATA_DIR": "/volume2/appdata/outline/data",
+    "OUTLINE_POSTGRES_DIR": "/volume2/appdata/outline/postgres",
     "PGID": "10",
     "PROMETHEUS_DATA_DIR": "/volume2/appdata/prometheus",
     "PROTONVPN_PORT_FORWARD_ONLY": "on",

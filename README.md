@@ -14,7 +14,7 @@ This repository manages Docker Compose stacks for the `Atlas` NAS.
 - Caddy HTTP entrypoint: `http://192.168.2.200:80`
 - Caddy HTTPS entrypoint: `https://<app>.atlas.vandaele.io` on `192.168.2.200:443`, with one Let's Encrypt wildcard certificate (see [Caddy Configuration](#caddy-configuration))
 - Application hostnames: `https://<app>.atlas.vandaele.io` everywhere. On the LAN and Tailscale, Atlas DNS (UniFi, AdGuard) sends them to Caddy on the NAS; from the internet, they go through the Cloudflare Tunnel to Caddy
-- Remote access: Tailscale (on the UniFi router) for private access, with selected Caddy applications also available through Cloudflare Access-protected public hostnames
+- Remote access: Tailscale (on the UniFi router) for private access, and every Caddy application except the LAN-only ones on a public hostname through the Cloudflare Tunnel, with authentik or the application's own login in front (no Cloudflare Access)
 - Login: authentik at `https://auth.atlas.vandaele.io` (see [authentik](#authentik)); Grafana is the first application behind it
 - Timezone: `Asia/Singapore`, set once in the Komodo `TZ` variable (see [Timezone And Schedules](#timezone-and-schedules))
 
@@ -616,6 +616,10 @@ KOMETA_TMDB_API_KEY
 KOMODO_MONITORING_API_KEY
 KOMODO_MONITORING_API_SECRET
 LIDARR_API_KEY
+OUTLINE_OIDC_CLIENT_SECRET
+OUTLINE_POSTGRES_PASSWORD
+OUTLINE_SECRET_KEY
+OUTLINE_UTILS_SECRET
 PROTONVPN_WIREGUARD_PRIVATE_KEY
 PROWLARR_API_KEY
 QBITTORRENT_API_KEY
@@ -760,7 +764,7 @@ Operational notes:
 - Seerr relies on its own auth plus Plex auth. There is no Caddy Basic Auth gate.
 - The container runs as UID/GID `1000:1000`. The pre-deploy step nonrecursively provisions `[[APPDATA_DIR]]/seerr` and its `logs` child; existing nested ownership is audited and repaired only during a stopped migration.
 - `[[APPDATA_DIR]]/seerr` should be backed up with its ownership and permissions preserved.
-- Protect the public Seerr hostname with Cloudflare Access and retain application authentication.
+- The public Seerr hostname is not behind authentik (its clients cannot follow a login redirect); Seerr's own login protects it.
 
 ### Arr Storage Policy
 
@@ -1368,6 +1372,50 @@ After first login, change Speedtest Tracker's default application credentials.
 
 The stack uses SQLite under `[[APPDATA_DIR]]/speedtest-tracker`, runs a scheduled test every six hours by default with `SPEEDTEST_TRACKER_SCHEDULE=6 */6 * * *`, and prunes results older than 365 days by default. Set `SPEEDTEST_TRACKER_SERVERS` to a comma-separated list of Ookla server IDs if you want pinned test servers; otherwise Speedtest Tracker will choose automatically.
 
+### Outline
+
+The `outline` stack runs [Outline](https://www.getoutline.com/), the Atlas wiki, for pjan and family at:
+
+```text
+https://outline.atlas.vandaele.io
+```
+
+Outline's only login is authentik with OIDC (provider and application `outline`, `oidc-outline.yaml`), open to `admins` and `family`. It is not behind forward auth: the gate would break Outline's public share links and the collaboration WebSocket, and Outline has no other login to protect. Anyone authentik lets in gets an Outline account on their first login; the first account becomes Outline's admin.
+
+Layout:
+
+- `postgresql` (`postgres:16`, like authentik's) runs as UID `70` with its data in `/volume2/appdata/outline/postgres` (`0700`). Renovate keeps it on major 16; a major upgrade needs a dump and restore.
+- `redis` holds only job queues and collaboration messages, in memory (`--save ""`, no append-only file): a restart loses at most queued jobs, so it has no appdata.
+- `outline` runs as UID `1001` with attachments (`FILE_STORAGE=local`) in `/volume2/appdata/outline/data` (`0700`). It joins `proxy_network` for Caddy, which is also its way to authentik and to the internet (link previews).
+- Postgres and Redis are only on the internal `outline_network`. Every container has a read-only root filesystem and no capabilities.
+
+`stacks/caddy/conf/sites/outline.caddy` sends `X-Forwarded-Proto: https` (Outline's secure cookies need it, and the tunnel listener is plain HTTP) and replaces `X-Forwarded-For` with the client address for Outline's rate limiter. Outline's own HTTPS redirect is off (`FORCE_HTTPS=false`): Caddy and Cloudflare always serve HTTPS. Its update check and anonymous statistics are off (`ENABLE_UPDATES=false`); Renovate handles updates. There is no SMTP, so Outline sends no email: no notification emails and no email invites. People join by logging in through authentik.
+
+authentik's endpoints are written out (`OIDC_AUTH_URI`, `OIDC_TOKEN_URI`, `OIDC_USERINFO_URI`, `OIDC_LOGOUT_URI`) rather than discovered with `OIDC_ISSUER_URL`: Outline discovers an issuer only once, when it starts, and the nightly backup starts this stack together with authentik. Its token and userinfo calls go to `https://auth.atlas.vandaele.io`, which Atlas DNS sends to Caddy's `443`, so, like Grafana, logins depend on Caddy's certificate.
+
+Komodo variables (all secret):
+
+```text
+OUTLINE_SECRET_KEY           openssl rand -hex 32
+OUTLINE_UTILS_SECRET         openssl rand -hex 32
+OUTLINE_POSTGRES_PASSWORD    openssl rand -hex 32
+OUTLINE_OIDC_CLIENT_SECRET   openssl rand -hex 32 (the authentik stack receives it too)
+```
+
+Never change `OUTLINE_SECRET_KEY` after the first start: it encrypts secrets in the database. `OUTLINE_POSTGRES_PASSWORD` only applies when the database is created.
+
+First setup:
+
+1. Create the four Komodo variables, then run the Resource Sync. Redeploy `authentik` (its `post_deploy` applies `oidc-outline.yaml`) and wait until `outline` is healthy, then deploy `caddy` by hand.
+2. In the Cloudflare Tunnel dashboard, add the public hostname `outline.atlas.vandaele.io` with service `http://caddy:8080`.
+3. Open `https://outline.atlas.vandaele.io` and log in as `pjan` first, so pjan's account is Outline's admin. Then let family log in.
+
+Backups and restore: the nightly `appdata-backup` Action stops `outline`, so `/volume2/appdata/outline` (the database and the attachments together) is copied with Postgres stopped. Restore both together as in [Restoring From The Local Snapshot](#restoring-from-the-local-snapshot), with the `OUTLINE_SECRET_KEY` the snapshot was taken with.
+
+Monitoring: `probe_health` checks `https://outline.atlas.vandaele.io/_health`, and `probe_routes` and `probe_routes_public` its route on the LAN and through Cloudflare, so [`ProbeFailed`](#application-probes) covers it. Outline has no Prometheus metrics.
+
+Break-glass: when authentik is down nobody can log in to Outline; sessions that are already open keep working. Fix authentik ([Break-Glass](#break-glass)).
+
 ### Cloudflared
 
 The `cloudflared` stack runs a remotely managed Cloudflare Tunnel connector for Atlas. It joins `proxy_network` and has no host ports; Cloudflare edge traffic is forwarded into Caddy over Docker networking.
@@ -1401,7 +1449,7 @@ speedtest.atlas.vandaele.io, http://speedtest.atlas.vandaele.io:8080 {
 }
 ```
 
-Use Cloudflare Access policies on the public hostnames for admin-facing services. The tunnel removes inbound port exposure, but it does not replace application authentication.
+There is no Cloudflare Access. Every public hostname is protected by authentik (forward auth in Caddy, or the app's own authentik login) or, for Plex and Seerr, by the app's own login (see [Forward Auth](#forward-auth)). The tunnel removes inbound port exposure, but it does not replace authentication.
 
 ### authentik
 
@@ -1432,11 +1480,12 @@ AUTHENTIK_BOOTSTRAP_PASSWORD  openssl rand -base64 32
 GRAFANA_OIDC_CLIENT_SECRET    openssl rand -hex 32
 AUTOBRR_OIDC_CLIENT_SECRET    openssl rand -hex 32
 QUI_OIDC_CLIENT_SECRET        openssl rand -hex 32
+OUTLINE_OIDC_CLIENT_SECRET    openssl rand -hex 32
 GOOGLE_OAUTH_CLIENT_ID        from Google Cloud (see Google Login)
 GOOGLE_OAUTH_CLIENT_SECRET    from Google Cloud (see Google Login)
 ```
 
-Never change `AUTHENTIK_SECRET_KEY` after the first start: it signs sessions and tokens. `AUTHENTIK_POSTGRES_PASSWORD` only applies when the database is created. The bootstrap values are read only when the database is empty: they create `akadmin`, and a set password closes authentik's initial-setup flow, which would otherwise let anyone on the public hostname choose the admin password. Set them before the first deploy and empty them (keep the variables) once setup is done. Each `<APP>_OIDC_CLIENT_SECRET` goes to both the authentik worker (the app's OIDC blueprint) and the app: Grafana, autobrr, qui.
+Never change `AUTHENTIK_SECRET_KEY` after the first start: it signs sessions and tokens. `AUTHENTIK_POSTGRES_PASSWORD` only applies when the database is created. The bootstrap values are read only when the database is empty: they create `akadmin`, and a set password closes authentik's initial-setup flow, which would otherwise let anyone on the public hostname choose the admin password. Set them before the first deploy and empty them (keep the variables) once setup is done. Each `<APP>_OIDC_CLIENT_SECRET` goes to both the authentik worker (the app's OIDC blueprint) and the app: Grafana, autobrr, qui, Outline.
 
 #### Blueprints
 
@@ -1446,6 +1495,7 @@ Never change `AUTHENTIK_SECRET_KEY` after the first start: it signs sessions and
 - `brand.yaml`: the look of the login pages and the title of the login form (see [Branding](#branding)).
 - `admins-mfa.yaml`: members of `admins` without TOTP or a passkey must set one up before they are logged in (stage `atlas-admins-mfa-setup` at order 35 of the default authentication flow). Everyone else is asked for TOTP or a passkey only once they have set one up in their user settings.
 - `grafana.yaml`: the OAuth2/OIDC provider and application `grafana`, open to `admins` and `family` (Viewer).
+- `oidc-outline.yaml`: the OAuth2/OIDC provider and application `outline`, open to `admins` and `family` (see [Outline](#outline)).
 - `login.yaml`: passkeys, "Remember me", and the session length (see [Login](#login)).
 - `invitations.yaml`: the invitation-only sign-up flow `atlas-invitation` for family (see [Invitations](#invitations)).
 - `google.yaml`: sign in with Google for existing users (see [Google Login](#google-login)).
@@ -1472,7 +1522,7 @@ A changed file in `branding/` is served at once without a redeploy; browsers may
 
 #### Dashboard
 
-`https://auth.atlas.vandaele.io` is a homepage for Atlas: after login it lists the apps a user may open, in the groups Media, Downloads, and System (authentik sorts the groups and the apps alphabetically). Each application blueprint sets its `group` and its `meta_icon`, a file in `stacks/authentik/branding/icons/` (sources and licences in its `NOTICE.md`; mostly [selfh.st/icons](https://github.com/selfhst/icons), CC BY 4.0). A new app's icon goes there too, registered in the authentik `config_files` unless it is binary. The dashboard looks like a tablet home screen: each icon sits on a rounded translucent plate with its name under it, in a dense grid, so application names stay short enough to fit under an icon ("AdGuard", "Speedtest"). Below about 576 pixels wide authentik switches to its list view, which keeps its own layout. `links.yaml` adds Plex and Seerr (`admins` and `family`) and Komodo and Backrest (`admins`) as links only: applications without a provider, so authentik shows them but does not protect them, and each keeps its own login (Komodo and Backrest open only on the LAN and Tailscale). It also links external services, which open in a new tab: for `admins` the accounts Atlas runs on in **Cloud** (Cloudflare, which is also the registrar, Cloudflare Zero Trust, Tailscale, Google Workspace admin, Google Cloud, GitHub, Healthchecks.io, Proton VPN), UniFi in **System**, and the Usenet indexers (NZBgeek, NZBFinder, nzb.life) in **Downloads**; for everyone Gmail, Calendar, Drive, Photos, and Discord in **Apps**. For family the dashboard shows Discord, the four Google apps, Plex, Seerr, and Grafana.
+`https://auth.atlas.vandaele.io` is a homepage for Atlas: after login it lists the apps a user may open, in the groups Media, Downloads, and System (authentik sorts the groups and the apps alphabetically). Each application blueprint sets its `group` and its `meta_icon`, a file in `stacks/authentik/branding/icons/` (sources and licences in its `NOTICE.md`; mostly [selfh.st/icons](https://github.com/selfhst/icons), CC BY 4.0). A new app's icon goes there too, registered in the authentik `config_files` unless it is binary. The dashboard looks like a tablet home screen: each icon sits on a rounded translucent plate with its name under it, in a dense grid, so application names stay short enough to fit under an icon ("AdGuard", "Speedtest"). Below about 576 pixels wide authentik switches to its list view, which keeps its own layout. `links.yaml` adds Plex and Seerr (`admins` and `family`) and Komodo and Backrest (`admins`) as links only: applications without a provider, so authentik shows them but does not protect them, and each keeps its own login (Komodo and Backrest open only on the LAN and Tailscale). It also links external services, which open in a new tab: for `admins` the accounts Atlas runs on in **Cloud** (Cloudflare, which is also the registrar, Cloudflare Zero Trust, Tailscale, Google Workspace admin, Google Cloud, GitHub, Healthchecks.io, Proton VPN), UniFi in **System**, and the Usenet indexers (NZBgeek, NZBFinder, nzb.life) in **Downloads**; for everyone Gmail, Calendar, Drive, Photos, and Discord in **Apps**. For family the dashboard shows Discord, the four Google apps, Plex, Seerr, Grafana, and Outline.
 
 #### Forward Auth
 
@@ -1485,7 +1535,7 @@ Apps without their own authentik login sit behind authentik forward auth in Cadd
 - A provider's `skip_path_regex` lets health probe paths through without a session; nothing else bypasses the check. Client-supplied `X-Authentik-*` headers are always stripped.
 - When authentik is down, every forward-auth app answers `502`.
 
-Gated: AdGuard Home, autobrr, Bazarr, Houndarr, Lidarr, Prowlarr, qBittorrent, qui, Radarr, rclone, SABnzbd, slskd, Sonarr, Speedtest Tracker, Spottarr, and UGOS (see [Arr Authentication](#arr-authentication) for which keep their own login; autobrr and qui log in through authentik with OIDC behind the gate, so it is one login). Only health probe paths skip the check: `/ping` (Sonarr, Radarr, Lidarr, Prowlarr), `/api` (SABnzbd, whose API needs its key except `mode=version`), `/api/health` (Houndarr), `/healthz` (Spottarr), `/api/healthz/liveness` and `/api/healthz/readiness` (autobrr), and `/health` (qui). `UNGATED_CADDY_ROUTES` in `scripts/validate-repository.py` lists the routes that stay outside forward auth (authentik itself, Caddy's health route, Grafana with its own authentik login, Plex and Seerr whose clients cannot follow a login redirect, and the LAN-only Backrest and Komodo). For every gated route the validator requires its `forward-auth-<app>.yaml`, its place in `outpost.yaml`, its `probe_gate` targets, and its place in the authentik inhibition in `alertmanager.yml`.
+Gated: AdGuard Home, autobrr, Bazarr, Houndarr, Lidarr, Prowlarr, qBittorrent, qui, Radarr, rclone, SABnzbd, slskd, Sonarr, Speedtest Tracker, Spottarr, and UGOS (see [Arr Authentication](#arr-authentication) for which keep their own login; autobrr and qui log in through authentik with OIDC behind the gate, so it is one login). Only health probe paths skip the check: `/ping` (Sonarr, Radarr, Lidarr, Prowlarr), `/api` (SABnzbd, whose API needs its key except `mode=version`), `/api/health` (Houndarr), `/healthz` (Spottarr), `/api/healthz/liveness` and `/api/healthz/readiness` (autobrr), and `/health` (qui). `UNGATED_CADDY_ROUTES` in `scripts/validate-repository.py` lists the routes that stay outside forward auth (authentik itself, Caddy's health route, Grafana and Outline with their own authentik login, Plex and Seerr whose clients cannot follow a login redirect, and the LAN-only Backrest and Komodo). For every gated route the validator requires its `forward-auth-<app>.yaml`, its place in `outpost.yaml`, its `probe_gate` targets, and its place in the authentik inhibition in `alertmanager.yml`.
 
 To put an app behind forward auth: add `forward-auth-<app>.yaml` (copy `forward-auth-rclone.yaml`; add a `skip_path_regex` for its probe path only), list it in `outpost.yaml`, add it to `BLUEPRINTS` in `scripts/authentik-apply-blueprints.sh` (before `outpost`), register it in the authentik `config_files` with `requires = "Redeploy"`, switch its site to `import atlas_protected_proxy <app> <upstream>`, and add its `probe_gate` targets and inhibition entry. Only after its gate probes are green, relax the app's own login if wanted; to roll back, restore the app's own login first.
 
@@ -1555,7 +1605,7 @@ Prometheus scrapes the server's metrics (job `authentik`). `probe_health` checks
 
 ## Monitoring
 
-The `monitoring` stack runs Prometheus, Alertmanager (see [Alerts](#alerts)), node-exporter, blackbox-exporter and blackbox-public (the same probes, resolved through public DNS for the probes of the Cloudflare path), smartctl-exporter, cAdvisor, the application exporters, and Grafana on the private `monitoring_network`. Only Grafana also joins `proxy_network`, and it is reachable at `https://grafana.atlas.vandaele.io` and at `https://grafana.atlas.vandaele.io`, which must be protected by Cloudflare Access; Grafana also requires its own login. Prometheus and Alertmanager have no host port and no web route; query Prometheus through Grafana.
+The `monitoring` stack runs Prometheus, Alertmanager (see [Alerts](#alerts)), node-exporter, blackbox-exporter and blackbox-public (the same probes, resolved through public DNS for the probes of the Cloudflare path), smartctl-exporter, cAdvisor, the application exporters, and Grafana on the private `monitoring_network`. Only Grafana also joins `proxy_network`, and it is reachable at `https://grafana.atlas.vandaele.io`, on the LAN and through the Cloudflare Tunnel, with its authentik login (see [Grafana Login](#grafana-login)). Prometheus and Alertmanager have no host port and no web route; query Prometheus through Grafana.
 
 The nightly `appdata-backup` Action never stops the `monitoring` stack, and its data is not backed up: `/volume2/appdata/prometheus` (90 days, at most 20 GB), `/volume2/appdata/alertmanager` (silences and the notification log), and `/volume2/appdata/grafana` (Grafana's SQLite database) are excluded. Only configuration is kept, in git: Prometheus, its rules, Alertmanager, blackbox, and Grafana provisioning in this repository, and dashboards in `pjan/atlas-dashboards`. After losing Volume 2, Grafana starts with an empty database: the admin login comes from `GRAFANA_ADMIN_PASSWORD`, the datasource (and alerting) from provisioning, and the dashboards return once Git Sync is reconnected with the token from the password manager. Extra users, service accounts, and alert history are lost. Scrapes run every 30 seconds and probes every 60 seconds.
 
@@ -1576,7 +1626,7 @@ Current signals:
 | `probe_dns_external` | AdGuard resolves an external name |
 | `probe_tls_caddy` | Caddy's HTTPS listener `192.168.2.200:443` completes a TLS handshake for `caddy.atlas.vandaele.io` with a valid certificate, and its expiry |
 | `probe_internet` | Outbound HTTPS from the NAS |
-| `probe_health` | Application health, through Caddy unless noted: Servarr `/ping` must report `OK` (fails when the app cannot reach its database), Plex `/identity` must contain a `machineIdentifier` (through Caddy and directly on `:32400`), Grafana `/api/health` must report the database `ok`, SABnzbd must report its version, Caddy must answer `ok`, Komodo, Seerr, Autobrr, Houndarr, qui, and Spottarr health endpoints must return 200, and authentik's ready endpoint (directly, `authentik`) and live endpoint (through Cloudflare, `authentik-public`) must return 200 |
+| `probe_health` | Application health, through Caddy unless noted: Servarr `/ping` must report `OK` (fails when the app cannot reach its database), Plex `/identity` must contain a `machineIdentifier` (through Caddy and directly on `:32400`), Grafana `/api/health` must report the database `ok`, SABnzbd must report its version, Caddy must answer `ok`, Komodo, Seerr, Autobrr, Houndarr, qui, Spottarr, and Outline health endpoints must return 200, and authentik's ready endpoint (directly, `authentik`) and live endpoint (through Cloudflare, `authentik-public`) must return 200 |
 | `caddy` | Caddy's own metrics per hostname (requests, errors, latency) on the internal listener `:2020` |
 | `cloudflared` | Tunnel metrics, including `cloudflared_tunnel_ha_connections`, on `:2000` |
 | `unpackerr` | Extraction metrics on `:5656` |
@@ -1594,7 +1644,7 @@ Volume 1 is a single 12 TB disk (`md1` is RAID 1 with one member), so it has no 
 
 Caddy, cloudflared, and Unpackerr join `monitoring_network` for scraping; their metrics ports are not published on the host. Public `*.atlas.vandaele.io` hostnames answer `404` for `/metrics` and `/prometheus`, so application metrics endpoints (for example slskd and Speedtest Tracker) are never exposed through Cloudflare.
 
-Grafana provisions the Prometheus datasource (uid `prometheus`) from `stacks/monitoring/grafana/provisioning/`. Grafana runs with a read-only root filesystem, so plugin preinstallation and automatic plugin updates are disabled (`GF_PLUGINS_PREINSTALL_DISABLED`, `GF_PLUGINS_PREINSTALL_AUTO_UPDATE`): plugin versions come only from the pinned image. The app plugins Grafana installed on its first start (Advisor, Explore Traces, Logs Drilldown, Metrics Drilldown, Pyroscope) remain in `/volume2/appdata/grafana/plugins`, are no longer updated, and do not return after a Volume 2 loss. Grafana 13 ships Prometheus as a bundled plugin, and a failed startup update would otherwise leave it unregistered. Dashboards are kept in the private `pjan/atlas-dashboards` repository with Grafana Git Sync, using a fine-grained token scoped to that repository only (Contents read and write, Metadata read, Administration read; Webhooks read and write only while running the setup wizard, which registers a webhook before its "Disable webhook integration" option applies). Git Sync reads only `dashboards/`, targets the folder "Atlas dashboards", polls every 60 seconds with webhooks disabled (Grafana is behind Cloudflare Access), and commits UI saves directly to `main`; the exact wizard settings are in that repository's README. Do not create dashboards outside synced folders: anything else exists only in `grafana.db`. Never edit the vendored community dashboards in the UI; `scripts/vendor.sh` in that repository regenerates them. The Git Sync connection itself lives in `grafana.db`, so after a Volume 2 loss reconnect it in **Administration → General → Provisioning** with the same settings and the token from the password manager.
+Grafana provisions the Prometheus datasource (uid `prometheus`) from `stacks/monitoring/grafana/provisioning/`. Grafana runs with a read-only root filesystem, so plugin preinstallation and automatic plugin updates are disabled (`GF_PLUGINS_PREINSTALL_DISABLED`, `GF_PLUGINS_PREINSTALL_AUTO_UPDATE`): plugin versions come only from the pinned image. The app plugins Grafana installed on its first start (Advisor, Explore Traces, Logs Drilldown, Metrics Drilldown, Pyroscope) remain in `/volume2/appdata/grafana/plugins`, are no longer updated, and do not return after a Volume 2 loss. Grafana 13 ships Prometheus as a bundled plugin, and a failed startup update would otherwise leave it unregistered. Dashboards are kept in the private `pjan/atlas-dashboards` repository with Grafana Git Sync, using a fine-grained token scoped to that repository only (Contents read and write, Metadata read, Administration read; Webhooks read and write only while running the setup wizard, which registers a webhook before its "Disable webhook integration" option applies). Git Sync reads only `dashboards/`, targets the folder "Atlas dashboards", polls every 60 seconds with webhooks disabled, and commits UI saves directly to `main`; the exact wizard settings are in that repository's README. Do not create dashboards outside synced folders: anything else exists only in `grafana.db`. Never edit the vendored community dashboards in the UI; `scripts/vendor.sh` in that repository regenerates them. The Git Sync connection itself lives in `grafana.db`, so after a Volume 2 loss reconnect it in **Administration → General → Provisioning** with the same settings and the token from the password manager.
 
 The Atlas theme is the app plugin `atlas-theme-app` in `stacks/monitoring/grafana/plugins/atlas-theme-app/` (hand-written, no build step), bind-mounted read-only at `/var/lib/grafana/plugins/atlas-theme-app`. It only changes Grafana's theme: `atlas-theme.json` defines it, and `module.js` applies it ([its README](stacks/monitoring/grafana/plugins/atlas-theme-app/README.md)). The file holds the Atlas palette, the themes Atlas Light and Atlas Dark in Grafana's theme-definition format (backgrounds, text, buttons, accent, status colours, Grafana's named colours, the series palette), and colour names Grafana has no slot for (`gray`, `teal`, …), which it also adds to Grafana's colour picker as hues. Styling beyond the theme belongs in panel options, for example the State timeline plus panel plugin's looks.
 
@@ -1895,7 +1945,7 @@ To add a new app route:
 3. Ensure the app container joins `proxy_network`, or proxy to `host.docker.internal` for host services.
 4. Push to `main`, execute Resource Sync, then explicitly deploy or redeploy `caddy` so the `post_deploy` reload hook applies the live config.
 
-Most application UIs are exposed only through Caddy, at `https://<app>.atlas.vandaele.io`. The validator requires every route to be served on `443` and, except LAN-only routes, on the tunnel listener `8080`, and rejects `*.atlas.local` and port-80 addresses in site files. Public hostnames must be protected by appropriate Cloudflare Access policies. Every route is either behind authentik forward auth or listed as ungated (see [Forward Auth](#forward-auth)). Routes listed in `LOCAL_ONLY_CADDY_ROUTES` in `scripts/validate-repository.py` (currently `backrest` and `komodo`) are LAN-only: they use the `atlas_lan_proxy` snippet, are not on `8080`, and must not get a tunnel route or a public DNS record. Plex is the direct-port exception and still publishes `192.168.2.200:32400/tcp` for native client discovery and direct access.
+Most application UIs are exposed only through Caddy, at `https://<app>.atlas.vandaele.io`. The validator requires every route to be served on `443` and, except LAN-only routes, on the tunnel listener `8080`, and rejects `*.atlas.local` and port-80 addresses in site files. There is no Cloudflare Access in front of public hostnames. Every route is either behind authentik forward auth or listed as ungated (see [Forward Auth](#forward-auth)). Routes listed in `LOCAL_ONLY_CADDY_ROUTES` in `scripts/validate-repository.py` (currently `backrest` and `komodo`) are LAN-only: they use the `atlas_lan_proxy` snippet, are not on `8080`, and must not get a tunnel route or a public DNS record. Plex is the direct-port exception and still publishes `192.168.2.200:32400/tcp` for native client discovery and direct access.
 
 Validation note:
 

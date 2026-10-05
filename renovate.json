@@ -38,6 +38,7 @@
         "mongo",
         "mikefarah/yq",
         "mrusse08/soularr",
+        "outlinewiki/outline",
         "prom/alertmanager",
         "prom/blackbox-exporter",
         "prom/node-exporter",
@@ -47,6 +48,7 @@
         "qmcgaw/gluetun",
         "rclone/rclone",
         "recyclarr/recyclarr",
+        "redis",
         "slskd/slskd",
         "spottarr/spottarr"
       ],
@@ -54,7 +56,7 @@
       "ignoreUnstable": true
     },
     {
-      "description": "Keep authentik's Postgres on major 16 (authentik's reference version): a major upgrade needs a dump and restore.",
+      "description": "Keep the Postgres of authentik and Outline on major 16 (authentik's reference version): a major upgrade needs a dump and restore.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["postgres"],
       "allowedVersions": "<17"

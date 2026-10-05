@@ -202,7 +202,7 @@ services:
       start_period: 20s
 
   # The same probes, resolved through public DNS: probes of the Cloudflare path
-  # (Cloudflare Access, authentik through the tunnel) must not follow Atlas'
+  # (the public routes, authentik through the tunnel) must not follow Atlas'
   # own DNS for *.atlas.vandaele.io, which points at Caddy on the LAN.
   blackbox-public:
     image: prom/blackbox-exporter:v0.28.0

@@ -1,0 +1,175 @@
+# Outline, the Atlas wiki (README "Outline"), at
+# https://outline.atlas.vandaele.io. It logs in only through authentik with
+# OpenID Connect (oidc-outline.yaml). The nightly appdata backup stops this
+# stack, so Postgres and the attachments are copied while it is stopped.
+
+services:
+  postgresql:
+    image: postgres:16.15-alpine
+    container_name: outline-postgresql
+    restart: unless-stopped
+    # The postgres user of the Alpine image.
+    user: "70:70"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql:uid=70,gid=70,mode=0775
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TZ}
+      - POSTGRES_DB=outline
+      - POSTGRES_USER=outline
+      - POSTGRES_PASSWORD=${OUTLINE_POSTGRES_PASSWORD:?OUTLINE_POSTGRES_PASSWORD is required}
+    volumes:
+      - type: bind
+        source: ${OUTLINE_POSTGRES_DIR:?OUTLINE_POSTGRES_DIR is required}
+        target: /var/lib/postgresql/data
+        bind:
+          create_host_path: false
+    networks:
+      - outline_network
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 256
+    stop_grace_period: 1m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-d", "outline", "-U", "outline"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Job queues and the collaboration service's messages only, so nothing is
+  # persisted: a restart loses at most queued jobs.
+  redis:
+    image: redis:8.10.2-alpine
+    container_name: outline-redis
+    restart: unless-stopped
+    # The redis user of the Alpine image.
+    user: "999:1000"
+    read_only: true
+    tmpfs:
+      - /data:uid=999,gid=1000,mode=0700
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks:
+      - outline_network
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Serves the app, the API, and the collaboration WebSocket on :3000. Caddy
+  # reaches it on proxy_network (outline.caddy), which is also its way to
+  # authentik (through Atlas DNS and Caddy) and to the internet.
+  outline:
+    image: outlinewiki/outline:1.10.1
+    container_name: outline
+    restart: unless-stopped
+    # The nodejs user of the image.
+    user: "1001:1001"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ}
+      - NODE_ENV=production
+      - URL=https://outline.atlas.vandaele.io
+      - PORT=3000
+      - SECRET_KEY=${OUTLINE_SECRET_KEY:?OUTLINE_SECRET_KEY is required}
+      - UTILS_SECRET=${OUTLINE_UTILS_SECRET:?OUTLINE_UTILS_SECRET is required}
+      - DATABASE_HOST=postgresql
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=outline
+      - DATABASE_USER=outline
+      - DATABASE_PASSWORD=${OUTLINE_POSTGRES_PASSWORD:?OUTLINE_POSTGRES_PASSWORD is required}
+      # Postgres is on the internal outline_network only.
+      - PGSSLMODE=disable
+      - REDIS_URL=redis://redis:6379
+      - FILE_STORAGE=local
+      - FILE_STORAGE_LOCAL_ROOT_DIR=/var/lib/outline/data
+      # Caddy always serves HTTPS and tells Outline so (X-Forwarded-Proto in
+      # outline.caddy), which its secure cookies need. Its own redirect would
+      # also send the container healthcheck to https://localhost.
+      - FORCE_HTTPS=false
+      # Renovate handles updates; no anonymous statistics.
+      - ENABLE_UPDATES=false
+      # Caddy logs requests already.
+      - DEBUG=
+      # authentik's endpoints, written out instead of OIDC_ISSUER_URL: Outline
+      # discovers an issuer only once, at start, and the nightly backup starts
+      # this stack together with authentik.
+      - OIDC_CLIENT_ID=outline
+      - OIDC_CLIENT_SECRET=${OUTLINE_OIDC_CLIENT_SECRET:?OUTLINE_OIDC_CLIENT_SECRET is required}
+      - OIDC_AUTH_URI=https://auth.atlas.vandaele.io/application/o/authorize/
+      - OIDC_TOKEN_URI=https://auth.atlas.vandaele.io/application/o/token/
+      - OIDC_USERINFO_URI=https://auth.atlas.vandaele.io/application/o/userinfo/
+      - OIDC_LOGOUT_URI=https://auth.atlas.vandaele.io/application/o/outline/end-session/
+      - OIDC_USERNAME_CLAIM=preferred_username
+      - OIDC_DISPLAY_NAME=authentik
+      - OIDC_SCOPES=openid profile email
+    volumes:
+      - type: bind
+        source: ${OUTLINE_DATA_DIR:?OUTLINE_DATA_DIR is required}
+        target: /var/lib/outline/data
+        bind:
+          create_host_path: false
+    expose:
+      - "3000"
+    networks:
+      - outline_network
+      - proxy_network
+    mem_limit: 1g
+    cpus: 2
+    pids_limit: 256
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/_health | grep -q OK || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+
+networks:
+  # Postgres, Redis, and Outline only; no route to the internet.
+  outline_network:
+    name: outline_network
+    internal: true
+  proxy_network:
+    name: proxy_network
+    external: true

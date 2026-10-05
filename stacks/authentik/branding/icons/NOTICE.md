@@ -26,6 +26,7 @@ file name:
 | grafana.svg | svg/grafana.svg |
 | komodo.svg | svg/komodo.svg |
 | lidarr.svg | svg/lidarr.svg |
+| outline.svg | svg/outline.svg |
 | plex.svg | svg/plex.svg |
 | prowlarr.svg | svg/prowlarr.svg |
 | qbittorrent.svg | svg/qbittorrent.svg |

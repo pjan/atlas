@@ -1038,6 +1038,43 @@ CONFIG_DIR = [[APPDATA_DIR]]/speedtest-tracker
 """
 
 [[stack]]
+name = "outline"
+description = "Outline wiki, logging in through authentik"
+deploy = true
+tags = ["apps"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/outline"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["https://outline.atlas.vandaele.io"]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+sh ../../scripts/ensure-docker-network.sh proxy_network
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/outline" 0 0 0755
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/outline/postgres" 70 70 0700
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/outline/data" 1001 1001 0700
+"""
+pre_deploy.shell_mode = true
+environment = """
+TZ = [[TZ]]
+OUTLINE_POSTGRES_DIR = [[APPDATA_DIR]]/outline/postgres
+OUTLINE_DATA_DIR = [[APPDATA_DIR]]/outline/data
+OUTLINE_SECRET_KEY = [[OUTLINE_SECRET_KEY]]
+OUTLINE_UTILS_SECRET = [[OUTLINE_UTILS_SECRET]]
+OUTLINE_POSTGRES_PASSWORD = [[OUTLINE_POSTGRES_PASSWORD]]
+OUTLINE_OIDC_CLIENT_SECRET = [[OUTLINE_OIDC_CLIENT_SECRET]]
+"""
+
+[[stack]]
 name = "authentik"
 description = "authentik login for Atlas applications, public at auth.atlas.vandaele.io"
 deploy = true
@@ -1082,6 +1119,7 @@ config_files = [
   { path = "blueprints/links.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/login.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/oidc-autobrr.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/oidc-outline.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/oidc-qui.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/outpost.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/reputation.yaml", services = ["worker"], requires = "Redeploy" },
@@ -1105,6 +1143,7 @@ config_files = [
   { path = "branding/icons/healthchecks.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/komodo.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/lidarr.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/outline.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/plex.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/protonvpn.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/prowlarr.svg", services = ["server"], requires = "None" },
@@ -1155,6 +1194,7 @@ AUTHENTIK_BOOTSTRAP_PASSWORD = [[AUTHENTIK_BOOTSTRAP_PASSWORD]]
 GRAFANA_OIDC_CLIENT_SECRET = [[GRAFANA_OIDC_CLIENT_SECRET]]
 AUTOBRR_OIDC_CLIENT_SECRET = [[AUTOBRR_OIDC_CLIENT_SECRET]]
 QUI_OIDC_CLIENT_SECRET = [[QUI_OIDC_CLIENT_SECRET]]
+OUTLINE_OIDC_CLIENT_SECRET = [[OUTLINE_OIDC_CLIENT_SECRET]]
 GOOGLE_OAUTH_CLIENT_ID = [[GOOGLE_OAUTH_CLIENT_ID]]
 GOOGLE_OAUTH_CLIENT_SECRET = [[GOOGLE_OAUTH_CLIENT_SECRET]]
 """
@@ -1377,6 +1417,7 @@ config_files = [
   { path = "conf/sites/grafana.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/houndarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/komodo.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/outline.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/plex.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/qui.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/qbittorrent.caddy", services = ["caddy"], requires = "Restart" },
