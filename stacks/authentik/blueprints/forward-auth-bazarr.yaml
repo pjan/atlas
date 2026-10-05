@@ -28,6 +28,7 @@ entries:
       slug: bazarr
     attrs:
       name: Bazarr
+      group: Media
       provider: !KeyOf provider
       meta_launch_url: https://bazarr.atlas.vandaele.io
       policy_engine_mode: any

@@ -29,6 +29,7 @@ entries:
       slug: radarr
     attrs:
       name: Radarr
+      group: Media
       provider: !KeyOf provider
       meta_launch_url: https://radarr.atlas.vandaele.io
       policy_engine_mode: any

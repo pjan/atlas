@@ -1439,6 +1439,7 @@ Never change `AUTHENTIK_SECRET_KEY` after the first start: it signs sessions and
 - `admins-mfa.yaml`: members of `admins` without TOTP or a passkey must set one up before they are logged in (stage `atlas-admins-mfa-setup` at order 35 of the default authentication flow). Everyone else is asked for TOTP or a passkey only once they have set one up in their user settings.
 - `grafana.yaml`: the OAuth2/OIDC provider and application `grafana`, open to `admins` and `family` (Viewer).
 - `google.yaml`: sign in with Google for existing users (see [Google Login](#google-login)).
+- `links.yaml`: dashboard links to Plex, Seerr, Komodo, and Backrest, which authentik does not protect (see [Dashboard](#dashboard)).
 - `oidc-autobrr.yaml`, `oidc-qui.yaml`: the OAuth2/OIDC providers and applications `autobrr` and `qui` (the slug sets the issuer, `https://auth.atlas.vandaele.io/application/o/<slug>/`), open only to `admins`. Their forward-auth applications have the slug `<app>-forward-auth` and are hidden from the application dashboard (`meta_hide`), so each app shows there once.
 - `forward-auth-<app>.yaml`: one proxy provider per app behind forward auth (see [Forward Auth](#forward-auth)), its application, and its group binding.
 - `outpost.yaml`: the embedded outpost and the list of every forward-auth provider it serves.
@@ -1458,6 +1459,10 @@ The login pages (sign-in, MFA, access denied) look like vandaele.io: its logo an
 - `urbanist.woff2`: Urbanist (latin, weights 400 to 800) from Google Fonts, under the SIL Open Font License in `Urbanist-OFL.txt`. It is served by authentik, so the login page loads nothing from other sites.
 
 A changed file in `branding/` is served at once without a redeploy; browsers may show the old one until a hard reload. A change to `brand.yaml` redeploys the stack like any blueprint.
+
+#### Dashboard
+
+`https://auth.atlas.vandaele.io` is a homepage for Atlas: after login it lists the apps a user may open, in the groups Media, Downloads, and System (authentik sorts the groups and the apps alphabetically). Each application blueprint sets its `group`. `links.yaml` adds Plex and Seerr (`admins` and `family`) and Komodo and Backrest (`admins`) as links only: applications without a provider, so authentik shows them but does not protect them, and each keeps its own login (Komodo and Backrest open only on the LAN and Tailscale). For family the dashboard shows Plex, Seerr, and Grafana.
 
 #### Forward Auth
 

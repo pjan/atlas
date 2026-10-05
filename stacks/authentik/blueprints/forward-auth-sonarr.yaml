@@ -29,6 +29,7 @@ entries:
       slug: sonarr
     attrs:
       name: Sonarr
+      group: Media
       provider: !KeyOf provider
       meta_launch_url: https://sonarr.atlas.vandaele.io
       policy_engine_mode: any

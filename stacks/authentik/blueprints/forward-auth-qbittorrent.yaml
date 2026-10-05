@@ -28,6 +28,7 @@ entries:
       slug: qbittorrent
     attrs:
       name: qBittorrent
+      group: Downloads
       provider: !KeyOf provider
       meta_launch_url: https://qbittorrent.atlas.vandaele.io
       policy_engine_mode: any

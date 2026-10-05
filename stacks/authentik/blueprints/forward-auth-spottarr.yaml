@@ -29,6 +29,7 @@ entries:
       slug: spottarr
     attrs:
       name: Spottarr
+      group: Media
       provider: !KeyOf provider
       meta_launch_url: https://spottarr.atlas.vandaele.io
       policy_engine_mode: any

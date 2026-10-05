@@ -42,6 +42,7 @@ entries:
       slug: qui
     attrs:
       name: qui
+      group: Downloads
       provider: !KeyOf provider
       meta_launch_url: https://qui.atlas.vandaele.io
       policy_engine_mode: any

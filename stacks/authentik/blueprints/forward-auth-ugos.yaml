@@ -28,6 +28,7 @@ entries:
       slug: ugos
     attrs:
       name: UGOS
+      group: System
       provider: !KeyOf provider
       meta_launch_url: https://ugos.atlas.vandaele.io
       policy_engine_mode: any

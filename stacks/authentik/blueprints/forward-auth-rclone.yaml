@@ -28,6 +28,7 @@ entries:
       slug: rclone
     attrs:
       name: rclone
+      group: System
       provider: !KeyOf provider
       meta_launch_url: https://rclone.atlas.vandaele.io
       policy_engine_mode: any

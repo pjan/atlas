@@ -29,6 +29,7 @@ entries:
       slug: houndarr
     attrs:
       name: Houndarr
+      group: Media
       provider: !KeyOf provider
       meta_launch_url: https://houndarr.atlas.vandaele.io
       policy_engine_mode: any

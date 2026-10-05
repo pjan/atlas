@@ -28,6 +28,7 @@ entries:
       slug: slskd
     attrs:
       name: slskd
+      group: Downloads
       provider: !KeyOf provider
       meta_launch_url: https://slskd.atlas.vandaele.io
       policy_engine_mode: any

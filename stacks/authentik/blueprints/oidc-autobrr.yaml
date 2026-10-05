@@ -42,6 +42,7 @@ entries:
       slug: autobrr
     attrs:
       name: autobrr
+      group: Media
       provider: !KeyOf provider
       meta_launch_url: https://autobrr.atlas.vandaele.io
       policy_engine_mode: any

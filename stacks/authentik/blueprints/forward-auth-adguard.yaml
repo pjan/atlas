@@ -28,6 +28,7 @@ entries:
       slug: adguard
     attrs:
       name: AdGuard Home
+      group: System
       provider: !KeyOf provider
       meta_launch_url: https://adguard.atlas.vandaele.io
       policy_engine_mode: any

@@ -1,0 +1,89 @@
+# yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+# Links on the application dashboard to apps that authentik does not protect
+# (README "Dashboard"): applications without a provider, so authentik only
+# shows them; each app keeps its own login. Plex and Seerr are for admins and
+# family; Komodo and Backrest, which open only on the LAN and Tailscale, for
+# admins.
+version: 1
+metadata:
+  name: Atlas - Dashboard links
+  labels:
+    # Applied by the authentik stack's post_deploy, in order, never by the
+    # worker's queue (README "Blueprints").
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  - model: authentik_core.application
+    id: plex
+    identifiers:
+      slug: plex
+    attrs:
+      name: Plex
+      group: Media
+      meta_launch_url: https://plex.atlas.vandaele.io
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf plex
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf plex
+      group: !Find [authentik_core.group, [name, family]]
+      order: 1
+
+  - model: authentik_core.application
+    id: seerr
+    identifiers:
+      slug: seerr
+    attrs:
+      name: Seerr
+      group: Media
+      meta_launch_url: https://seerr.atlas.vandaele.io
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf seerr
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf seerr
+      group: !Find [authentik_core.group, [name, family]]
+      order: 1
+
+  - model: authentik_core.application
+    id: komodo
+    identifiers:
+      slug: komodo
+    attrs:
+      name: Komodo
+      group: System
+      meta_launch_url: https://komodo.atlas.vandaele.io
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf komodo
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_core.application
+    id: backrest
+    identifiers:
+      slug: backrest
+    attrs:
+      name: Backrest
+      group: System
+      meta_launch_url: https://backrest.atlas.vandaele.io
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf backrest
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0

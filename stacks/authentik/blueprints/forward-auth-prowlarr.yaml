@@ -29,6 +29,7 @@ entries:
       slug: prowlarr
     attrs:
       name: Prowlarr
+      group: Media
       provider: !KeyOf provider
       meta_launch_url: https://prowlarr.atlas.vandaele.io
       policy_engine_mode: any

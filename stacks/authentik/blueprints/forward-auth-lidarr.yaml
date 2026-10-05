@@ -29,6 +29,7 @@ entries:
       slug: lidarr
     attrs:
       name: Lidarr
+      group: Media
       provider: !KeyOf provider
       meta_launch_url: https://lidarr.atlas.vandaele.io
       policy_engine_mode: any

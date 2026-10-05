@@ -42,6 +42,7 @@ entries:
       slug: grafana
     attrs:
       name: Grafana
+      group: System
       provider: !KeyOf provider
       meta_launch_url: https://grafana.atlas.vandaele.io
       policy_engine_mode: any

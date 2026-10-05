@@ -1077,6 +1077,7 @@ config_files = [
   { path = "blueprints/google.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/grafana.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/groups.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/links.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/oidc-autobrr.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/oidc-qui.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/outpost.yaml", services = ["worker"], requires = "Redeploy" },

@@ -30,6 +30,7 @@ entries:
       slug: sabnzbd
     attrs:
       name: SABnzbd
+      group: Downloads
       provider: !KeyOf provider
       meta_launch_url: https://sabnzbd.atlas.vandaele.io
       policy_engine_mode: any
