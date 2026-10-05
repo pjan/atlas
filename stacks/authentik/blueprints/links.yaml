@@ -94,7 +94,7 @@ entries:
 
   # External services, opened in a new tab. Admins only: the accounts
   # Atlas runs on (Cloud), UniFi (System), and the Usenet indexers
-  # (Downloads). Everyone: Google's apps and Discord.
+  # (Downloads). Everyone: Google's apps and Discord (Apps).
 
   - model: authentik_core.application
     id: cloudflare
@@ -318,7 +318,7 @@ entries:
       slug: gmail
     attrs:
       name: Gmail
-      group: Google
+      group: Apps
       meta_icon: /static/dist/custom/icons/gmail.svg
       meta_launch_url: https://mail.google.com
       open_in_new_tab: true
@@ -342,7 +342,7 @@ entries:
       slug: google-calendar
     attrs:
       name: Calendar
-      group: Google
+      group: Apps
       meta_icon: /static/dist/custom/icons/google-calendar.svg
       meta_launch_url: https://calendar.google.com
       open_in_new_tab: true
@@ -366,7 +366,7 @@ entries:
       slug: google-drive
     attrs:
       name: Drive
-      group: Google
+      group: Apps
       meta_icon: /static/dist/custom/icons/google-drive.svg
       meta_launch_url: https://drive.google.com
       open_in_new_tab: true
@@ -390,7 +390,7 @@ entries:
       slug: google-photos
     attrs:
       name: Photos
-      group: Google
+      group: Apps
       meta_icon: /static/dist/custom/icons/google-photos.svg
       meta_launch_url: https://photos.google.com
       open_in_new_tab: true
