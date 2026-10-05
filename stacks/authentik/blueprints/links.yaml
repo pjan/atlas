@@ -3,7 +3,7 @@
 # (README "Dashboard"): applications without a provider, so authentik only
 # shows them; each app keeps its own login. Plex and Seerr are for admins and
 # family; Komodo and Backrest, which open only on the LAN and Tailscale, for
-# admins.
+# admins. Below them, external services, which open in a new tab.
 version: 1
 metadata:
   name: Atlas - Dashboard links
@@ -91,3 +91,343 @@ entries:
       target: !KeyOf backrest
       group: !Find [authentik_core.group, [name, admins]]
       order: 0
+
+  # External services, opened in a new tab. Admins only: the accounts
+  # Atlas runs on (Cloud), UniFi (System), and the Usenet indexers
+  # (Downloads). Everyone: Google's apps and Discord.
+
+  - model: authentik_core.application
+    id: cloudflare
+    identifiers:
+      slug: cloudflare
+    attrs:
+      name: Cloudflare
+      group: Cloud
+      meta_icon: /static/dist/custom/icons/cloudflare.svg
+      meta_launch_url: https://dash.cloudflare.com
+      open_in_new_tab: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf cloudflare
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_core.application
+    id: cloudflare_zero_trust
+    identifiers:
+      slug: cloudflare-zero-trust
+    attrs:
+      name: Zero Trust
+      group: Cloud
+      meta_icon: /static/dist/custom/icons/cloudflare-zero-trust.svg
+      meta_launch_url: https://one.dash.cloudflare.com
+      open_in_new_tab: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf cloudflare_zero_trust
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_core.application
+    id: tailscale
+    identifiers:
+      slug: tailscale
+    attrs:
+      name: Tailscale
+      group: Cloud
+      meta_icon: /static/dist/custom/icons/tailscale.svg
+      meta_launch_url: https://login.tailscale.com/admin
+      open_in_new_tab: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf tailscale
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_core.application
+    id: google_admin
+    identifiers:
+      slug: google-admin
+    attrs:
+      name: Workspace
+      group: Cloud
+      meta_icon: /static/dist/custom/icons/google-admin.svg
+      meta_launch_url: https://admin.google.com
+      open_in_new_tab: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf google_admin
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_core.application
+    id: google_cloud
+    identifiers:
+      slug: google-cloud
+    attrs:
+      name: Google Cloud
+      group: Cloud
+      meta_icon: /static/dist/custom/icons/google-cloud.svg
+      meta_launch_url: https://console.cloud.google.com
+      open_in_new_tab: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf google_cloud
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_core.application
+    id: github
+    identifiers:
+      slug: github
+    attrs:
+      name: GitHub
+      group: Cloud
+      meta_icon: /static/dist/custom/icons/github.svg
+      meta_launch_url: https://github.com/pjan
+      open_in_new_tab: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf github
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_core.application
+    id: healthchecks
+    identifiers:
+      slug: healthchecks
+    attrs:
+      name: Healthchecks
+      group: Cloud
+      meta_icon: /static/dist/custom/icons/healthchecks.svg
+      meta_launch_url: https://healthchecks.io/projects/
+      open_in_new_tab: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf healthchecks
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_core.application
+    id: protonvpn
+    identifiers:
+      slug: protonvpn
+    attrs:
+      name: Proton VPN
+      group: Cloud
+      meta_icon: /static/dist/custom/icons/protonvpn.svg
+      meta_launch_url: https://account.protonvpn.com
+      open_in_new_tab: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf protonvpn
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_core.application
+    id: unifi
+    identifiers:
+      slug: unifi
+    attrs:
+      name: UniFi
+      group: System
+      meta_icon: /static/dist/custom/icons/unifi.svg
+      meta_launch_url: https://unifi.ui.com
+      open_in_new_tab: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf unifi
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_core.application
+    id: nzbgeek
+    identifiers:
+      slug: nzbgeek
+    attrs:
+      name: NZBgeek
+      group: Downloads
+      meta_icon: /static/dist/custom/icons/nzbgeek.png
+      meta_launch_url: https://nzbgeek.info
+      open_in_new_tab: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf nzbgeek
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_core.application
+    id: nzbfinder
+    identifiers:
+      slug: nzbfinder
+    attrs:
+      name: NZBFinder
+      group: Downloads
+      meta_icon: /static/dist/custom/icons/nzbfinder.png
+      meta_launch_url: https://nzbfinder.ws
+      open_in_new_tab: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf nzbfinder
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_core.application
+    id: nzblife
+    identifiers:
+      slug: nzblife
+    attrs:
+      name: nzb.life
+      group: Downloads
+      meta_icon: /static/dist/custom/icons/nzblife.png
+      meta_launch_url: https://nzb.life
+      open_in_new_tab: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf nzblife
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_core.application
+    id: gmail
+    identifiers:
+      slug: gmail
+    attrs:
+      name: Gmail
+      group: Google
+      meta_icon: /static/dist/custom/icons/gmail.svg
+      meta_launch_url: https://mail.google.com
+      open_in_new_tab: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf gmail
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf gmail
+      group: !Find [authentik_core.group, [name, family]]
+      order: 1
+
+  - model: authentik_core.application
+    id: google_calendar
+    identifiers:
+      slug: google-calendar
+    attrs:
+      name: Calendar
+      group: Google
+      meta_icon: /static/dist/custom/icons/google-calendar.svg
+      meta_launch_url: https://calendar.google.com
+      open_in_new_tab: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf google_calendar
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf google_calendar
+      group: !Find [authentik_core.group, [name, family]]
+      order: 1
+
+  - model: authentik_core.application
+    id: google_drive
+    identifiers:
+      slug: google-drive
+    attrs:
+      name: Drive
+      group: Google
+      meta_icon: /static/dist/custom/icons/google-drive.svg
+      meta_launch_url: https://drive.google.com
+      open_in_new_tab: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf google_drive
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf google_drive
+      group: !Find [authentik_core.group, [name, family]]
+      order: 1
+
+  - model: authentik_core.application
+    id: google_photos
+    identifiers:
+      slug: google-photos
+    attrs:
+      name: Photos
+      group: Google
+      meta_icon: /static/dist/custom/icons/google-photos.svg
+      meta_launch_url: https://photos.google.com
+      open_in_new_tab: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf google_photos
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf google_photos
+      group: !Find [authentik_core.group, [name, family]]
+      order: 1
+
+  - model: authentik_core.application
+    id: discord
+    identifiers:
+      slug: discord
+    attrs:
+      name: Discord
+      group: Apps
+      meta_icon: /static/dist/custom/icons/discord.svg
+      meta_launch_url: https://discord.com/app
+      open_in_new_tab: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf discord
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf discord
+      group: !Find [authentik_core.group, [name, family]]
+      order: 1

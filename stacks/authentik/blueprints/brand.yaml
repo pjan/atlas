@@ -455,21 +455,28 @@ entries:
           background: var(--vio-tile-hover);
         }
 
-        /* Plex and Spottarr bring their own square backgrounds: a thin plate. */
+        /* Plex, Spottarr, and NZBFinder bring their own square backgrounds,
+           and nzb.life is a wordmark: a thin plate. */
         [part="app-list"]:not([data-view-mode="list"]) [part="card"] ak-app-icon[icon$="/icons/plex.svg"]::part(icon),
-        [part="app-list"]:not([data-view-mode="list"]) [part="card"] ak-app-icon[icon$="/icons/spottarr.svg"]::part(icon) {
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"] ak-app-icon[icon$="/icons/spottarr.svg"]::part(icon),
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"] ak-app-icon[icon$="/icons/nzbfinder.png"]::part(icon) {
           padding: 6px;
         }
 
-        /* The three dark logos (Backrest, Radarr, Komodo) get a light plate on
-           the dark page instead of the filters below, which would also tint
-           the plate. */
-        :is([data-theme=dark], :host([theme="dark"])) [part="app-list"]:not([data-view-mode="list"]) [part="card"] ak-app-icon:is([icon$="/icons/backrest.svg"], [icon$="/icons/radarr.svg"], [icon$="/icons/komodo.svg"])::part(icon) {
+        [part="app-list"]:not([data-view-mode="list"]) [part="card"] ak-app-icon[icon$="/icons/nzblife.png"]::part(icon) {
+          padding: 4px;
+        }
+
+        /* Dark logos (Backrest, Radarr, Komodo, GitHub, Tailscale,
+           Healthchecks, the nzb.life wordmark) get a light plate on the dark
+           page instead of the filters below, which would also tint the
+           plate. */
+        :is([data-theme=dark], :host([theme="dark"])) [part="app-list"]:not([data-view-mode="list"]) [part="card"] ak-app-icon:is([icon$="/icons/backrest.svg"], [icon$="/icons/radarr.svg"], [icon$="/icons/komodo.svg"], [icon$="/icons/github.svg"], [icon$="/icons/tailscale.svg"], [icon$="/icons/healthchecks.svg"], [icon$="/icons/nzblife.png"])::part(icon) {
           filter: none;
           background: rgb(255 255 255 / 0.85);
         }
 
-        :is([data-theme=dark], :host([theme="dark"])) [part="app-list"]:not([data-view-mode="list"]) [part="card"]:hover ak-app-icon:is([icon$="/icons/backrest.svg"], [icon$="/icons/radarr.svg"], [icon$="/icons/komodo.svg"])::part(icon) {
+        :is([data-theme=dark], :host([theme="dark"])) [part="app-list"]:not([data-view-mode="list"]) [part="card"]:hover ak-app-icon:is([icon$="/icons/backrest.svg"], [icon$="/icons/radarr.svg"], [icon$="/icons/komodo.svg"], [icon$="/icons/github.svg"], [icon$="/icons/tailscale.svg"], [icon$="/icons/healthchecks.svg"], [icon$="/icons/nzblife.png"])::part(icon) {
           background: rgb(255 255 255 / 0.95);
         }
 

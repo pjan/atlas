@@ -1055,7 +1055,7 @@ links = ["https://auth.atlas.vandaele.io"]
 # A blueprint change redeploys the stack, so post_deploy applies the
 # blueprints (scripts/authentik-apply-blueprints.sh; README "Blueprints").
 # Komodo reads these files as text, so the binary branding/urbanist.woff2
-# and branding/icons/houndarr.png are not listed.
+# and the PNG icons in branding/icons are not listed.
 config_files = [
   { path = "blueprints/admins-mfa.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/brand.yaml", services = ["worker"], requires = "Redeploy" },
@@ -1091,10 +1091,22 @@ config_files = [
   { path = "branding/icons/autobrr.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/backrest.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/bazarr.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/cloudflare-zero-trust.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/cloudflare.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/discord.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/github.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/gmail.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/google-admin.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/google-calendar.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/google-cloud.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/google-drive.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/google-photos.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/grafana.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/healthchecks.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/komodo.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/lidarr.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/plex.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/protonvpn.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/prowlarr.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/qbittorrent.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/qui.svg", services = ["server"], requires = "None" },
@@ -1106,7 +1118,9 @@ config_files = [
   { path = "branding/icons/sonarr.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/speedtest.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/spottarr.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/tailscale.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/ugos.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/unifi.svg", services = ["server"], requires = "None" },
   { path = "branding/logo.svg", services = ["server"], requires = "None" },
   { path = "branding/mark.svg", services = ["server"], requires = "None" },
   { path = "branding/Urbanist-OFL.txt", services = ["server"], requires = "None" },
