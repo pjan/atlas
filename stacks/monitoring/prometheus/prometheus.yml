@@ -356,8 +356,6 @@ scrape_configs:
         labels: {module: http_route, service: grafana-public}
       - targets: ["https://houndarr.atlas.vandaele.io"]
         labels: {module: http_route, service: houndarr-public}
-      - targets: ["https://komodo.atlas.vandaele.io"]
-        labels: {module: http_route, service: komodo-public}
       - targets: ["https://lidarr.atlas.vandaele.io"]
         labels: {module: http_route, service: lidarr-public}
       - targets: ["https://plex.atlas.vandaele.io"]
