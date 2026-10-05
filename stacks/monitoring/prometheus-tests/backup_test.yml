@@ -287,3 +287,134 @@ tests:
         exp_samples:
           - labels: 'atlas:check_status{check="backup.offsite-age"}'
             value: 2
+
+  # The newest Komodo backup file was written at 0: stale after 36 hours
+  # plus the 15 minutes of `for`.
+  - name: komodo backup stale
+    interval: 1m
+    input_series:
+      - series: 'atlas_backup_newest_file_timestamp_seconds{job="node", instance="atlas", set="komodo"}'
+        values: '0x2200'
+    alert_rule_test:
+      - eval_time: 36h
+        alertname: KomodoBackupStale
+        exp_alerts: []
+      - eval_time: 36h20m
+        alertname: KomodoBackupStale
+        exp_alerts:
+          - exp_labels:
+              alertname: KomodoBackupStale
+              check: backup.komodo-age
+              severity: critical
+              source: prometheus
+              job: node
+              instance: atlas
+              set: komodo
+            exp_annotations:
+              title: Komodo database backup stale
+              description: No new Komodo database backup in /volume1/backups/komodo for more than 36 hours. Check the last run of the procedure Backup Core Database in Komodo, then run it by hand.
+              target: /volume1/backups/komodo
+              details: newest file 1d 12h 20m 0s old
+              link: https://komodo.atlas.vandaele.io
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+              runbook: https://github.com/pjan/atlas#komodo-plex-and-roon-backups
+    promql_expr_test:
+      - expr: atlas:check_status{check="backup.komodo-age"}
+        eval_time: 36h
+        exp_samples:
+          - labels: 'atlas:check_status{check="backup.komodo-age"}'
+            value: 0
+      - expr: atlas:check_status{check="backup.komodo-age"}
+        eval_time: 36h20m
+        exp_samples:
+          - labels: 'atlas:check_status{check="backup.komodo-age"}'
+            value: 2
+
+  # The newest Plex backup file was written at 1m: stale after 4 days plus
+  # the 15 minutes of `for`, and amber, not red.
+  - name: plex backup stale
+    interval: 1m
+    input_series:
+      - series: 'atlas_backup_newest_file_timestamp_seconds{job="node", instance="atlas", set="plex"}'
+        values: '60x5800'
+    alert_rule_test:
+      - eval_time: 96h
+        alertname: PlexBackupStale
+        exp_alerts: []
+      - eval_time: 96h20m
+        alertname: PlexBackupStale
+        exp_alerts:
+          - exp_labels:
+              alertname: PlexBackupStale
+              check: backup.plex-age
+              severity: warning
+              source: prometheus
+              job: node
+              instance: atlas
+              set: plex
+            exp_annotations:
+              title: Plex database backup stale
+              description: Plex has written no database backup to /volume1/backups/plex for more than 4 days; it backs up every three days. Check the backup task in Plex Settings > Scheduled Tasks.
+              target: /volume1/backups/plex
+              details: newest file 4d 0h 19m 0s old
+              link: https://plex.atlas.vandaele.io
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+              runbook: https://github.com/pjan/atlas#komodo-plex-and-roon-backups
+    promql_expr_test:
+      - expr: atlas:check_status{check="backup.plex-age"}
+        eval_time: 96h20m
+        exp_samples:
+          - labels: 'atlas:check_status{check="backup.plex-age"}'
+            value: 1
+
+  # 0: Plex has not written a backup yet, which is not stale.
+  - name: plex backup not written yet
+    interval: 1m
+    input_series:
+      - series: 'atlas_backup_newest_file_timestamp_seconds{job="node", instance="atlas", set="plex"}'
+        values: '0x5800'
+    alert_rule_test:
+      - eval_time: 96h20m
+        alertname: PlexBackupStale
+        exp_alerts: []
+
+  # The newest Roon backup file was written at 0: stale after 60 hours plus
+  # the 15 minutes of `for`.
+  - name: roon backup stale
+    interval: 1m
+    input_series:
+      - series: 'atlas_backup_newest_file_timestamp_seconds{job="node", instance="atlas", set="roonserver"}'
+        values: '0x3640'
+    alert_rule_test:
+      - eval_time: 60h
+        alertname: RoonBackupStale
+        exp_alerts: []
+      - eval_time: 60h20m
+        alertname: RoonBackupStale
+        exp_alerts:
+          - exp_labels:
+              alertname: RoonBackupStale
+              check: backup.roon-age
+              severity: critical
+              source: prometheus
+              job: node
+              instance: atlas
+              set: roonserver
+            exp_annotations:
+              title: Roon backup stale
+              description: Roon has written no backup to /volume1/backups/roonserver for more than 60 hours; it backs up every 2 days at 02:00. Check Settings > Backups in Roon, then run the backup by hand.
+              target: /volume1/backups/roonserver
+              details: newest file 2d 12h 20m 0s old
+              dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+              runbook: https://github.com/pjan/atlas#komodo-plex-and-roon-backups
+    promql_expr_test:
+      - expr: atlas:check_status{check="backup.roon-age"}
+        eval_time: 60h
+        exp_samples:
+          - labels: 'atlas:check_status{check="backup.roon-age"}'
+            value: 0
+      - expr: atlas:check_status{check="backup.roon-age"}
+        eval_time: 60h20m
+        exp_samples:
+          - labels: 'atlas:check_status{check="backup.roon-age"}'
+            value: 2

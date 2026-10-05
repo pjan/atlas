@@ -209,9 +209,9 @@ Nightly schedule in local time:
 ```text
 01:00  Komodo procedure: Backup Core Database           (Core .env TZ)
 02:00  Plex maintenance window opens (until 04:30)      (Plex UI)
+02:00  Roon scheduled backup, every 2 days              (Roon UI)
 03:00  Komodo procedure: Global Auto Update             (Core .env TZ)
 03:00  Kometa run (KOMETA_TIMES)                        (TZ)
-04:00  Roon scheduled backup                            (Roon UI)
 04:15  Recyclarr sync (CRON_SCHEDULE)                   (TZ)
 05:00  Komodo Action: appdata-backup (see Backups)    (Core .env TZ)
 06:00  Komodo procedure: Rotate Server Keys             (Core .env TZ)
@@ -228,11 +228,19 @@ Keep new scheduled work out of the 04:30–06:30 window, which is reserved for t
 | Application state (`/volume2/appdata`) and the Komodo bootstrap directory (`/volume2/docker/komodo`) | `/volume1/backups/appdata` | `appdata-backup` Action, daily at 05:00 |
 | Komodo database | `/volume1/backups/komodo` | Komodo procedure "Backup Core Database", daily at 01:00, 14 kept |
 | Plex database | `/volume1/backups/plex` | Plex scheduled task, every three days |
-| Roon database | `/volume1/backups/roonserver` | Roon scheduled backup, daily at 04:00 |
+| Roon database | `/volume1/backups/roonserver` | Roon scheduled backup, every 2 days at 02:00 |
 
 Off-site, Backrest copies all of `/volume1/backups` to the Google Shared Drive `Atlas` every day at 06:00 (see [Off-Site Backups With Backrest](#off-site-backups-with-backrest)).
 
 The appdata copy excludes `roonserver` (covered by Roon's own backups), monitoring data (`prometheus`, `alertmanager`, and `grafana`, see [Monitoring](#monitoring)), Plex caches, codecs, drivers, logs, and crash reports, and AdGuard query logs. The rules live in `stacks/appdata-backup/filters.txt`.
+
+The Komodo, Plex, and Roon backups are written by the applications themselves; [their staleness alerts](#komodo-plex-and-roon-backups) watch the newest file in each directory.
+
+Deliberately not backed up:
+
+- `/volume1/data`: media, downloads, and `unsorted`. Volume 1 is a single disk, so losing it loses them (see [Monitoring](#monitoring)).
+- `/volume1/@home`: the UGOS home folders, which hold nothing.
+- Docker volumes in `/volume2/@docker`: Caddy's certificates (reissued by Let's Encrypt), Komodo's keys (regenerated, see [Disaster Recovery](#disaster-recovery-rebuilding-volume-2)), and Komodo's Mongo data (covered by its database backups).
 
 ### Nightly Appdata Snapshot
 
@@ -400,7 +408,7 @@ Replace `latest` with `snapshots/<YYYY-MM-DD_HHMMSS>` to restore an older state.
 
 ## Disaster Recovery: Rebuilding Volume 2
 
-Volume 2 holds Docker, the Komodo bootstrap directory, Periphery's workspace, and all application state under `/volume2/appdata` and `/volume2/tmp`. Volume 1 holds media, downloads, and `/volume1/backups`, including Komodo's daily database backups in `/volume1/backups/komodo` (the 14 most recent are kept) and Roon backups in `/volume1/backups/roonserver`. Application appdata is not backed up off Volume 2, so after a Volume 2 loss every application except Komodo and Roon starts from a fresh configuration.
+Volume 2 holds Docker, the Komodo bootstrap directory, Periphery's workspace, and all application state under `/volume2/appdata` and `/volume2/tmp`. Volume 1 holds media, downloads, and `/volume1/backups`: the nightly appdata snapshots in `/volume1/backups/appdata`, Komodo's daily database backups in `/volume1/backups/komodo` (the 14 most recent are kept), and Roon backups in `/volume1/backups/roonserver`. Step 6 restores application state from the newest appdata snapshot; if Volume 1 is lost as well, first restore `/volume1/backups` from the [off-site copy](#off-site-backups-with-backrest).
 
 1. Reinstall the UGOS Docker app on Volume 2 and confirm `docker info --format '{{.DockerRootDir}}'` reports `/volume2/@docker`.
 2. Keep a copy of the Komodo backups before Core starts pruning them: `cp -a /volume1/backups/komodo /volume1/backups/komodo-pre-rebuild-<date>`.
@@ -683,7 +691,7 @@ The pinned Roon Server image runs its server processes as `root`. Its private st
 
 Roon mounts `/volume1/data/media/music` read-only. The hook preserves the existing owner of that shared path, enforces group `10` and mode `2775` on its top-level directory, and verifies that the shared media identity can write there for the surrounding download workflow. It never recursively changes the music library.
 
-Roon backups live under `/volume1/backups/roonserver`. The hook provisions only that child as `0:10` with mode `2770`; existing backup contents keep their current ownership and modes. All three bind sources use `create_host_path: false`, and Roon receives a two-minute stop grace period for clean database shutdown.
+Roon backups live under `/volume1/backups/roonserver`. In Roon `Settings > Backups`, keep the scheduled backup to `/RoonBackups` every 2 days at 02:00, before the 03:00 Global Auto Update can restart Roon. The appdata snapshot excludes Roon, so these backups are the only copy of its database. The hook provisions only that child as `0:10` with mode `2770`; existing backup contents keep their current ownership and modes. All three bind sources use `create_host_path: false`, and Roon receives a two-minute stop grace period for clean database shutdown.
 
 ### AdGuard Storage
 
@@ -1769,6 +1777,20 @@ cp /tmp/atlas_backups.prom.saved atlas_backups.prom.tmp && mv atlas_backups.prom
 2. A pre-check failure means the appdata snapshot was not complete and recent: fix the [appdata backup](#appdata-backup) first.
 3. For unreadable files (partial), fix their permissions or exclude them in the plan.
 4. Run the plan with **Backup now**. The alerts resolve with the next successful snapshot.
+
+#### Komodo, Plex, And Roon Backups
+
+`KomodoBackupStale` (`backup.komodo-age`, critical), `PlexBackupStale` (`backup.plex-age`, warning), and `RoonBackupStale` (`backup.roon-age`, critical): the newest file in `/volume1/backups/komodo`, `/volume1/backups/plex`, or `/volume1/backups/roonserver` is older than 36 hours, 4 days, or 60 hours: one missed run (daily at 01:00, every three days, every 2 days at 02:00) plus slack. `backup.sh` reports the newest file per directory (`atlas_backup_newest_file_timestamp_seconds{set}`) during the nightly appdata run, so the ages refresh at 05:00 and an alert resolves only after the next appdata run. When `AppdataBackupStale` fires too, fix the [appdata backup](#appdata-backup) first. `PlexBackupStale` ignores `0` (Plex has not written a backup yet). Plex is a warning because the appdata snapshot also holds it; Roon is critical because it does not.
+
+Roon stores its backups as content-addressed chunks, but every run writes new chunk files, even without library changes (checked 2026-10-05), so the file age shows whether it ran.
+
+1. Komodo: read the last run of the procedure `Backup Core Database` in Komodo, fix the cause, and run it.
+2. Plex: in `Settings > Scheduled Tasks`, check that `Backup database every three days` is enabled with `Backup directory` set to `/backups`; Plex runs it in the next maintenance window.
+3. Roon: in `Settings > Backups`, check the scheduled backup and run it by hand. Scheduled runs end with `on done, auto: True` in Roon's log:
+
+   ```sh
+   sudo grep -h 'on done, auto: True' /volume2/appdata/roonserver/database/RoonServer/Logs/RoonServer_log*.txt
+   ```
 
 #### Disk Health
 

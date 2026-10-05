@@ -19,11 +19,23 @@ groups:
       - record: atlas:check_catalogue
         expr: vector(0)
         labels:
+          check: backup.komodo-age
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
           check: backup.offsite
       - record: atlas:check_catalogue
         expr: vector(0)
         labels:
           check: backup.offsite-age
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: backup.plex-age
+      - record: atlas:check_catalogue
+        expr: vector(0)
+        labels:
+          check: backup.roon-age
       - record: atlas:check_catalogue
         expr: vector(0)
         labels:

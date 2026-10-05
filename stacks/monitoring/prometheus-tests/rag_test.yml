@@ -24,9 +24,15 @@ tests:
             value: 0
           - labels: 'atlas:check_status{check="backup.appdata-age"}'
             value: 0
+          - labels: 'atlas:check_status{check="backup.komodo-age"}'
+            value: 0
           - labels: 'atlas:check_status{check="backup.offsite"}'
             value: 0
           - labels: 'atlas:check_status{check="backup.offsite-age"}'
+            value: 0
+          - labels: 'atlas:check_status{check="backup.plex-age"}'
+            value: 0
+          - labels: 'atlas:check_status{check="backup.roon-age"}'
             value: 0
           - labels: 'atlas:check_status{check="containers.crashloop"}'
             value: 0

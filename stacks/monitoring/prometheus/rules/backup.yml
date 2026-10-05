@@ -1,6 +1,6 @@
-# Backup alerts: the nightly appdata snapshot (backup.sh textfile) and the
+# Backup alerts: the nightly appdata snapshot (backup.sh textfile), the
 # off-site Backrest plan (plan hook textfile, see README "Off-Site Backups
-# With Backrest"). Never gated: a backup that fails while the gate is on must
+# With Backrest"), and the Komodo, Plex, and Roon backups (backup.sh). Never gated: a backup that fails while the gate is on must
 # still alert. Failure and staleness are separate checks, so each check has
 # at most one critical rule. Tests: stacks/monitoring/prometheus-tests/.
 
@@ -96,3 +96,62 @@ groups:
           link: https://backrest.atlas.vandaele.io
           dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
           runbook: https://github.com/pjan/atlas#off-site-backup
+
+      # The application backups in /volume1/backups: backup.sh reports the
+      # newest file per directory during the nightly appdata run, so these
+      # ages refresh at 05:00. Thresholds: one missed run plus slack.
+
+      # Daily at 01:00 (Komodo procedure "Backup Core Database").
+      - alert: KomodoBackupStale
+        expr: time() - atlas_backup_newest_file_timestamp_seconds{set="komodo"} > 129600
+        for: 15m
+        labels:
+          check: backup.komodo-age
+          severity: critical
+          source: prometheus
+        annotations:
+          title: Komodo database backup stale
+          description: No new Komodo database backup in /volume1/backups/komodo for more than 36 hours. Check the last run of the procedure Backup Core Database in Komodo, then run it by hand.
+          target: /volume1/backups/komodo
+          details: newest file {{ $value | humanizeDuration }} old
+          link: https://komodo.atlas.vandaele.io
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+          runbook: https://github.com/pjan/atlas#komodo-plex-and-roon-backups
+
+      # Every three days in the Plex maintenance window. 0 means Plex has not
+      # written a backup yet. Warning: the appdata snapshot also holds Plex.
+      - alert: PlexBackupStale
+        expr: |
+          time() - atlas_backup_newest_file_timestamp_seconds{set="plex"} > 345600
+          and atlas_backup_newest_file_timestamp_seconds{set="plex"} > 0
+        for: 15m
+        labels:
+          check: backup.plex-age
+          severity: warning
+          source: prometheus
+        annotations:
+          title: Plex database backup stale
+          description: Plex has written no database backup to /volume1/backups/plex for more than 4 days; it backs up every three days. Check the backup task in Plex Settings > Scheduled Tasks.
+          target: /volume1/backups/plex
+          details: newest file {{ $value | humanizeDuration }} old
+          link: https://plex.atlas.vandaele.io
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+          runbook: https://github.com/pjan/atlas#komodo-plex-and-roon-backups
+
+      # Every 2 days at 02:00. Every run writes new chunk files, even without
+      # library changes. Critical: the appdata snapshot excludes Roon, so this
+      # is the only copy of its database.
+      - alert: RoonBackupStale
+        expr: time() - atlas_backup_newest_file_timestamp_seconds{set="roonserver"} > 216000
+        for: 15m
+        labels:
+          check: backup.roon-age
+          severity: critical
+          source: prometheus
+        annotations:
+          title: Roon backup stale
+          description: Roon has written no backup to /volume1/backups/roonserver for more than 60 hours; it backs up every 2 days at 02:00. Check Settings > Backups in Roon, then run the backup by hand.
+          target: /volume1/backups/roonserver
+          details: newest file {{ $value | humanizeDuration }} old
+          dashboard: https://grafana.atlas.vandaele.io/d/atlas-backups
+          runbook: https://github.com/pjan/atlas#komodo-plex-and-roon-backups
