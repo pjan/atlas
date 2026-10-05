@@ -173,6 +173,20 @@ entries:
           mask: url("/static/authentik/sources/google.svg") center / contain no-repeat;
         }
 
+        /* A line with "or" between "Log in" and the login sources. The sources
+           wrap in a flex row, so the line takes a row of its own. */
+        fieldset[name="login-sources"]::before {
+          content: "or";
+          flex-basis: 100%;
+          margin-bottom: 1rem;
+          text-align: center;
+          font-size: var(--pf-global--FontSize--sm);
+          color: var(--pf-global--Color--200);
+          background:
+            linear-gradient(rgb(114 128 255 / 0.35), rgb(114 128 255 / 0.35)) left center / calc(50% - 1.75em) 1px no-repeat,
+            linear-gradient(rgb(114 128 255 / 0.35), rgb(114 128 255 / 0.35)) right center / calc(50% - 1.75em) 1px no-repeat;
+        }
+
         /* Inputs: focus in the accent colour (authentik redefines the primary
            colour for form controls, so the colour is explicit). */
         .pf-c-form-control {
