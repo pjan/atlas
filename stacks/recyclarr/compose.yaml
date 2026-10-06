@@ -1,6 +1,6 @@
 services:
   recyclarr:
-    image: recyclarr/recyclarr:8.7.2
+    image: recyclarr/recyclarr:8.7.3
     container_name: recyclarr
     restart: unless-stopped
     user: "1000:1000"
