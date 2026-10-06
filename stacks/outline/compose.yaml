@@ -50,7 +50,7 @@ services:
   # Job queues and the collaboration service's messages only, so nothing is
   # persisted: a restart loses at most queued jobs.
   redis:
-    image: redis:8.10.2-alpine
+    image: redis:8.10.2
     container_name: outline-redis
     restart: unless-stopped
     # The redis user of the Alpine image.
