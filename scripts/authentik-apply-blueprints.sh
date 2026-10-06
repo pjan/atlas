@@ -18,7 +18,7 @@ forward-auth-houndarr forward-auth-lidarr forward-auth-prowlarr
 forward-auth-qbittorrent forward-auth-qui forward-auth-radarr
 forward-auth-rclone forward-auth-sabnzbd forward-auth-slskd
 forward-auth-sonarr forward-auth-speedtest forward-auth-spottarr
-forward-auth-ugos outpost"
+forward-auth-ugos forward-auth-youtarr outpost"
 
 ak_shell() {
   docker compose exec -T worker ak shell 2>/dev/null

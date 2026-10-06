@@ -1,0 +1,148 @@
+# Youtarr, YouTube channels and playlists for Plex (README "Youtarr"), at
+# https://youtarr.atlas.vandaele.io. Its own login is off: authentik forward
+# auth is the gate, and only Caddy shares a network with it, because its API
+# returns the stored Plex token. The nightly appdata backup stops this stack,
+# so MariaDB is copied while it is stopped.
+
+services:
+  mariadb:
+    # 11.4 LTS, not upstream's 10.3 (end of life); Renovate keeps it below
+    # 11.5, whose default collation changes.
+    image: mariadb:11.4.13
+    container_name: youtarr-mariadb
+    restart: unless-stopped
+    # The mysql user of the image.
+    user: "999:999"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run/mysqld:uid=999,gid=999,mode=0755
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TZ}
+      # Applied only when the database is first created.
+      - MARIADB_ROOT_PASSWORD=${YOUTARR_DB_ROOT_PASSWORD:?YOUTARR_DB_ROOT_PASSWORD is required}
+      - MARIADB_DATABASE=youtarr
+      - MARIADB_USER=youtarr
+      - MARIADB_PASSWORD=${YOUTARR_DB_PASSWORD:?YOUTARR_DB_PASSWORD is required}
+    # Youtarr's tables and migrations expect utf8mb4_unicode_ci.
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      - type: bind
+        source: ${YOUTARR_MARIADB_DIR:?YOUTARR_MARIADB_DIR is required}
+        target: /var/lib/mysql
+        bind:
+          create_host_path: false
+    networks:
+      - youtarr_internal
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 256
+    stop_grace_period: 1m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      # Uses the healthcheck user the image creates with the database.
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Serves the UI and API on :3011. Caddy reaches it on youtarr_network, which
+  # is also its way to YouTube and to Plex's LAN listener.
+  youtarr:
+    image: dialmaster/youtarr:v1.87.1
+    container_name: youtarr
+    restart: unless-stopped
+    # Reaps the yt-dlp and ffmpeg processes of every download.
+    init: true
+    user: "${PUID}:${PGID}"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ}
+      - LOG_LEVEL=info
+      # The PUID user has no home directory; Deno and yt-dlp caches go here.
+      - HOME=/tmp
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - DB_NAME=youtarr
+      - DB_USER=youtarr
+      - DB_PASSWORD=${YOUTARR_DB_PASSWORD:?YOUTARR_DB_PASSWORD is required}
+      # authentik forward auth is the only login (README "Youtarr").
+      - AUTH_ENABLED=false
+      # Caddy is the one proxy in front of it.
+      - TRUST_PROXY=1
+      # Plex's LAN listener; overrides the address in Youtarr's settings.
+      - PLEX_URL=http://${NAS_LAN_IP:?NAS_LAN_IP is required}:32400
+      # Shown in Youtarr's settings only.
+      - YOUTUBE_OUTPUT_DIR=${YOUTUBE_DIR:?YOUTUBE_DIR is required}
+    volumes:
+      - type: bind
+        source: ${YOUTARR_CONFIG_DIR:?YOUTARR_CONFIG_DIR is required}
+        target: /app/config
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${YOUTARR_JOBS_DIR:?YOUTARR_JOBS_DIR is required}
+        target: /app/jobs
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${YOUTARR_IMAGES_DIR:?YOUTARR_IMAGES_DIR is required}
+        target: /app/server/images
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${YOUTUBE_DIR:?YOUTUBE_DIR is required}
+        target: /usr/src/app/data
+        bind:
+          create_host_path: false
+    expose:
+      - "3011"
+    networks:
+      - youtarr_internal
+      - youtarr_network
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 512
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      # 503 when Youtarr cannot reach its database.
+      test: ["CMD", "curl", "--fail", "--silent", "--output", "/dev/null", "http://127.0.0.1:3011/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # The first start creates every table.
+      start_period: 5m
+
+networks:
+  # MariaDB and Youtarr only; no route to the internet.
+  youtarr_internal:
+    name: youtarr_internal
+    internal: true
+  # Caddy and Youtarr only (not proxy_network): with its own login off, its
+  # API is open to every container on its networks.
+  youtarr_network:
+    name: youtarr_network
+    external: true

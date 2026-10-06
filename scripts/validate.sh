@@ -16,6 +16,7 @@ sh scripts/test-phase-1.sh
 sh scripts/ensure-docker-network.sh media_network
 sh scripts/ensure-docker-network.sh proxy_network
 sh scripts/ensure-docker-network.sh rclone_network
+sh scripts/ensure-docker-network.sh youtarr_network
 sh scripts/ensure-docker-network.sh monitoring_network
 
 compose_image() {

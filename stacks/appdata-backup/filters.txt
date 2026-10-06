@@ -15,5 +15,8 @@
 # Regenerable Dispatcharr logo and poster caches, and its logs.
 - /appdata/dispatcharr/cache/
 - /appdata/dispatcharr/logs/
+# Youtarr's logs and its regenerable yt-dlp cache.
+- /appdata/youtarr/config/logs/
+- /appdata/youtarr/config/.yt-dlp-cache/
 # AdGuard query logs.
 - /appdata/adguard/work/data/querylog*

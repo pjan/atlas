@@ -227,6 +227,9 @@ scrape_configs:
       # Dispatcharr's version endpoint: the app is up, not that its database is.
       - targets: ["https://dispatcharr.atlas.vandaele.io/api/core/version/"]
         labels: {module: http_health_200, service: dispatcharr}
+      # Youtarr answers 503 when it cannot reach its database.
+      - targets: ["https://youtarr.atlas.vandaele.io/api/health"]
+        labels: {module: http_health_200, service: youtarr}
       # authentik directly on monitoring_network, and through the Cloudflare
       # Tunnel and Caddy: the public probe runs on blackbox-public, which
       # resolves through public DNS.
@@ -281,6 +284,7 @@ scrape_configs:
           - https://speedtest.atlas.vandaele.io
           - https://spottarr.atlas.vandaele.io
           - https://ugos.atlas.vandaele.io
+          - https://youtarr.atlas.vandaele.io
     relabel_configs: &probe_relabel
       - source_labels: [__address__]
         target_label: __param_target
@@ -393,6 +397,8 @@ scrape_configs:
         labels: {module: http_route, service: spottarr-public}
       - targets: ["https://ugos.atlas.vandaele.io"]
         labels: {module: http_route, service: ugos-public}
+      - targets: ["https://youtarr.atlas.vandaele.io"]
+        labels: {module: http_route, service: youtarr-public}
     relabel_configs:
       - source_labels: [module]
         target_label: __param_module
@@ -474,6 +480,10 @@ scrape_configs:
         labels: {module: http_gate, service: ugos-gate}
       - targets: ["https://ugos.atlas.vandaele.io/"]
         labels: {module: http_gate, __exporter: "blackbox-public:9115", service: ugos-gate-public}
+      - targets: ["https://youtarr.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: youtarr-gate}
+      - targets: ["https://youtarr.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: youtarr-gate-public}
     relabel_configs:
       - source_labels: [module]
         target_label: __param_module

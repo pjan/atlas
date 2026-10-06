@@ -232,7 +232,7 @@ Keep new scheduled work out of the 04:30–06:30 window, which is reserved for t
 
 Off-site, Backrest copies all of `/volume1/backups` to the Google Shared Drive `Atlas` every day at 06:00 (see [Off-Site Backups With Backrest](#off-site-backups-with-backrest)).
 
-The appdata copy excludes `roonserver` (covered by Roon's own backups), monitoring data (`prometheus`, `alertmanager`, and `grafana`, see [Monitoring](#monitoring)), Plex caches, codecs, drivers, logs, and crash reports, Dispatcharr's logo and poster caches and logs, and AdGuard query logs. The rules live in `stacks/appdata-backup/filters.txt`.
+The appdata copy excludes `roonserver` (covered by Roon's own backups), monitoring data (`prometheus`, `alertmanager`, and `grafana`, see [Monitoring](#monitoring)), Plex caches, codecs, drivers, logs, and crash reports, Dispatcharr's logo and poster caches and logs, Youtarr's logs and yt-dlp cache, and AdGuard query logs. The rules live in `stacks/appdata-backup/filters.txt`.
 
 The Komodo, Plex, and Roon backups are written by the applications themselves; [their staleness alerts](#komodo-plex-and-roon-backups) watch the newest file in each directory.
 
@@ -464,7 +464,7 @@ Volume 2 holds Docker, the Komodo bootstrap directory, Periphery's workspace, an
    recyclarr (before Library Import, so the TRaSH profiles exist)
    bazarr, spottarr, slskd, autobrr, qui
    unpackerr, seerr, houndarr, soularr
-   plex, kometa, roonserver, dispatcharr
+   plex, kometa, roonserver, dispatcharr, youtarr
    remaining stacks
    ```
 
@@ -639,6 +639,8 @@ SPOTTARR_NEWZNAB_API_KEY
 SPOTTARR_USENET_HOSTNAME
 SPOTTARR_USENET_PASSWORD
 SPOTTARR_USENET_USERNAME
+YOUTARR_DB_PASSWORD
+YOUTARR_DB_ROOT_PASSWORD
 ```
 
 Komodo variables use uppercase snake case and are named for the service or
@@ -682,7 +684,7 @@ If restoring an existing Plex `/config` with a valid `Preferences.xml`, a claim 
 
 Plex stores its database, metadata, preferences, claim state, and authentication tokens under `/volume2/appdata/plex`. The pre-deploy hook provisions only the top-level private directory as `999:10` with mode `0750`; existing nested ownership is repaired only after a stopped private-tree audit. Back up this directory before migration and preserve its ownership and permissions.
 
-The disposable transcode directory is `/volume2/tmp/plex/transcode`, provisioned as `999:10` with mode `0770`. It does not need to be backed up. Plex mounts `/volume1/data/media` read-only, and deployment must never recursively change ownership or permissions in that shared library tree. The one writable media path is `/volume1/data/media/livetv`, mounted at `/data/livetv` for Live TV & DVR recordings (see [Dispatcharr](#dispatcharr)); the pre-deploy hook provisions it as `999:10` with mode `2775`.
+The disposable transcode directory is `/volume2/tmp/plex/transcode`, provisioned as `999:10` with mode `0770`. It does not need to be backed up. Plex mounts `/volume1/data/media` read-only, and deployment must never recursively change ownership or permissions in that shared library tree. The one writable media path is `/volume1/data/media/livetv`, mounted at `/data/livetv` for Live TV & DVR recordings (see [Dispatcharr](#dispatcharr)); the pre-deploy hook provisions it as `999:10` with mode `2775`. Youtarr's downloads in `/volume1/data/media/youtube` reach Plex through the same read-only mount (see [Youtarr](#youtarr)).
 
 Plex's scheduled database backups go to `/volume1/backups/plex`, mounted at `/backups`, so they survive a Volume 2 failure. The pre-deploy hook provisions that directory as `999:10` with mode `0750`. In Plex `Settings > Scheduled Tasks`, keep `Backup database every three days` enabled and set `Backup directory` to `/backups`.
 
@@ -783,7 +785,7 @@ Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, and SABnzbd have no login of their own
 - Bazarr (by hand, stored in `config.yaml` in its appdata): **Settings → General → Security → Authentication: None**. Its API still requires its API key.
 - SABnzbd (by hand, stored in `sabnzbd.ini`): **Config → General → Security**: empty **Username** and **Password**, and **External internet access** = **Full Web interface** (`inet_exposure` = `4`), because requests through the Cloudflare Tunnel carry public addresses in `X-Forwarded-For`, which the default refuses. `host_whitelist` stays. Its API still requires its API key, except `mode=version`.
 
-Without their own logins, these UIs (and the Arr `/initialize.json`, which contains the API key) are open to every container on `proxy_network` and `media_network`; that is the trade for a single login. qBittorrent, slskd, AdGuard Home, Speedtest Tracker, UGOS, and Houndarr keep their own logins, which protect APIs, hooks, or credentials that other containers could reach.
+Without their own logins, these UIs (and the Arr `/initialize.json`, which contains the API key) are open to every container on `proxy_network` and `media_network`; that is the trade for a single login. qBittorrent, slskd, AdGuard Home, Speedtest Tracker, UGOS, and Houndarr keep their own logins, which protect APIs, hooks, or credentials that other containers could reach. Youtarr's login is off too, but its API returns the Plex token, so it shares a network only with Caddy (see [Youtarr](#youtarr)).
 
 To take an app out of forward auth, restore its own login first (`Forms` and `Authentication Required: Enabled` in the Arrs; never `Disabled for Local Addresses`, because every request reaches them from Caddy's private Docker address), then change its Caddy site.
 
@@ -1421,6 +1423,73 @@ Monitoring: `probe_health` checks `https://dispatcharr.atlas.vandaele.io/api/cor
 
 Updates: Dispatcharr is pre-1.0 and releases every few weeks; read the release notes before merging a Renovate update.
 
+### Youtarr
+
+The `youtarr` stack runs [Youtarr](https://github.com/DialmasterOrg/Youtarr), which downloads subscribed YouTube channels and playlists for two Plex libraries, YouTube and Concerts, at:
+
+```text
+https://youtarr.atlas.vandaele.io
+```
+
+It is behind authentik forward auth for `admins`, on the LAN and through the Cloudflare Tunnel, and its own login is off (`AUTH_ENABLED=false`); only `/api/health` skips the gate. Without a login, Youtarr's API answers every client that reaches it, and its settings (`GET /getconfig`) include the Plex token. So it is not on `proxy_network`: it shares `youtarr_network` only with Caddy, as rclone does, and reaches Plex on its LAN listener, `http://192.168.2.200:32400` (`PLEX_URL`, which overrides the Plex address in Youtarr's settings). The validator refuses `AUTH_ENABLED=false` for an app that is not behind forward auth. Youtarr's API keys (for bookmarklets) cannot pass forward auth and are not used.
+
+Layout:
+
+- `youtarr` runs as `999:10` with no capabilities and a read-only root filesystem; `HOME` is the `/tmp` tmpfs, for Deno's cache. Its state is in `/volume2/appdata/youtarr`: `config` (`config.json` with the Plex token, cookies, and logs), `jobs`, and `images` (all `0700`). yt-dlp is the one in the image: Youtarr's automatic yt-dlp update stays off (its default), so a Youtarr update also updates yt-dlp.
+- `mariadb` (`mariadb:11.4`, an LTS release; upstream's compose file still uses the unsupported 10.3) runs as its image's `999:999` with a read-only root filesystem and its data in `/volume2/appdata/youtarr/mariadb` (`0700`), only on the internal `youtarr_internal` network. Youtarr connects as `youtarr`, a user with every privilege on the database `youtarr` and nothing else.
+- Downloads go to `/volume1/data/media/youtube` (`2775`, like the other media folders), mounted at `/usr/src/app/data`. Plex reads them through its read-only `/data/media` mount. Like all media, they are not backed up.
+
+Komodo variables (secret):
+
+```text
+YOUTARR_DB_PASSWORD        openssl rand -hex 32
+YOUTARR_DB_ROOT_PASSWORD   openssl rand -hex 32
+```
+
+Both apply only when the database is created; to change one later, change it in MariaDB too.
+
+Folders and libraries:
+
+```text
+/volume1/data/media/youtube/
+├── __youtube/      Plex library "YouTube" (TV Shows): subscribed channels
+├── __concerts/     Plex library "Concerts" (Movies): the concert playlist
+├── __playlists__/  Youtarr's .m3u files, in no library
+└── .youtarr_tmp/   downloads in progress, in no library
+```
+
+Youtarr saves each video in `<subfolder>/<channel>/<video folder>/`, with the title, description, and upload date embedded in the MP4, the thumbnail, subtitles, and an `.nfo` file (which Plex ignores). The subfolder:
+
+- A video of a subscribed channel goes to that channel's subfolder; a channel set to "Default Subfolder" uses the global default, `youtube`.
+- A video of a subscribed playlist goes to the playlist's subfolder only when its channel is not subscribed: channel settings win. Youtarr records such a channel as a hidden channel with the playlist's subfolder, so subscribing to it later sends all of its uploads there.
+- A video that is already downloaded never moves.
+
+In Youtarr, subfolders are entered without the `__` (`youtube`, `concerts`); Youtarr adds it.
+
+Concerts come from one YouTube playlist that pjan owns, which must be public or unlisted (Youtarr cannot read private playlists). To add a concert, add it to that playlist on YouTube; Youtarr's hourly check downloads it. Do not subscribe to a channel that posts concerts: its concerts would go to YouTube.
+
+The filename template is global. The YouTube library needs Plex's TV naming (the "Plex TV Series" template: season = year, episode = upload date and time). The Concerts library shows the titles embedded in the MP4 files, so the TV-style names should not matter there; the first downloads check both.
+
+First setup:
+
+1. Create the two Komodo variables and run the Resource Sync. Wait until `youtarr` is healthy (the first start creates every table). Deploy `caddy` by hand (it joins `youtarr_network`), then redeploy `authentik` (its `post_deploy` applies `forward-auth-youtarr.yaml`).
+2. In the Cloudflare Tunnel dashboard, add the public hostname `youtarr.atlas.vandaele.io` with service `http://caddy:8080`.
+3. In Plex, add two libraries:
+   - **YouTube**: type TV Shows, folder `/data/media/youtube/__youtube`, agent Plex Personal Media with **Use local assets** on; turn off intro, credits, and voice activity detection.
+   - **Concerts**: type Movies, folder `/data/media/youtube/__concerts`, agent Personal Media with **Local Media Assets** first. Not the Plex Movie agent: it would match concerts to films on TMDb.
+   - Share them with family in **Settings → Manage Library Access**. YouTube videos carry no content rating, so rating restrictions hide them; restrict with labels instead.
+4. In Youtarr, before the first download:
+   - **Settings → Core**: Video Filename Template **Plex TV Series**; Default Subfolder `youtube`; **Prefix channel name in embedded video title** off.
+   - **Settings → Plex**: **Get Key** (signs in to Plex and stores the token), the YouTube library as the default library, and per-subfolder library mappings `youtube` → YouTube and `concerts` → Concerts, so each download refreshes its own library.
+5. Subscribe to one channel (subfolder "Default Subfolder") and to the concert playlist (subfolder `concerts`, automatic downloads on; **Choose existing videos** for the concerts already in it). Leave the playlist's Plex sync off: the Concerts library is the playlist.
+6. On a TV, check that YouTube shows the channel as a show with years as seasons and that Concerts shows each concert with its title. If YouTube looks wrong, make it an Other Videos library and set the template back to Default; if Concerts does, make it an Other Videos library. Delete and download again only the test videos. Then subscribe to the rest.
+
+Backups: the nightly `appdata-backup` Action stops `youtarr`, so MariaDB is copied stopped. `filters.txt` leaves out `config/logs/` and the yt-dlp cache; `config/complete.list`, Youtarr's record of downloaded videos, is kept. Restore `config`, `jobs`, `images`, and `mariadb` together.
+
+Monitoring: `probe_health` checks `https://youtarr.atlas.vandaele.io/api/health`, which answers `503` when Youtarr cannot reach its database; `probe_routes`, `probe_routes_public`, and `probe_gate` cover the route, so [`ProbeFailed`](#application-probes) covers it. Youtarr has no Prometheus metrics: failed downloads (for example when YouTube asks to confirm it is not a bot) show only in its Download History.
+
+Updates: Youtarr releases every few days. Renovate merges patch releases by itself and leaves minor releases for review; read their release notes for database migrations. Renovate keeps MariaDB below 11.5 (its default collation changes) and never merges it by itself: deploy a MariaDB update on its own, never together with a Youtarr update, whose migrations run when it starts.
+
 ### Outline
 
 The `outline` stack runs [Outline](https://www.getoutline.com/), the Atlas wiki, for pjan and family at:
@@ -1584,7 +1653,7 @@ Apps without their own authentik login sit behind authentik forward auth in Cadd
 - A provider's `skip_path_regex` lets health probe paths through without a session; nothing else bypasses the check. Client-supplied `X-Authentik-*` headers are always stripped.
 - When authentik is down, every forward-auth app answers `502`.
 
-Gated: AdGuard Home, autobrr, Bazarr, Houndarr, Lidarr, Prowlarr, qBittorrent, qui, Radarr, rclone, SABnzbd, slskd, Sonarr, Speedtest Tracker, Spottarr, and UGOS (see [Arr Authentication](#arr-authentication) for which keep their own login; autobrr and qui log in through authentik with OIDC behind the gate, so it is one login). Only health probe paths skip the check: `/ping` (Sonarr, Radarr, Lidarr, Prowlarr), `/api` (SABnzbd, whose API needs its key except `mode=version`), `/api/health` (Houndarr), `/healthz` (Spottarr), `/api/healthz/liveness` and `/api/healthz/readiness` (autobrr), and `/health` (qui). `UNGATED_CADDY_ROUTES` in `scripts/validate-repository.py` lists the routes that stay outside forward auth (authentik itself, Caddy's health route, Grafana and Outline with their own authentik login, Plex and Seerr whose clients cannot follow a login redirect, and the LAN-only Backrest, Dispatcharr, and Komodo). For every gated route the validator requires its `forward-auth-<app>.yaml`, its place in `outpost.yaml`, its `probe_gate` targets, and its place in the authentik inhibition in `alertmanager.yml`.
+Gated: AdGuard Home, autobrr, Bazarr, Houndarr, Lidarr, Prowlarr, qBittorrent, qui, Radarr, rclone, SABnzbd, slskd, Sonarr, Speedtest Tracker, Spottarr, UGOS, and Youtarr (see [Arr Authentication](#arr-authentication) for which keep their own login; autobrr and qui log in through authentik with OIDC behind the gate, so it is one login). Only health probe paths skip the check: `/ping` (Sonarr, Radarr, Lidarr, Prowlarr), `/api` (SABnzbd, whose API needs its key except `mode=version`), `/api/health` (Houndarr, Youtarr), `/healthz` (Spottarr), `/api/healthz/liveness` and `/api/healthz/readiness` (autobrr), and `/health` (qui). `UNGATED_CADDY_ROUTES` in `scripts/validate-repository.py` lists the routes that stay outside forward auth (authentik itself, Caddy's health route, Grafana and Outline with their own authentik login, Plex and Seerr whose clients cannot follow a login redirect, and the LAN-only Backrest, Dispatcharr, and Komodo). For every gated route the validator requires its `forward-auth-<app>.yaml`, its place in `outpost.yaml`, its `probe_gate` targets, and its place in the authentik inhibition in `alertmanager.yml`.
 
 To put an app behind forward auth: add `forward-auth-<app>.yaml` (copy `forward-auth-rclone.yaml`; add a `skip_path_regex` for its probe path only), list it in `outpost.yaml`, add it to `BLUEPRINTS` in `scripts/authentik-apply-blueprints.sh` (before `outpost`), register it in the authentik `config_files` with `requires = "Redeploy"`, switch its site to `import atlas_protected_proxy <app> <upstream>`, and add its `probe_gate` targets and inhibition entry. Only after its gate probes are green, relax the app's own login if wanted; to roll back, restore the app's own login first.
 
@@ -1675,7 +1744,7 @@ Current signals:
 | `probe_dns_external` | AdGuard resolves an external name |
 | `probe_tls_caddy` | Caddy's HTTPS listener `192.168.2.200:443` completes a TLS handshake for `caddy.atlas.vandaele.io` with a valid certificate, and its expiry |
 | `probe_internet` | Outbound HTTPS from the NAS |
-| `probe_health` | Application health, through Caddy unless noted: Servarr `/ping` must report `OK` (fails when the app cannot reach its database), Plex `/identity` must contain a `machineIdentifier` (through Caddy and directly on `:32400`), Grafana `/api/health` must report the database `ok`, SABnzbd must report its version, Caddy must answer `ok`, Komodo, Seerr, Autobrr, Houndarr, qui, Spottarr, Outline, and Dispatcharr health endpoints must return 200, and authentik's ready endpoint (directly, `authentik`) and live endpoint (through Cloudflare, `authentik-public`) must return 200 |
+| `probe_health` | Application health, through Caddy unless noted: Servarr `/ping` must report `OK` (fails when the app cannot reach its database), Plex `/identity` must contain a `machineIdentifier` (through Caddy and directly on `:32400`), Grafana `/api/health` must report the database `ok`, SABnzbd must report its version, Caddy must answer `ok`, Komodo, Seerr, Autobrr, Houndarr, qui, Spottarr, Outline, Dispatcharr, and Youtarr health endpoints must return 200, and authentik's ready endpoint (directly, `authentik`) and live endpoint (through Cloudflare, `authentik-public`) must return 200 |
 | `caddy` | Caddy's own metrics per hostname (requests, errors, latency) on the internal listener `:2020` |
 | `cloudflared` | Tunnel metrics, including `cloudflared_tunnel_ha_connections`, on `:2000` |
 | `unpackerr` | Extraction metrics on `:5656` |
@@ -1991,7 +2060,7 @@ To add a new app route:
 
 1. Add a new file under `stacks/caddy/conf/sites/`.
 2. Add the file to the Caddy stack `config_files` list in `stacks.toml`.
-3. Ensure the app container joins `proxy_network`, or proxy to `host.docker.internal` for host services.
+3. Ensure the app container joins `proxy_network` (or a network it shares only with Caddy, like `rclone_network` and `youtarr_network`, which Caddy's compose file and `pre_deploy`, `scripts/ensure-docker-network.sh`, and `scripts/validate.sh` then list too), or proxy to `host.docker.internal` for host services.
 4. Push to `main`, execute Resource Sync, then explicitly deploy or redeploy `caddy` so the `post_deploy` reload hook applies the live config.
 
 Most application UIs are exposed only through Caddy, at `https://<app>.atlas.vandaele.io`. The validator requires every route to be served on `443` and, except LAN-only routes, on the tunnel listener `8080`, and rejects `*.atlas.local` and port-80 addresses in site files. There is no Cloudflare Access in front of public hostnames. Every route is either behind authentik forward auth or listed as ungated (see [Forward Auth](#forward-auth)). Routes listed in `LOCAL_ONLY_CADDY_ROUTES` in `scripts/validate-repository.py` (currently `backrest`, `dispatcharr`, and `komodo`) are LAN-only: they use the `atlas_lan_proxy` snippet (Dispatcharr a site of its own, see [Dispatcharr](#dispatcharr)), are not on `8080`, and must not get a tunnel route or a public DNS record. Plex is the direct-port exception and still publishes `192.168.2.200:32400/tcp` for native client discovery and direct access.

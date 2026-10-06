@@ -52,6 +52,7 @@ file name:
 | protonvpn.svg | svg/proton-vpn.svg |
 | tailscale.svg | svg/tailscale.svg |
 | unifi.svg | svg/ubiquiti-unifi.svg |
+| youtarr.png | png/youtarr.png |
 
 ## Other sources
 

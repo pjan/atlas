@@ -716,6 +716,53 @@ DISPATCHARR_POSTGRES_PASSWORD = [[DISPATCHARR_POSTGRES_PASSWORD]]
 """
 
 [[stack]]
+name = "youtarr"
+description = "Youtarr YouTube channels and playlists for the Plex YouTube and Concerts libraries"
+deploy = true
+tags = ["media"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/youtarr"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["https://youtarr.atlas.vandaele.io"]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+sh ../../scripts/ensure-docker-network.sh youtarr_network
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/youtarr" 0 0 0755
+for dir in config jobs images; do
+  sh ../../scripts/atlas-hostfs.sh ensure-dir \
+    "[[APPDATA_DIR]]/youtarr/$dir" [[PUID]] [[PGID]] 0700
+done
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/youtarr/mariadb" 999 999 0700
+for dir in youtube youtube/__youtube youtube/__concerts; do
+  sh ../../scripts/atlas-hostfs.sh ensure-shared-dir \
+    "[[DATA_DIR]]/media/$dir" [[PUID]] [[PGID]] 2775
+done
+"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+NAS_LAN_IP = [[NAS_LAN_IP]]
+YOUTARR_CONFIG_DIR = [[APPDATA_DIR]]/youtarr/config
+YOUTARR_JOBS_DIR = [[APPDATA_DIR]]/youtarr/jobs
+YOUTARR_IMAGES_DIR = [[APPDATA_DIR]]/youtarr/images
+YOUTARR_MARIADB_DIR = [[APPDATA_DIR]]/youtarr/mariadb
+YOUTUBE_DIR = [[DATA_DIR]]/media/youtube
+YOUTARR_DB_PASSWORD = [[YOUTARR_DB_PASSWORD]]
+YOUTARR_DB_ROOT_PASSWORD = [[YOUTARR_DB_ROOT_PASSWORD]]
+"""
+
+[[stack]]
 name = "kometa"
 description = "Kometa Plex metadata and collection automation"
 deploy = true
@@ -1146,6 +1193,7 @@ config_files = [
   { path = "blueprints/forward-auth-speedtest.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/forward-auth-spottarr.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/forward-auth-ugos.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-youtarr.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/google.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/grafana.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/groups.yaml", services = ["worker"], requires = "Redeploy" },
@@ -1469,6 +1517,7 @@ config_files = [
   { path = "conf/sites/lidarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/metrics.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/ugos.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/youtarr.caddy", services = ["caddy"], requires = "Restart" },
 ]
 pre_deploy.path = "."
 pre_deploy.shell_mode = true
@@ -1477,6 +1526,7 @@ set -eu
 sh ../../scripts/ensure-docker-network.sh media_network
 sh ../../scripts/ensure-docker-network.sh proxy_network
 sh ../../scripts/ensure-docker-network.sh rclone_network
+sh ../../scripts/ensure-docker-network.sh youtarr_network
 sh ../../scripts/ensure-docker-network.sh monitoring_network
 # A malformed Cloudflare token stops Caddy from loading any site and puts the
 # token in its log, so check the value Komodo wrote to .env first, without

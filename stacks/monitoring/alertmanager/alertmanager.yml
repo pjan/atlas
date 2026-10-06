@@ -30,7 +30,7 @@ inhibit_rules:
   # Every probe of an app behind authentik forward auth passes through its
   # embedded outpost, health paths included.
   - source_matchers: ['alertname="ProbeFailed"', 'service="authentik"']
-    target_matchers: ['alertname="ProbeFailed"', 'service=~"(adguard|autobrr|bazarr|houndarr|lidarr|prowlarr|qbittorrent|qui|radarr|rclone|sabnzbd|slskd|sonarr|speedtest|spottarr|ugos)(-public|-gate|-gate-public)?"']
+    target_matchers: ['alertname="ProbeFailed"', 'service=~"(adguard|autobrr|bazarr|houndarr|lidarr|prowlarr|qbittorrent|qui|radarr|rclone|sabnzbd|slskd|sonarr|speedtest|spottarr|ugos|youtarr)(-public|-gate|-gate-public)?"']
   # The public probes (<app>-public) go through the Cloudflare Tunnel.
   - source_matchers: ['alertname="TunnelDown"']
     target_matchers: ['alertname="ProbeFailed"', 'service=~".+-public"']

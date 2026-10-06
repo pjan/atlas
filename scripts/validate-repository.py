@@ -227,6 +227,11 @@ VALIDATION_VALUES = {
     "TORRENTS_DIR": "/volume1/data/downloads/torrents",
     "USENET_DIR": "/volume1/data/downloads/usenet",
     "WORK_DIR": "/volume2/appdata/adguard/work",
+    "YOUTARR_CONFIG_DIR": "/volume2/appdata/youtarr/config",
+    "YOUTARR_IMAGES_DIR": "/volume2/appdata/youtarr/images",
+    "YOUTARR_JOBS_DIR": "/volume2/appdata/youtarr/jobs",
+    "YOUTARR_MARIADB_DIR": "/volume2/appdata/youtarr/mariadb",
+    "YOUTUBE_DIR": "/volume1/data/media/youtube",
 }
 
 
@@ -874,13 +879,15 @@ def validate_forward_auth(
     }
     # An app without a login of its own is only safe behind forward auth.
     for compose_file in sorted(STACKS_ROOT.glob("*/compose.yaml")):
-        if "__AUTH__METHOD=External" in compose_file.read_text(encoding="utf-8"):
-            name = compose_file.parent.name
-            validation.require(
-                name in gated_routes,
-                f"{relative(compose_file)} turns its login off (External) but "
-                f"route {name} is not behind authentik forward auth",
-            )
+        compose_text = compose_file.read_text(encoding="utf-8")
+        for setting in ("__AUTH__METHOD=External", "AUTH_ENABLED=false"):
+            if setting in compose_text:
+                name = compose_file.parent.name
+                validation.require(
+                    name in gated_routes,
+                    f"{relative(compose_file)} turns its login off ({setting}) but "
+                    f"route {name} is not behind authentik forward auth",
+                )
 
     # An authentik outage fails every probe of a gated app; one alert is enough.
     inhibition = re.search(

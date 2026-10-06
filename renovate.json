@@ -16,6 +16,7 @@
         "adguard/adguardhome",
         "busybox",
         "cloudflare/cloudflared",
+        "dialmaster/youtarr",
         "flaresolverr/flaresolverr",
         "garethgeorge/backrest",
         "ghcr.io/dispatcharr/dispatcharr",
@@ -36,6 +37,7 @@
         "lscr.io/linuxserver/radarr",
         "lscr.io/linuxserver/sonarr",
         "lscr.io/linuxserver/speedtest-tracker",
+        "mariadb",
         "mongo",
         "mikefarah/yq",
         "mrusse08/soularr",
@@ -61,6 +63,12 @@
       "matchDatasources": ["docker"],
       "matchPackageNames": ["postgres"],
       "allowedVersions": "<17"
+    },
+    {
+      "description": "Keep Youtarr's MariaDB on 11.4 LTS: 11.5 changes the default collation, and Youtarr's migrations expect utf8mb4_unicode_ci.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["mariadb"],
+      "allowedVersions": "<11.5"
     },
     {
       "description": "Use upstream qBittorrent versions and exclude legacy LinuxServer tags.",
@@ -113,6 +121,12 @@
       "description": "Review every Alertmanager update: webhook payload templating is experimental, and a regression makes Discord reject every alert.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["prom/alertmanager"],
+      "automerge": false
+    },
+    {
+      "description": "Review every MariaDB update by hand and deploy it on its own: an update of MariaDB together with Youtarr, whose migrations run when it starts, can corrupt tables.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["mariadb"],
       "automerge": false
     },
     {
