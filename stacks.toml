@@ -666,6 +666,8 @@ sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[TMP_DIR]]/plex/transcode" [[PUID]] [[PGID]] 0770
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "/volume1/backups/plex" [[PUID]] [[PGID]] 0750
+sh ../../scripts/atlas-hostfs.sh ensure-shared-dir \
+  "[[DATA_DIR]]/media/livetv" [[PUID]] [[PGID]] 2775
 """
 pre_deploy.shell_mode = true
 environment = """
@@ -678,7 +680,39 @@ CONFIG_DIR = [[APPDATA_DIR]]/plex
 MEDIA_DIR = [[DATA_DIR]]/media
 TRANSCODE_DIR = [[TMP_DIR]]/plex/transcode
 BACKUP_DIR = /volume1/backups/plex
+LIVETV_DIR = [[DATA_DIR]]/media/livetv
 PLEX_CLAIM =
+"""
+
+[[stack]]
+name = "dispatcharr"
+description = "Dispatcharr IPTV channels for Plex Live TV and Xtream Codes apps, LAN and Tailscale only"
+deploy = true
+tags = ["media"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/dispatcharr"
+file_paths = ["compose.yaml"]
+auto_pull = true
+poll_for_updates = true
+links = ["https://dispatcharr.atlas.vandaele.io"]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+sh ../../scripts/ensure-docker-network.sh proxy_network
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/dispatcharr" [[PUID]] [[PGID]] 0700
+"""
+pre_deploy.shell_mode = true
+environment = """
+PUID = [[PUID]]
+PGID = [[PGID]]
+TZ = [[TZ]]
+CONFIG_DIR = [[APPDATA_DIR]]/dispatcharr
+DISPATCHARR_POSTGRES_PASSWORD = [[DISPATCHARR_POSTGRES_PASSWORD]]
 """
 
 [[stack]]
@@ -1132,6 +1166,7 @@ config_files = [
   { path = "branding/icons/cloudflare-zero-trust.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/cloudflare.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/discord.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/dispatcharr.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/github.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/gmail.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/google-admin.svg", services = ["server"], requires = "None" },
@@ -1414,6 +1449,7 @@ config_files = [
   { path = "conf/sites/backrest.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/bazarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/caddy.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/dispatcharr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/grafana.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/houndarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/komodo.caddy", services = ["caddy"], requires = "Restart" },

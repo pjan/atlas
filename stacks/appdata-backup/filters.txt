@@ -12,5 +12,8 @@
 - /appdata/plex/Library/Application Support/Plex Media Server/Crash Reports/
 - /appdata/plex/Library/Application Support/Plex Media Server/Drivers/
 - /appdata/plex/Library/Application Support/Plex Media Server/Logs/
+# Regenerable Dispatcharr logo and poster caches, and its logs.
+- /appdata/dispatcharr/cache/
+- /appdata/dispatcharr/logs/
 # AdGuard query logs.
 - /appdata/adguard/work/data/querylog*

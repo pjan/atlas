@@ -2,8 +2,9 @@
 # Links on the application dashboard to apps that authentik does not protect
 # (README "Dashboard"): applications without a provider, so authentik only
 # shows them; each app keeps its own login. Plex and Seerr are for admins and
-# family; Komodo and Backrest, which open only on the LAN and Tailscale, for
-# admins. Below them, external services, which open in a new tab.
+# family; Dispatcharr, Komodo, and Backrest, which open only on the LAN and
+# Tailscale, for admins. Below them, external services, which open in a new
+# tab.
 version: 1
 metadata:
   name: Atlas - Dashboard links
@@ -57,6 +58,23 @@ entries:
       target: !KeyOf seerr
       group: !Find [authentik_core.group, [name, family]]
       order: 1
+
+  - model: authentik_core.application
+    id: dispatcharr
+    identifiers:
+      slug: dispatcharr
+    attrs:
+      name: Dispatcharr
+      group: Media
+      meta_icon: /static/dist/custom/icons/dispatcharr.svg
+      meta_launch_url: https://dispatcharr.atlas.vandaele.io
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf dispatcharr
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
 
   - model: authentik_core.application
     id: komodo

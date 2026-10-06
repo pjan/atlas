@@ -232,7 +232,7 @@ Keep new scheduled work out of the 04:30–06:30 window, which is reserved for t
 
 Off-site, Backrest copies all of `/volume1/backups` to the Google Shared Drive `Atlas` every day at 06:00 (see [Off-Site Backups With Backrest](#off-site-backups-with-backrest)).
 
-The appdata copy excludes `roonserver` (covered by Roon's own backups), monitoring data (`prometheus`, `alertmanager`, and `grafana`, see [Monitoring](#monitoring)), Plex caches, codecs, drivers, logs, and crash reports, and AdGuard query logs. The rules live in `stacks/appdata-backup/filters.txt`.
+The appdata copy excludes `roonserver` (covered by Roon's own backups), monitoring data (`prometheus`, `alertmanager`, and `grafana`, see [Monitoring](#monitoring)), Plex caches, codecs, drivers, logs, and crash reports, Dispatcharr's logo and poster caches and logs, and AdGuard query logs. The rules live in `stacks/appdata-backup/filters.txt`.
 
 The Komodo, Plex, and Roon backups are written by the applications themselves; [their staleness alerts](#komodo-plex-and-roon-backups) watch the newest file in each directory.
 
@@ -464,7 +464,7 @@ Volume 2 holds Docker, the Komodo bootstrap directory, Periphery's workspace, an
    recyclarr (before Library Import, so the TRaSH profiles exist)
    bazarr, spottarr, slskd, autobrr, qui
    unpackerr, seerr, houndarr, soularr
-   plex, kometa, roonserver
+   plex, kometa, roonserver, dispatcharr
    remaining stacks
    ```
 
@@ -602,6 +602,7 @@ BAZARR_API_KEY
 CLOUDFLARE_DNS_API_TOKEN
 CLOUDFLARE_TUNNEL_TOKEN
 DISCORD_ALERTS_WEBHOOK_URL
+DISPATCHARR_POSTGRES_PASSWORD
 GLUETUN_CONTROL_API_KEY
 GOOGLE_OAUTH_CLIENT_ID
 GOOGLE_OAUTH_CLIENT_SECRET
@@ -681,7 +682,7 @@ If restoring an existing Plex `/config` with a valid `Preferences.xml`, a claim 
 
 Plex stores its database, metadata, preferences, claim state, and authentication tokens under `/volume2/appdata/plex`. The pre-deploy hook provisions only the top-level private directory as `999:10` with mode `0750`; existing nested ownership is repaired only after a stopped private-tree audit. Back up this directory before migration and preserve its ownership and permissions.
 
-The disposable transcode directory is `/volume2/tmp/plex/transcode`, provisioned as `999:10` with mode `0770`. It does not need to be backed up. Plex mounts `/volume1/data/media` read-only, and deployment must never recursively change ownership or permissions in that shared library tree.
+The disposable transcode directory is `/volume2/tmp/plex/transcode`, provisioned as `999:10` with mode `0770`. It does not need to be backed up. Plex mounts `/volume1/data/media` read-only, and deployment must never recursively change ownership or permissions in that shared library tree. The one writable media path is `/volume1/data/media/livetv`, mounted at `/data/livetv` for Live TV & DVR recordings (see [Dispatcharr](#dispatcharr)); the pre-deploy hook provisions it as `999:10` with mode `2775`.
 
 Plex's scheduled database backups go to `/volume1/backups/plex`, mounted at `/backups`, so they survive a Volume 2 failure. The pre-deploy hook provisions that directory as `999:10` with mode `0750`. In Plex `Settings > Scheduled Tasks`, keep `Backup database every three days` enabled and set `Backup directory` to `/backups`.
 
@@ -1372,6 +1373,54 @@ After first login, change Speedtest Tracker's default application credentials.
 
 The stack uses SQLite under `[[APPDATA_DIR]]/speedtest-tracker`, runs a scheduled test every six hours by default with `SPEEDTEST_TRACKER_SCHEDULE=6 */6 * * *`, and prunes results older than 365 days by default. Set `SPEEDTEST_TRACKER_SERVERS` to a comma-separated list of Ookla server IDs if you want pinned test servers; otherwise Speedtest Tracker will choose automatically.
 
+### Dispatcharr
+
+The `dispatcharr` stack runs [Dispatcharr](https://github.com/Dispatcharr/Dispatcharr), which turns pjan's paid Xtream Codes IPTV subscription into live channels for Plex and for IPTV apps, at:
+
+```text
+https://dispatcharr.atlas.vandaele.io
+```
+
+It is LAN and Tailscale only (`LOCAL_ONLY_CADDY_ROUTES`): no tunnel route, no public DNS record, and no forward auth, because Xtream Codes apps cannot follow a login redirect. Its own logins protect it. Its playlists and tuner endpoints (`/output/m3u`, `/output/epg`, `/hdhr/`) need no credentials, and its Xtream Codes URLs carry a user's password in the path, so it must never get a public hostname.
+
+Layout:
+
+- One container (the all-in-one image) runs Postgres, Redis, Celery, uWSGI, and nginx on `9191`. The entrypoint starts as root, creates the `999:10` user, and runs every process as that user, so the container cannot have a read-only root filesystem or drop its capabilities; it has `no-new-privileges`.
+- Everything lives in `/volume2/appdata/dispatcharr` (`0700`), mounted at `/data`, including Postgres in `/data/db`.
+- It joins only `proxy_network`, where Caddy and Plex reach it. The embedded Postgres listens on every interface, so it stays off `media_network` (the downloaders), and `DISPATCHARR_POSTGRES_PASSWORD` replaces its default password `secret`.
+- `stacks/caddy/conf/sites/dispatcharr.caddy` replaces `X-Real-IP` with the client address: Dispatcharr believes that header from any private peer, and its network rules and login throttling depend on it.
+
+Komodo variable (secret):
+
+```text
+DISPATCHARR_POSTGRES_PASSWORD    openssl rand -hex 32
+```
+
+It is applied to the database on every start, so it can be changed by redeploying.
+
+First setup:
+
+1. Create the Komodo variable, run the Resource Sync, and wait until `dispatcharr` is healthy (the first start runs every migration). Deploy `caddy`, then redeploy `authentik` for the dashboard link.
+2. From a device on the LAN, not Tailscale (Dispatcharr only allows the first setup from private networks), open `https://dispatcharr.atlas.vandaele.io` and create the admin account. Do it right after the first deploy: until then any client that reaches it could.
+3. Add the provider under **M3U & EPG Manager** as an Xtream Codes account, then pick and number the channels.
+4. Create one user per person at the Streamer level, each with a long random Xtream Codes password. Never give the admin account an Xtream Codes password: for admins the playlist can contain the provider's own stream URLs, with the provider credentials.
+
+Plex Live TV (needs Plex Pass):
+
+1. In Plex, **Settings → Live TV & DVR → Set Up Plex Tuner**, choose **Enter its network address manually**, and enter `http://dispatcharr:9191/hdhr` (Plex reaches it on `proxy_network`).
+2. If Plex has no guide for the region, use Dispatcharr's: `http://dispatcharr:9191/output/epg?cachedlogos=false` (Plex cannot load Dispatcharr's cached logos).
+3. Set the DVR recording folder to `/data/livetv`, a library of its own (the other libraries are read-only).
+
+Recordings are made by Plex; Dispatcharr's own DVR is not used.
+
+Xtream Codes apps (for example TiviMate) outside the home connect over Tailscale: the device needs Tailscale with Atlas DNS (see [Configure UniFi Local DNS](#2-configure-unifi-local-dns)). Server `https://dispatcharr.atlas.vandaele.io`, with the person's Dispatcharr username and Xtream Codes password. A provider usually limits concurrent connections: viewers of the same channel share one, viewers of different channels do not.
+
+Backups: the nightly `appdata-backup` Action stops `dispatcharr`, so its database is copied stopped; the entrypoint stops Postgres immediately after 8 seconds, which Postgres recovers from on the next start. `filters.txt` leaves out `cache/` (logos, posters) and `logs/`. Live streams drop while the stack is stopped.
+
+Monitoring: `probe_health` checks `https://dispatcharr.atlas.vandaele.io/api/core/version/` and `probe_routes` the route, so [`ProbeFailed`](#application-probes) covers it. The version endpoint does not touch the database, so a database failure shows only in the app. Dispatcharr has no Prometheus metrics.
+
+Updates: Dispatcharr is pre-1.0 and releases every few weeks; read the release notes before merging a Renovate update.
+
 ### Outline
 
 The `outline` stack runs [Outline](https://www.getoutline.com/), the Atlas wiki, for pjan and family at:
@@ -1522,7 +1571,7 @@ A changed file in `branding/` is served at once without a redeploy; browsers may
 
 #### Dashboard
 
-`https://auth.atlas.vandaele.io` is a homepage for Atlas: after login it lists the apps a user may open, in the groups Media, Downloads, and System (authentik sorts the groups and the apps alphabetically). Each application blueprint sets its `group` and its `meta_icon`, a file in `stacks/authentik/branding/icons/` (sources and licences in its `NOTICE.md`; mostly [selfh.st/icons](https://github.com/selfhst/icons), CC BY 4.0). A new app's icon goes there too, registered in the authentik `config_files` unless it is binary. The dashboard looks like a tablet home screen: each icon sits on a rounded translucent plate with its name under it, in a dense grid, so application names stay short enough to fit under an icon ("AdGuard", "Speedtest"). Below about 576 pixels wide authentik switches to its list view, which keeps its own layout. `links.yaml` adds Plex and Seerr (`admins` and `family`) and Komodo and Backrest (`admins`) as links only: applications without a provider, so authentik shows them but does not protect them, and each keeps its own login (Komodo and Backrest open only on the LAN and Tailscale). It also links external services, which open in a new tab: for `admins` the accounts Atlas runs on in **Cloud** (Cloudflare, which is also the registrar, Cloudflare Zero Trust, Tailscale, Google Workspace admin, Google Cloud, GitHub, Healthchecks.io, Proton VPN), UniFi in **System**, and the Usenet indexers (NZBgeek, NZBFinder, nzb.life) in **Downloads**; for everyone Gmail, Calendar, Drive, Photos, and Discord in **Apps**. For family the dashboard shows Discord, the four Google apps, Plex, Seerr, Grafana, and Outline.
+`https://auth.atlas.vandaele.io` is a homepage for Atlas: after login it lists the apps a user may open, in the groups Media, Downloads, and System (authentik sorts the groups and the apps alphabetically). Each application blueprint sets its `group` and its `meta_icon`, a file in `stacks/authentik/branding/icons/` (sources and licences in its `NOTICE.md`; mostly [selfh.st/icons](https://github.com/selfhst/icons), CC BY 4.0). A new app's icon goes there too, registered in the authentik `config_files` unless it is binary. The dashboard looks like a tablet home screen: each icon sits on a rounded translucent plate with its name under it, in a dense grid, so application names stay short enough to fit under an icon ("AdGuard", "Speedtest"). Below about 576 pixels wide authentik switches to its list view, which keeps its own layout. `links.yaml` adds Plex and Seerr (`admins` and `family`) and Dispatcharr, Komodo, and Backrest (`admins`) as links only: applications without a provider, so authentik shows them but does not protect them, and each keeps its own login (Dispatcharr, Komodo, and Backrest open only on the LAN and Tailscale). It also links external services, which open in a new tab: for `admins` the accounts Atlas runs on in **Cloud** (Cloudflare, which is also the registrar, Cloudflare Zero Trust, Tailscale, Google Workspace admin, Google Cloud, GitHub, Healthchecks.io, Proton VPN), UniFi in **System**, and the Usenet indexers (NZBgeek, NZBFinder, nzb.life) in **Downloads**; for everyone Gmail, Calendar, Drive, Photos, and Discord in **Apps**. For family the dashboard shows Discord, the four Google apps, Plex, Seerr, Grafana, and Outline.
 
 #### Forward Auth
 
@@ -1535,7 +1584,7 @@ Apps without their own authentik login sit behind authentik forward auth in Cadd
 - A provider's `skip_path_regex` lets health probe paths through without a session; nothing else bypasses the check. Client-supplied `X-Authentik-*` headers are always stripped.
 - When authentik is down, every forward-auth app answers `502`.
 
-Gated: AdGuard Home, autobrr, Bazarr, Houndarr, Lidarr, Prowlarr, qBittorrent, qui, Radarr, rclone, SABnzbd, slskd, Sonarr, Speedtest Tracker, Spottarr, and UGOS (see [Arr Authentication](#arr-authentication) for which keep their own login; autobrr and qui log in through authentik with OIDC behind the gate, so it is one login). Only health probe paths skip the check: `/ping` (Sonarr, Radarr, Lidarr, Prowlarr), `/api` (SABnzbd, whose API needs its key except `mode=version`), `/api/health` (Houndarr), `/healthz` (Spottarr), `/api/healthz/liveness` and `/api/healthz/readiness` (autobrr), and `/health` (qui). `UNGATED_CADDY_ROUTES` in `scripts/validate-repository.py` lists the routes that stay outside forward auth (authentik itself, Caddy's health route, Grafana and Outline with their own authentik login, Plex and Seerr whose clients cannot follow a login redirect, and the LAN-only Backrest and Komodo). For every gated route the validator requires its `forward-auth-<app>.yaml`, its place in `outpost.yaml`, its `probe_gate` targets, and its place in the authentik inhibition in `alertmanager.yml`.
+Gated: AdGuard Home, autobrr, Bazarr, Houndarr, Lidarr, Prowlarr, qBittorrent, qui, Radarr, rclone, SABnzbd, slskd, Sonarr, Speedtest Tracker, Spottarr, and UGOS (see [Arr Authentication](#arr-authentication) for which keep their own login; autobrr and qui log in through authentik with OIDC behind the gate, so it is one login). Only health probe paths skip the check: `/ping` (Sonarr, Radarr, Lidarr, Prowlarr), `/api` (SABnzbd, whose API needs its key except `mode=version`), `/api/health` (Houndarr), `/healthz` (Spottarr), `/api/healthz/liveness` and `/api/healthz/readiness` (autobrr), and `/health` (qui). `UNGATED_CADDY_ROUTES` in `scripts/validate-repository.py` lists the routes that stay outside forward auth (authentik itself, Caddy's health route, Grafana and Outline with their own authentik login, Plex and Seerr whose clients cannot follow a login redirect, and the LAN-only Backrest, Dispatcharr, and Komodo). For every gated route the validator requires its `forward-auth-<app>.yaml`, its place in `outpost.yaml`, its `probe_gate` targets, and its place in the authentik inhibition in `alertmanager.yml`.
 
 To put an app behind forward auth: add `forward-auth-<app>.yaml` (copy `forward-auth-rclone.yaml`; add a `skip_path_regex` for its probe path only), list it in `outpost.yaml`, add it to `BLUEPRINTS` in `scripts/authentik-apply-blueprints.sh` (before `outpost`), register it in the authentik `config_files` with `requires = "Redeploy"`, switch its site to `import atlas_protected_proxy <app> <upstream>`, and add its `probe_gate` targets and inhibition entry. Only after its gate probes are green, relax the app's own login if wanted; to roll back, restore the app's own login first.
 
@@ -1626,7 +1675,7 @@ Current signals:
 | `probe_dns_external` | AdGuard resolves an external name |
 | `probe_tls_caddy` | Caddy's HTTPS listener `192.168.2.200:443` completes a TLS handshake for `caddy.atlas.vandaele.io` with a valid certificate, and its expiry |
 | `probe_internet` | Outbound HTTPS from the NAS |
-| `probe_health` | Application health, through Caddy unless noted: Servarr `/ping` must report `OK` (fails when the app cannot reach its database), Plex `/identity` must contain a `machineIdentifier` (through Caddy and directly on `:32400`), Grafana `/api/health` must report the database `ok`, SABnzbd must report its version, Caddy must answer `ok`, Komodo, Seerr, Autobrr, Houndarr, qui, Spottarr, and Outline health endpoints must return 200, and authentik's ready endpoint (directly, `authentik`) and live endpoint (through Cloudflare, `authentik-public`) must return 200 |
+| `probe_health` | Application health, through Caddy unless noted: Servarr `/ping` must report `OK` (fails when the app cannot reach its database), Plex `/identity` must contain a `machineIdentifier` (through Caddy and directly on `:32400`), Grafana `/api/health` must report the database `ok`, SABnzbd must report its version, Caddy must answer `ok`, Komodo, Seerr, Autobrr, Houndarr, qui, Spottarr, Outline, and Dispatcharr health endpoints must return 200, and authentik's ready endpoint (directly, `authentik`) and live endpoint (through Cloudflare, `authentik-public`) must return 200 |
 | `caddy` | Caddy's own metrics per hostname (requests, errors, latency) on the internal listener `:2020` |
 | `cloudflared` | Tunnel metrics, including `cloudflared_tunnel_ha_connections`, on `:2000` |
 | `unpackerr` | Extraction metrics on `:5656` |
@@ -1945,7 +1994,7 @@ To add a new app route:
 3. Ensure the app container joins `proxy_network`, or proxy to `host.docker.internal` for host services.
 4. Push to `main`, execute Resource Sync, then explicitly deploy or redeploy `caddy` so the `post_deploy` reload hook applies the live config.
 
-Most application UIs are exposed only through Caddy, at `https://<app>.atlas.vandaele.io`. The validator requires every route to be served on `443` and, except LAN-only routes, on the tunnel listener `8080`, and rejects `*.atlas.local` and port-80 addresses in site files. There is no Cloudflare Access in front of public hostnames. Every route is either behind authentik forward auth or listed as ungated (see [Forward Auth](#forward-auth)). Routes listed in `LOCAL_ONLY_CADDY_ROUTES` in `scripts/validate-repository.py` (currently `backrest` and `komodo`) are LAN-only: they use the `atlas_lan_proxy` snippet, are not on `8080`, and must not get a tunnel route or a public DNS record. Plex is the direct-port exception and still publishes `192.168.2.200:32400/tcp` for native client discovery and direct access.
+Most application UIs are exposed only through Caddy, at `https://<app>.atlas.vandaele.io`. The validator requires every route to be served on `443` and, except LAN-only routes, on the tunnel listener `8080`, and rejects `*.atlas.local` and port-80 addresses in site files. There is no Cloudflare Access in front of public hostnames. Every route is either behind authentik forward auth or listed as ungated (see [Forward Auth](#forward-auth)). Routes listed in `LOCAL_ONLY_CADDY_ROUTES` in `scripts/validate-repository.py` (currently `backrest`, `dispatcharr`, and `komodo`) are LAN-only: they use the `atlas_lan_proxy` snippet (Dispatcharr a site of its own, see [Dispatcharr](#dispatcharr)), are not on `8080`, and must not get a tunnel route or a public DNS record. Plex is the direct-port exception and still publishes `192.168.2.200:32400/tcp` for native client discovery and direct access.
 
 Validation note:
 

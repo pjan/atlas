@@ -224,6 +224,9 @@ scrape_configs:
         labels: {module: http_health_200, service: spottarr}
       - targets: ["https://outline.atlas.vandaele.io/_health"]
         labels: {module: http_health_200, service: outline}
+      # Dispatcharr's version endpoint: the app is up, not that its database is.
+      - targets: ["https://dispatcharr.atlas.vandaele.io/api/core/version/"]
+        labels: {module: http_health_200, service: dispatcharr}
       # authentik directly on monitoring_network, and through the Cloudflare
       # Tunnel and Caddy: the public probe runs on blackbox-public, which
       # resolves through public DNS.
@@ -259,6 +262,7 @@ scrape_configs:
           - https://backrest.atlas.vandaele.io
           - https://bazarr.atlas.vandaele.io
           - https://caddy.atlas.vandaele.io
+          - https://dispatcharr.atlas.vandaele.io
           - https://grafana.atlas.vandaele.io
           - https://houndarr.atlas.vandaele.io
           - https://komodo.atlas.vandaele.io

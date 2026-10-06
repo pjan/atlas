@@ -23,6 +23,7 @@ file name:
 | autobrr.svg | svg/autobrr.svg |
 | backrest.svg | svg/backrest.svg |
 | bazarr.svg | svg/bazarr.svg |
+| dispatcharr.svg | svg/dispatcharr.svg |
 | grafana.svg | svg/grafana.svg |
 | komodo.svg | svg/komodo.svg |
 | lidarr.svg | svg/lidarr.svg |

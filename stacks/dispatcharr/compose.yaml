@@ -1,0 +1,56 @@
+services:
+  dispatcharr:
+    # All-in-one image: Postgres, Redis, Celery, uWSGI, and nginx in one
+    # container. The entrypoint starts as root, creates the PUID/PGID user, and
+    # runs every process as that user (README "Dispatcharr").
+    image: ghcr.io/dispatcharr/dispatcharr:0.31.0
+    container_name: dispatcharr
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - DISPATCHARR_ENV=aio
+      - DISPATCHARR_LOG_LEVEL=info
+      - REDIS_HOST=localhost
+      - CELERY_BROKER_URL=redis://localhost:6379/0
+      # The embedded Postgres listens on every interface with password auth;
+      # without this it is "secret". Applied again on every start.
+      - POSTGRES_PASSWORD=${DISPATCHARR_POSTGRES_PASSWORD:?DISPATCHARR_POSTGRES_PASSWORD is required}
+    volumes:
+      - type: bind
+        source: ${CONFIG_DIR:?CONFIG_DIR is required}
+        target: /data
+        bind:
+          create_host_path: false
+    expose:
+      - "9191"
+    # proxy_network only: Caddy and Plex reach it there. Not on media_network,
+    # whose downloaders would otherwise reach the embedded Postgres.
+    networks:
+      - proxy_network
+    mem_limit: 3g
+    cpus: 2
+    pids_limit: 512
+    # The entrypoint gives its processes 8 seconds before stopping Postgres
+    # immediately.
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:9191/api/core/version/ >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # The first start creates the database and runs every migration.
+      start_period: 10m
+
+networks:
+  proxy_network:
+    name: proxy_network
+    external: true

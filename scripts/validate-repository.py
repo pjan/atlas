@@ -98,13 +98,15 @@ ATLAS_MAX_FIELD_VALUES = {
     "Details": 358,
     "Links": 300,
 }
-# Routes that must stay LAN-only: Backrest holds every backup secret, and
-# Komodo deploys every stack and is the break-glass when authentik is down.
-LOCAL_ONLY_CADDY_ROUTES = {"backrest", "komodo"}
+# Routes that must stay LAN-only: Backrest holds every backup secret, Komodo
+# deploys every stack and is the break-glass when authentik is down, and
+# Dispatcharr serves credential-free playlists and Xtream Codes URLs with
+# credentials in them.
+LOCAL_ONLY_CADDY_ROUTES = {"backrest", "dispatcharr", "komodo"}
 # Routes not behind authentik forward auth (README "authentik"): its login,
 # Caddy's health route, apps with their own authentik OIDC or clients that
 # cannot follow a login redirect, and the LAN-only routes.
-UNGATED_CADDY_ROUTES = {"auth", "backrest", "caddy", "grafana", "komodo", "outline", "plex", "seerr"}
+UNGATED_CADDY_ROUTES = {"auth", "backrest", "caddy", "dispatcharr", "grafana", "komodo", "outline", "plex", "seerr"}
 AUTHENTIK_BLUEPRINTS_ROOT = STACKS_ROOT / "authentik" / "blueprints"
 # One address of a Caddy site block, as written in conf/sites/*.caddy.
 CADDY_SITE_ADDRESS_PATTERN = re.compile(
@@ -179,6 +181,7 @@ VALIDATION_VALUES = {
     "KOMODO_BOOTSTRAP_DIR": "/volume2/docker/komodo",
     "LIDARR_API_KEY": "0123456789abcdef0123456789abcdef",
     "LIDARR_URL": "http://downloaders-vpn:8686",
+    "LIVETV_DIR": "/volume1/data/media/livetv",
     "LOG_TARGETS": "stdout",
     "MEDIA_DIR": "/volume1/data/media",
     "METRICS_DIR": "/volume1/backups/.metrics",

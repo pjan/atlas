@@ -25,6 +25,13 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      # Live TV & DVR recordings from Dispatcharr (README "Dispatcharr"): the
+      # only writable media path.
+      - type: bind
+        source: ${LIVETV_DIR:?LIVETV_DIR is required}
+        target: /data/livetv
+        bind:
+          create_host_path: false
       - type: bind
         source: ${TRANSCODE_DIR:?TRANSCODE_DIR is required}
         target: /transcode

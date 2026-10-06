@@ -1,0 +1,10 @@
+# LAN and Tailscale only (README "Dispatcharr"): Xtream Codes clients outside
+# the home reach it over Tailscale, never through the tunnel, and it is not
+# behind forward auth because those clients cannot follow a login redirect.
+# Dispatcharr believes X-Real-IP from any private peer, so Caddy replaces it
+# with the client address instead of passing on the client's own.
+dispatcharr.atlas.vandaele.io {
+	reverse_proxy dispatcharr:9191 {
+		header_up X-Real-IP {client_ip}
+	}
+}
