@@ -660,6 +660,7 @@ pre_deploy.command = """
 set -eu
 sh ../../scripts/ensure-docker-network.sh media_network
 sh ../../scripts/ensure-docker-network.sh proxy_network
+sh ../../scripts/ensure-docker-network.sh dispatcharr_network
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/plex" [[PUID]] [[PGID]] 0750
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
@@ -686,7 +687,7 @@ PLEX_CLAIM =
 
 [[stack]]
 name = "dispatcharr"
-description = "Dispatcharr IPTV channels for Plex Live TV and Xtream Codes apps, LAN and Tailscale only"
+description = "Dispatcharr IPTV channels for Plex Live TV and Xtream Codes apps"
 deploy = true
 tags = ["media"]
 
@@ -698,11 +699,11 @@ run_directory = "stacks/dispatcharr"
 file_paths = ["compose.yaml"]
 auto_pull = true
 poll_for_updates = true
-links = ["https://dispatcharr.atlas.vandaele.io"]
+links = ["https://dispatcharr.atlas.vandaele.io", "https://tv.atlas.vandaele.io"]
 pre_deploy.path = "."
 pre_deploy.command = """
 set -eu
-sh ../../scripts/ensure-docker-network.sh proxy_network
+sh ../../scripts/ensure-docker-network.sh dispatcharr_network
 sh ../../scripts/atlas-hostfs.sh ensure-dir \
   "[[APPDATA_DIR]]/dispatcharr" [[PUID]] [[PGID]] 0700
 """
@@ -1180,6 +1181,7 @@ config_files = [
   { path = "blueprints/forward-auth-adguard.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/forward-auth-autobrr.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/forward-auth-bazarr.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-dispatcharr.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/forward-auth-houndarr.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/forward-auth-lidarr.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/forward-auth-prowlarr.yaml", services = ["worker"], requires = "Redeploy" },
@@ -1516,6 +1518,7 @@ config_files = [
   { path = "conf/sites/prowlarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/lidarr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/metrics.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/tv.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/ugos.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/youtarr.caddy", services = ["caddy"], requires = "Restart" },
 ]
@@ -1527,6 +1530,7 @@ sh ../../scripts/ensure-docker-network.sh media_network
 sh ../../scripts/ensure-docker-network.sh proxy_network
 sh ../../scripts/ensure-docker-network.sh rclone_network
 sh ../../scripts/ensure-docker-network.sh youtarr_network
+sh ../../scripts/ensure-docker-network.sh dispatcharr_network
 sh ../../scripts/ensure-docker-network.sh monitoring_network
 # A malformed Cloudflare token stops Caddy from loading any site and puts the
 # token in its log, so check the value Komodo wrote to .env first, without

@@ -26,6 +26,15 @@ modules:
         - header: Location
           regexp: '^https://auth\.atlas\.vandaele\.io/'
 
+  # A path a route must not forward: 404 from Caddy, never the application.
+  http_404:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      follow_redirects: false
+      valid_status_codes: [404]
+
   http_2xx:
     prober: http
     timeout: 10s

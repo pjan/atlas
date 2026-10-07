@@ -1,0 +1,21 @@
+# Dispatcharr for Xtream Codes clients (README "Dispatcharr"), LAN and
+# Tailscale only, never on the tunnel. Only the Xtream Codes API, playback, and
+# artwork reach Dispatcharr; everything else answers 404, its UI, API, and
+# credential-free playlists and tuner included, so this host never bypasses
+# authentik on dispatcharr.atlas.vandaele.io. Dispatcharr's nginx decodes the
+# path before routing it, so paths with encoded dots, slashes, or backslashes,
+# or dot segments, are refused first, as in atlas_forward_auth. Dispatcharr
+# believes X-Real-IP from any private peer, so Caddy replaces it with the
+# client address.
+
+tv.atlas.vandaele.io {
+	@unsafe_path vars_regexp {http.request.uri} `(?i)^[^?]*(%2e|%2f|%5c|\\|/\.\.?(/|\?|$))`
+	@xtream_codes path_regexp `^/(?:(?:player_api|panel_api|get|xmltv)\.php/?|(?:live|movie|series)/[^/]+/[^/]+/[^/]+|timeshift/[^/]+/[^/]+/[^/]+/[^/]+/[^/]+|streaming/timeshift\.php|api/(?:channels/logos/\d+/cache|vod/vodlogos/\d+/cache|vod/(?:movies|series|episodes)/\d+/image|epg/programs/\d+/poster)/?)$`
+	route {
+		respond @unsafe_path 400
+		reverse_proxy @xtream_codes dispatcharr:9191 {
+			header_up X-Real-IP {client_ip}
+		}
+		respond 404
+	}
+}

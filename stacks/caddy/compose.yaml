@@ -36,6 +36,7 @@ services:
       - proxy_network
       - rclone_network
       - youtarr_network
+      - dispatcharr_network
       - monitoring_network
     mem_limit: 128m
     cpus: 1
@@ -62,6 +63,9 @@ networks:
     external: true
   youtarr_network:
     name: youtarr_network
+    external: true
+  dispatcharr_network:
+    name: dispatcharr_network
     external: true
   monitoring_network:
     name: monitoring_network

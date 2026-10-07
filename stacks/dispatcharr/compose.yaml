@@ -27,10 +27,12 @@ services:
           create_host_path: false
     expose:
       - "9191"
-    # proxy_network only: Caddy and Plex reach it there. Not on media_network,
-    # whose downloaders would otherwise reach the embedded Postgres.
+    # dispatcharr_network only, shared with Caddy and Plex alone: the
+    # downloaders sit on media_network and proxy_network (through Gluetun) and
+    # must not reach its credential-free playlists, tuner, and streams, or the
+    # embedded Postgres.
     networks:
-      - proxy_network
+      - dispatcharr_network
     mem_limit: 3g
     cpus: 2
     pids_limit: 512
@@ -51,6 +53,6 @@ services:
       start_period: 10m
 
 networks:
-  proxy_network:
-    name: proxy_network
+  dispatcharr_network:
+    name: dispatcharr_network
     external: true

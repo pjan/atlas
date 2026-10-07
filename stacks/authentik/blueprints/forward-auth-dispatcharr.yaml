@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+# Dispatcharr's admin UI behind authentik forward auth (README "authentik"): a
+# proxy provider in single-application mode, served by the embedded outpost
+# (outpost.yaml), and open only to admins. Dispatcharr's own login stays on.
+# Only the health probe skips the check. Xtream Codes clients use
+# tv.atlas.vandaele.io, which has no provider.
+version: 1
+metadata:
+  name: Atlas - Forward auth - dispatcharr
+  labels:
+    # Applied by the authentik stack's post_deploy, in order, never by the
+    # worker's queue (README "Blueprints").
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider
+    identifiers:
+      name: dispatcharr
+    attrs:
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      mode: forward_single
+      external_host: https://dispatcharr.atlas.vandaele.io
+      access_token_validity: hours=24
+      skip_path_regex: "^/api/core/version/$"
+
+  - model: authentik_core.application
+    id: application
+    identifiers:
+      slug: dispatcharr
+    attrs:
+      name: Dispatcharr
+      group: Media
+      meta_icon: /static/dist/custom/icons/dispatcharr.svg
+      provider: !KeyOf provider
+      meta_launch_url: https://dispatcharr.atlas.vandaele.io
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf application
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0

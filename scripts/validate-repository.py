@@ -99,14 +99,14 @@ ATLAS_MAX_FIELD_VALUES = {
     "Links": 300,
 }
 # Routes that must stay LAN-only: Backrest holds every backup secret, Komodo
-# deploys every stack and is the break-glass when authentik is down, and
-# Dispatcharr serves credential-free playlists and Xtream Codes URLs with
-# credentials in them.
-LOCAL_ONLY_CADDY_ROUTES = {"backrest", "dispatcharr", "komodo"}
+# deploys every stack and is the break-glass when authentik is down, and tv
+# (Dispatcharr for Xtream Codes clients) streams video, with credentials in
+# every URL.
+LOCAL_ONLY_CADDY_ROUTES = {"backrest", "komodo", "tv"}
 # Routes not behind authentik forward auth (README "authentik"): its login,
 # Caddy's health route, apps with their own authentik OIDC or clients that
 # cannot follow a login redirect, and the LAN-only routes.
-UNGATED_CADDY_ROUTES = {"auth", "backrest", "caddy", "dispatcharr", "grafana", "komodo", "outline", "plex", "seerr"}
+UNGATED_CADDY_ROUTES = {"auth", "backrest", "caddy", "grafana", "komodo", "outline", "plex", "seerr", "tv"}
 AUTHENTIK_BLUEPRINTS_ROOT = STACKS_ROOT / "authentik" / "blueprints"
 # One address of a Caddy site block, as written in conf/sites/*.caddy.
 CADDY_SITE_ADDRESS_PATTERN = re.compile(

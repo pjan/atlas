@@ -20,6 +20,7 @@ entries:
         - !Find [authentik_providers_proxy.proxyprovider, [name, adguard]]
         - !Find [authentik_providers_proxy.proxyprovider, [name, autobrr]]
         - !Find [authentik_providers_proxy.proxyprovider, [name, bazarr]]
+        - !Find [authentik_providers_proxy.proxyprovider, [name, dispatcharr]]
         - !Find [authentik_providers_proxy.proxyprovider, [name, houndarr]]
         - !Find [authentik_providers_proxy.proxyprovider, [name, lidarr]]
         - !Find [authentik_providers_proxy.proxyprovider, [name, prowlarr]]

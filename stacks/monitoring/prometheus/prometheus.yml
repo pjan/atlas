@@ -227,6 +227,14 @@ scrape_configs:
       # Dispatcharr's version endpoint: the app is up, not that its database is.
       - targets: ["https://dispatcharr.atlas.vandaele.io/api/core/version/"]
         labels: {module: http_health_200, service: dispatcharr}
+      # tv.atlas.vandaele.io forwards the Xtream Codes API (401 without
+      # credentials) and nothing else: the version endpoint, open on the admin
+      # host, must answer 404 here. A missing site answers 404 too, so only
+      # both together show the allowlist works.
+      - targets: ["https://tv.atlas.vandaele.io/player_api.php"]
+        labels: {module: http_route, service: dispatcharr-tv}
+      - targets: ["https://tv.atlas.vandaele.io/api/core/version/"]
+        labels: {module: http_404, service: dispatcharr-tv-allowlist}
       # Youtarr answers 503 when it cannot reach its database.
       - targets: ["https://youtarr.atlas.vandaele.io/api/health"]
         labels: {module: http_health_200, service: youtarr}
@@ -363,6 +371,8 @@ scrape_configs:
         labels: {module: http_route, service: bazarr-public}
       - targets: ["https://caddy.atlas.vandaele.io"]
         labels: {module: http_route, service: caddy-public}
+      - targets: ["https://dispatcharr.atlas.vandaele.io"]
+        labels: {module: http_route, service: dispatcharr-public}
       - targets: ["https://grafana.atlas.vandaele.io"]
         labels: {module: http_route, service: grafana-public}
       - targets: ["https://houndarr.atlas.vandaele.io"]
@@ -428,6 +438,10 @@ scrape_configs:
         labels: {module: http_gate, service: bazarr-gate}
       - targets: ["https://bazarr.atlas.vandaele.io/"]
         labels: {module: http_gate, __exporter: "blackbox-public:9115", service: bazarr-gate-public}
+      - targets: ["https://dispatcharr.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: dispatcharr-gate}
+      - targets: ["https://dispatcharr.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: dispatcharr-gate-public}
       - targets: ["https://houndarr.atlas.vandaele.io/"]
         labels: {module: http_gate, service: houndarr-gate}
       - targets: ["https://houndarr.atlas.vandaele.io/"]

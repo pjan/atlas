@@ -1,10 +1,29 @@
-# LAN and Tailscale only (README "Dispatcharr"): Xtream Codes clients outside
-# the home reach it over Tailscale, never through the tunnel, and it is not
-# behind forward auth because those clients cannot follow a login redirect.
-# Dispatcharr believes X-Real-IP from any private peer, so Caddy replaces it
-# with the client address instead of passing on the client's own.
+# Dispatcharr's admin UI (README "Dispatcharr"): behind authentik forward auth
+# for admins, on the LAN and through the tunnel; Dispatcharr's own login stays
+# on, as it cannot be turned off. Xtream Codes clients use tv.atlas.vandaele.io
+# (tv.caddy), which is LAN and Tailscale only. Dispatcharr believes X-Real-IP
+# from any private peer, so Caddy replaces it with the client address.
+
 dispatcharr.atlas.vandaele.io {
-	reverse_proxy dispatcharr:9191 {
-		header_up X-Real-IP {client_ip}
+	import atlas_hide_metrics
+	route {
+		import atlas_forward_auth
+		reverse_proxy dispatcharr:9191 {
+			header_up X-Real-IP {client_ip}
+		}
+	}
+}
+
+# Through the tunnel, the UI does not play video: its players (/proxy/) and
+# recording downloads answer 404, so no stream crosses Cloudflare.
+http://dispatcharr.atlas.vandaele.io:8080 {
+	import atlas_hide_metrics
+	route {
+		import atlas_forward_auth
+		@video path /proxy /proxy/* /api/channels/recordings/*/file /api/channels/recordings/*/file/*
+		respond @video 404
+		reverse_proxy dispatcharr:9191 {
+			header_up X-Real-IP {client_ip}
+		}
 	}
 }
