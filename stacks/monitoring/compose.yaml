@@ -162,7 +162,7 @@ services:
       start_period: 20s
 
   blackbox-exporter:
-    image: prom/blackbox-exporter:v0.28.0
+    image: prom/blackbox-exporter:v0.29.0
     container_name: blackbox-exporter
     restart: unless-stopped
     user: "65534:65534"
@@ -205,7 +205,7 @@ services:
   # (the public routes, authentik through the tunnel) must not follow Atlas'
   # own DNS for *.atlas.vandaele.io, which points at Caddy on the LAN.
   blackbox-public:
-    image: prom/blackbox-exporter:v0.28.0
+    image: prom/blackbox-exporter:v0.29.0
     container_name: blackbox-public
     restart: unless-stopped
     user: "65534:65534"
