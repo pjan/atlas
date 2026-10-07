@@ -3,7 +3,7 @@ services:
     # All-in-one image: Postgres, Redis, Celery, uWSGI, and nginx in one
     # container. The entrypoint starts as root, creates the PUID/PGID user, and
     # runs every process as that user (README "Dispatcharr").
-    image: ghcr.io/dispatcharr/dispatcharr:0.31.0
+    image: ghcr.io/dispatcharr/dispatcharr:0.32.0
     container_name: dispatcharr
     restart: unless-stopped
     security_opt:
