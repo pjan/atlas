@@ -325,8 +325,9 @@ scrape_configs:
           service: roon
     relabel_configs: *probe_relabel
 
-  # Atlas DNS for *.atlas.vandaele.io: UniFi (LAN, the NAS, containers) and
-  # AdGuard (Tailscale) must both send it to the NAS, not to Cloudflare.
+  # Atlas DNS for *.atlas.vandaele.io: AdGuard (LAN devices first, Tailscale)
+  # and UniFi (LAN fallback, the NAS, containers) must both send it to the
+  # NAS, not to Cloudflare.
   - job_name: probe_dns_split
     scrape_interval: 60s
     metrics_path: /probe

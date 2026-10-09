@@ -42,7 +42,18 @@ Expected result: no UGOS/nginx listener on `0.0.0.0:80` or `0.0.0.0:443`.
 
 ### 2. Configure UniFi Local DNS
 
-On the UniFi Dream Machine, configure local DNS so app hostnames resolve to the NAS. LAN clients, the NAS, and its containers ask UniFi (DHCP hands out `192.168.2.1`; the NAS's `dnsmasq` on `127.0.0.1` forwards to it).
+LAN devices ask AdGuard first and UniFi second, so they keep resolving names when AdGuard is down. The NAS and its containers ask UniFi only, so Atlas never depends on its own AdGuard. Both must resolve app hostnames to the NAS.
+
+On the UniFi Dream Machine, hand out both servers in the LAN network's DHCP settings (usually `Settings > Networks > Default > DHCP > DNS Server`, with Auto off):
+
+```text
+DNS Server 1: 192.168.2.200   (AdGuard)
+DNS Server 2: 192.168.2.1     (UniFi)
+```
+
+Each device decides when to use the second server: most switch after about a second without an answer, and some keep asking UniFi, unfiltered, for a while after AdGuard is back. Devices pick up a change when they renew their DHCP lease. Keep UniFi's WAN DNS on public resolvers: AdGuard forwards local names to UniFi, so a UniFi upstream pointing at AdGuard would loop. UniFi advertises no IPv6 DNS server (checked 2026-10-09); if IPv6 is enabled on the LAN, its DNS server would bypass AdGuard.
+
+The NAS does not take its DNS server from DHCP: in UGOS, its DNS server is set manually to `192.168.2.1`, and its `dnsmasq` on `127.0.0.1`, which the containers ask, forwards there.
 
 For newer UniFi Network versions, the DNS record UI is usually under one of these paths:
 
@@ -57,7 +68,15 @@ Host (A) wildcard record:
 hostname *.atlas.vandaele.io, value 192.168.2.200
 ```
 
-Tailscale devices ask AdGuard (`192.168.2.200`, the Tailscale global nameserver with "Override DNS servers" on), which does not forward local names to UniFi. In AdGuard, add the same record under **Filters > DNS rewrites**: domain `*.atlas.vandaele.io`, answer `192.168.2.200`. It is stored in `AdGuardHome.yaml` in appdata, not in this repository.
+AdGuard serves LAN devices and Tailscale devices (`192.168.2.200` is the Tailscale global nameserver, with "Override DNS servers" on). In AdGuard, add the same record under **Filters > DNS rewrites**: domain `*.atlas.vandaele.io`, answer `192.168.2.200`. Under **Settings > DNS settings**, send LAN names and reverse lookups to UniFi, which knows the DHCP hostnames, so names like `atlas.localdomain` resolve and the AdGuard dashboard shows device names instead of addresses:
+
+```text
+Upstream DNS servers: keep the public upstreams, and add [/localdomain/]192.168.2.1
+Private reverse DNS servers: 192.168.2.1, with "Use private reverse DNS resolvers" on
+Enable reverse resolving of clients' IP addresses: on
+```
+
+These settings are stored in `AdGuardHome.yaml` in appdata, not in this repository.
 
 Never create a `*.atlas` record in Cloudflare: public DNS has one proxied CNAME per public route, pointing at the tunnel (see [Cloudflared](#cloudflared)), and a wildcard there catches every hostname without its own record.
 
@@ -704,7 +723,7 @@ Roon backups live under `/volume1/backups/roonserver`. In Roon `Settings > Backu
 
 The pinned AdGuard Home image runs as `root`. Its work and configuration directories live under `/volume2/appdata/adguard`, and the pre-deploy hook provisions the app root plus `work` and `conf` as `0:0` with mode `0750`. Existing files, including `AdGuardHome.yaml`, are not recursively modified.
 
-Both bind sources use `create_host_path: false`, so a missing preflight path fails closed rather than being silently created by Docker. DNS remains bound only to `[[NAS_LAN_IP]]:53` over TCP and UDP. Deploy AdGuard separately from other stacks because its restart temporarily interrupts Atlas DNS.
+Both bind sources use `create_host_path: false`, so a missing preflight path fails closed rather than being silently created by Docker. DNS remains bound only to `[[NAS_LAN_IP]]:53` over TCP and UDP. Deploy AdGuard separately from other stacks: while it restarts, LAN devices fall back to UniFi and Tailscale devices have no DNS.
 
 Atlas deliberately keeps the AdGuard Home web interface on container port `3000` after the initial setup. The Caddy route and container healthcheck both depend on `http.address` remaining `0.0.0.0:3000`. The healthcheck also asks AdGuard on `127.0.0.1:53` for `localhost` and requires the answer `127.0.0.1`, which AdGuard serves from the container's hosts file without any upstream, so an internet outage does not make it unhealthy. It therefore also depends on `dns.bind_hosts` including `0.0.0.0`, on filtering and **Use hosts file** staying enabled, and on `127.0.0.1` not being blocked in the access settings. During a fresh installation or a restore without the existing `AdGuardHome.yaml`, select port `3000` in the setup wizard instead of the normal port `80`.
 
