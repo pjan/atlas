@@ -254,7 +254,7 @@ services:
   # smartctl cannot infer the device type from by-id names, so each device
   # names its type after the semicolon (sat or nvme).
   smartctl-exporter:
-    image: prometheuscommunity/smartctl-exporter:v0.14.0
+    image: prometheuscommunity/smartctl-exporter:v0.15.0
     container_name: smartctl-exporter
     restart: unless-stopped
     user: "0:0"
