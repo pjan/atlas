@@ -29,6 +29,9 @@ c.JupyterHub.cleanup_servers = True
 c.JupyterHub.admin_access = False
 # The NAS has little free memory (README "Jupyter").
 c.JupyterHub.active_server_limit = 2
+# Prometheus reads /hub/metrics without a token (counts and timings, no
+# usernames). Only containers reach the hub; jupyter.caddy answers 404 for it.
+c.JupyterHub.authenticate_prometheus = False
 
 # Login: authentik OIDC. Its endpoints are written out instead of discovered.
 # Server-side calls go to the public hostname, which Atlas DNS sends to Caddy.
@@ -104,18 +107,13 @@ def make_home(spawner):
 
 c.Spawner.pre_spawn_hook = make_home
 
-# Services: the idle culler, and a token for Prometheus to read /hub/metrics.
-# A kernel busy without output and without a browser counts as idle.
+# The idle culler. A kernel busy without output and without a browser counts
+# as idle.
 c.JupyterHub.load_roles = [
     {
         "name": "idle-culler",
         "scopes": ["list:users", "read:users:activity", "read:servers", "delete:servers"],
         "services": ["idle-culler"],
-    },
-    {
-        "name": "metrics",
-        "scopes": ["read:metrics"],
-        "services": ["prometheus"],
     },
 ]
 c.JupyterHub.services = [
@@ -126,9 +124,5 @@ c.JupyterHub.services = [
             "--timeout=14400",
             "--cull-every=600",
         ],
-    },
-    {
-        "name": "prometheus",
-        "api_token": os.environ["JUPYTERHUB_METRICS_TOKEN"],
     },
 ]

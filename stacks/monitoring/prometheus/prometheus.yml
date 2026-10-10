@@ -89,6 +89,13 @@ scrape_configs:
     static_configs:
       - targets: ["authentik-server:9300"]
 
+  # JupyterHub on monitoring_network (README "Jupyter"): servers, spawns, and
+  # requests. The hub serves its metrics without a token to containers only.
+  - job_name: jupyterhub
+    metrics_path: /hub/metrics
+    static_configs:
+      - targets: ["jupyterhub:8000"]
+
   # Application exporters (API keys from Komodo variables).
   - job_name: exportarr
     scrape_interval: 2m
@@ -224,6 +231,9 @@ scrape_configs:
         labels: {module: http_health_200, service: spottarr}
       - targets: ["https://outline.atlas.vandaele.io/_health"]
         labels: {module: http_health_200, service: outline}
+      # JupyterHub's health skips authentik forward auth.
+      - targets: ["https://jupyter.atlas.vandaele.io/hub/health"]
+        labels: {module: http_health_200, service: jupyter}
       # Dispatcharr's version endpoint: the app is up, not that its database is.
       - targets: ["https://dispatcharr.atlas.vandaele.io/api/core/version/"]
         labels: {module: http_health_200, service: dispatcharr}
@@ -276,6 +286,7 @@ scrape_configs:
           - https://dispatcharr.atlas.vandaele.io
           - https://grafana.atlas.vandaele.io
           - https://houndarr.atlas.vandaele.io
+          - https://jupyter.atlas.vandaele.io
           - https://komodo.atlas.vandaele.io
           - https://lidarr.atlas.vandaele.io
           - https://outline.atlas.vandaele.io
@@ -378,6 +389,8 @@ scrape_configs:
         labels: {module: http_route, service: grafana-public}
       - targets: ["https://houndarr.atlas.vandaele.io"]
         labels: {module: http_route, service: houndarr-public}
+      - targets: ["https://jupyter.atlas.vandaele.io"]
+        labels: {module: http_route, service: jupyter-public}
       - targets: ["https://lidarr.atlas.vandaele.io"]
         labels: {module: http_route, service: lidarr-public}
       - targets: ["https://outline.atlas.vandaele.io"]

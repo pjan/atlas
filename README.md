@@ -632,7 +632,6 @@ GRAFANA_SECRET_KEY
 HEALTHCHECKS_APPDATA_PING_URL
 HEALTHCHECKS_WATCHDOG_PING_URL
 JUPYTERHUB_CRYPT_KEY
-JUPYTERHUB_METRICS_TOKEN
 JUPYTERHUB_OIDC_CLIENT_SECRET
 KOMETA_PLEX_TOKEN
 KOMETA_TMDB_API_KEY
@@ -1773,11 +1772,12 @@ Current signals:
 | `probe_dns_external` | AdGuard resolves an external name |
 | `probe_tls_caddy` | Caddy's HTTPS listener `192.168.2.200:443` completes a TLS handshake for `caddy.atlas.vandaele.io` with a valid certificate, and its expiry |
 | `probe_internet` | Outbound HTTPS from the NAS |
-| `probe_health` | Application health, through Caddy unless noted: Servarr `/ping` must report `OK` (fails when the app cannot reach its database), Plex `/identity` must contain a `machineIdentifier` (through Caddy and directly on `:32400`), Grafana `/api/health` must report the database `ok`, SABnzbd must report its version, Caddy must answer `ok`, Komodo, Seerr, Autobrr, Houndarr, qui, Spottarr, Outline, Dispatcharr, and Youtarr health endpoints must return 200, Dispatcharr's `tv` host must answer the Xtream Codes API and `404` for everything else, and authentik's ready endpoint (directly, `authentik`) and live endpoint (through Cloudflare, `authentik-public`) must return 200 |
+| `probe_health` | Application health, through Caddy unless noted: Servarr `/ping` must report `OK` (fails when the app cannot reach its database), Plex `/identity` must contain a `machineIdentifier` (through Caddy and directly on `:32400`), Grafana `/api/health` must report the database `ok`, SABnzbd must report its version, Caddy must answer `ok`, Komodo, Seerr, Autobrr, Houndarr, qui, Spottarr, Outline, JupyterHub, Dispatcharr, and Youtarr health endpoints must return 200, Dispatcharr's `tv` host must answer the Xtream Codes API and `404` for everything else, and authentik's ready endpoint (directly, `authentik`) and live endpoint (through Cloudflare, `authentik-public`) must return 200 |
 | `caddy` | Caddy's own metrics per hostname (requests, errors, latency) on the internal listener `:2020` |
 | `cloudflared` | Tunnel metrics, including `cloudflared_tunnel_ha_connections`, on `:2000` |
 | `unpackerr` | Extraction metrics on `:5656` |
 | `authentik` | authentik's server metrics (requests, flows, tasks, outposts) on `:9300` |
+| `jupyterhub` | JupyterHub's metrics (users, running servers, spawns, requests) on `:8000/hub/metrics`, served without a token to containers only; `jupyter.atlas.vandaele.io` answers `404` for it |
 | `exportarr`, `exportarr_slow` | Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, and SABnzbd through exportarr: the applications' own health issues (`<app>_system_health_issues`, for example unavailable indexers or download clients), status, and queues. Sonarr and Bazarr are scraped every 5 minutes because they are slow to query |
 | `json_apis` | Gluetun VPN status, public IP and country, and forwarded port; qBittorrent connection status (`qbittorrent_transfer_status_info{connection_status}`: connected, firewalled, or disconnected), DHT nodes, transfer rates, and `listen_port` (must equal the Gluetun forwarded port); slskd connected and logged in to Soulseek; the state of every Komodo stack (`komodo_stack_info`); every stack container with its name, stack, service, image, state, Docker health, and exit code (`komodo_container_info`); the Komodo server (Periphery, `komodo_server_info`), Actions and Procedures with their last and next runs, and the Resource Sync with its last sync (`komodo_action_*`, `komodo_procedure_*`, `komodo_sync_*`); every container on the server, including those outside stacks (`komodo_server_container_info`); and Komodo's newest 100 updates and alerts (`komodo_update_start_timestamp_ms`, `komodo_alert_timestamp_ms`, one series per item) |
 

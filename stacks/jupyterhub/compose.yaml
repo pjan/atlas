@@ -7,7 +7,8 @@
 # hub then stops and removes every user container.
 
 services:
-  # The hub and its proxy: :8000 for Caddy, :8081 (hub API) for user servers.
+  # The hub and its proxy: :8000 for Caddy and Prometheus, :8081 (hub API) for
+  # user servers.
   # It reaches authentik through proxy_network (Atlas DNS sends
   # auth.atlas.vandaele.io to Caddy on the NAS), Docker only through the
   # socket proxy, and user servers on jupyter_users.
@@ -33,7 +34,6 @@ services:
       - TZ=${TZ}
       - JUPYTERHUB_CRYPT_KEY=${JUPYTERHUB_CRYPT_KEY:?JUPYTERHUB_CRYPT_KEY is required}
       - JUPYTERHUB_OIDC_CLIENT_SECRET=${JUPYTERHUB_OIDC_CLIENT_SECRET:?JUPYTERHUB_OIDC_CLIENT_SECRET is required}
-      - JUPYTERHUB_METRICS_TOKEN=${JUPYTERHUB_METRICS_TOKEN:?JUPYTERHUB_METRICS_TOKEN is required}
       # Host path of the homes: the Docker daemon resolves user server binds.
       - JUPYTERHUB_HOMES_ON_HOST=${JUPYTERHUB_HOME_DIR:?JUPYTERHUB_HOME_DIR is required}
     volumes:
