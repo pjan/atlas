@@ -77,7 +77,7 @@ http://:8080 {
 			route {
 				@background header_regexp Sec-Fetch-Mode ^(cors|no-cors|same-origin|websocket)$
 				respond @background 401
-				copy_response_headers
+				# The redirect's headers are already passed on; copy only the rest.
 				copy_response
 			}
 		}
