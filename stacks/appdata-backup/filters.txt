@@ -20,3 +20,6 @@
 - /appdata/youtarr/config/.yt-dlp-cache/
 # AdGuard query logs.
 - /appdata/adguard/work/data/querylog*
+# Jupyter virtualenvs, conda environments, and package caches are found and
+# left out by backup.sh itself (list_jupyter_excluded), which also leaves them
+# out of the file count; no rules for them here.

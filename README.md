@@ -251,7 +251,7 @@ Keep new scheduled work out of the 04:30–06:30 window, which is reserved for t
 
 Off-site, Backrest copies all of `/volume1/backups` to the Google Shared Drive `Atlas` every day at 06:00 (see [Off-Site Backups With Backrest](#off-site-backups-with-backrest)).
 
-The appdata copy excludes `roonserver` (covered by Roon's own backups), monitoring data (`prometheus`, `alertmanager`, and `grafana`, see [Monitoring](#monitoring)), Plex caches, codecs, drivers, logs, and crash reports, Dispatcharr's logo and poster caches and logs, Youtarr's logs and yt-dlp cache, and AdGuard query logs. The rules live in `stacks/appdata-backup/filters.txt`.
+The appdata copy excludes `roonserver` (covered by Roon's own backups), monitoring data (`prometheus`, `alertmanager`, and `grafana`, see [Monitoring](#monitoring)), Plex caches, codecs, drivers, logs, and crash reports, Dispatcharr's logo and poster caches and logs, Youtarr's logs and yt-dlp cache, and AdGuard query logs. The rules live in `stacks/appdata-backup/filters.txt`. `backup.sh` also leaves out every virtualenv (a directory holding `pyvenv.cfg`), conda environment (holding `conda-meta/history`), and package cache (`.cache`, `.conda/pkgs`) in the Jupyter homes, and leaves them out of its file count too; they are rebuilt from their manifests after a restore (see [Jupyter](#jupyter)).
 
 The Komodo, Plex, and Roon backups are written by the applications themselves; [their staleness alerts](#komodo-plex-and-roon-backups) watch the newest file in each directory.
 

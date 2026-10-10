@@ -26,6 +26,9 @@ min_ratio=${APPDATA_BACKUP_MIN_RATIO_PERCENT:-60}
 keep_days=${APPDATA_BACKUP_KEEP_DAYS:-14}
 keep_min=${APPDATA_BACKUP_KEEP_MIN:-7}
 snapshot_pattern='^[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{6}$'
+jupyter_homes=$appdata/jupyterhub/home
+jupyter_excluded=/tmp/jupyter-excluded.list
+jupyter_filter=/tmp/jupyter-excluded.filter
 
 started_at=$(date +%s)
 source_files=0
@@ -98,17 +101,62 @@ on_exit() {
   exit "$status"
 }
 
+# Jupyter (README "Jupyter"): virtualenvs, conda environments, and package
+# caches in the homes are rebuilt from their manifests after a restore, so
+# they are neither copied nor counted. A directory holding pyvenv.cfg is a
+# virtualenv and one holding conda-meta/history a conda environment, at any
+# name and depth below a home; a marker in a home itself is ignored, so it
+# never drops a whole home. Names with a newline are left in the backup.
+list_jupyter_excluded() {
+  : > "$jupyter_excluded"
+  : > "$jupyter_filter"
+  test -d "$jupyter_homes" || return 0
+  newline='
+'
+  {
+    find "$jupyter_homes" -mindepth 3 -type f -name pyvenv.cfg ! -path "*$newline*" \
+      | sed 's#/pyvenv[.]cfg$##'
+    find "$jupyter_homes" -mindepth 4 -type f -path '*/conda-meta/history' ! -path "*$newline*" \
+      | sed 's#/conda-meta/history$##'
+    find "$jupyter_homes" -mindepth 2 -maxdepth 2 -type d -name .cache
+    find "$jupyter_homes" -mindepth 3 -maxdepth 3 -type d -path '*/.conda/pkgs'
+  } | LC_ALL=C sort -u | awk '
+    # Keep only the outermost directory of nested ones.
+    {
+      n = split($0, part, "/"); prefix = ""; nested = 0
+      for (i = 2; i < n; i++) { prefix = prefix "/" part[i]; if (prefix in kept) { nested = 1; break } }
+      if (!nested) { kept[$0] = 1; print }
+    }' > "$jupyter_excluded"
+
+  # rsync rules anchored at the transfer root. A wildcard in a name is
+  # escaped, so a rule matches only that directory.
+  while IFS= read -r directory; do
+    rule=${directory#"$source_root"}
+    case $rule in
+      *'*'* | *'?'* | *'['*) rule=$(printf '%s' "$rule" | sed 's/[][*?\\]/\\&/g') ;;
+    esac
+    printf -- '- %s/\n' "$rule"
+  done < "$jupyter_excluded" > "$jupyter_filter"
+  log "jupyter: leaving out $(wc -l < "$jupyter_excluded" | tr -d ' ') environment and cache directories"
+}
+
 count_source_files() {
-  find "$appdata" \
+  total=$(find "$appdata" \
     \( -path "$appdata/roonserver" -o -path "$appdata/prometheus" \
     -o -path "$appdata/alertmanager" -o -path "$appdata/grafana" \) -prune \
-    -o -type f -print | wc -l | tr -d ' '
+    -o -type f -print | wc -l)
+  excluded=0
+  while IFS= read -r directory; do
+    excluded=$((excluded + $(find "$directory" -type f | wc -l)))
+  done < "$jupyter_excluded"
+  echo $((total - excluded))
 }
 
 check_source() {
   test -d "$appdata" || fail "source $appdata is missing"
   test -f "$sentinel" || fail "sentinel $sentinel is missing; create it only after confirming /volume2/appdata is complete"
 
+  list_jupyter_excluded
   source_files=$(count_source_files)
   previous_files=0
   if test -f "$target/latest/.atlas-file-count"; then
@@ -154,7 +202,7 @@ run_snapshot() {
   name=$(date +%Y-%m-%d_%H%M%S)
   partial="$snapshots/$name.partial"
 
-  set -- -aH --numeric-ids --filter='merge /filters.txt'
+  set -- -aH --numeric-ids --filter='merge /filters.txt' --filter="merge $jupyter_filter"
   if test -d "$target/latest/"; then
     set -- "$@" "--link-dest=$target/latest/"
   fi
