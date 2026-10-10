@@ -5,8 +5,8 @@
 # from any private peer, so Caddy replaces it with the client address.
 
 dispatcharr.atlas.vandaele.io {
-	import atlas_hide_metrics
 	route {
+		import atlas_hide_metrics
 		import atlas_forward_auth
 		reverse_proxy dispatcharr:9191 {
 			header_up X-Real-IP {client_ip}
@@ -17,8 +17,8 @@ dispatcharr.atlas.vandaele.io {
 # Through the tunnel, the UI does not play video: its players (/proxy/) and
 # recording downloads answer 404, so no stream crosses Cloudflare.
 http://dispatcharr.atlas.vandaele.io:8080 {
-	import atlas_hide_metrics
 	route {
+		import atlas_hide_metrics
 		import atlas_forward_auth
 		@video path /proxy /proxy/* /api/channels/recordings/*/file /api/channels/recordings/*/file/*
 		respond @video 404

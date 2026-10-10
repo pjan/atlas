@@ -31,7 +31,9 @@ http://:8080 {
 	respond 404
 }
 
-# Public hostnames never expose application metrics endpoints.
+# Public hostnames never expose application metrics endpoints. A site with a
+# route imports this first inside it: Caddy runs route before respond, so
+# outside the route it would not apply to requests that pass forward auth.
 (atlas_hide_metrics) {
 	@metrics path /metrics /metrics/* /prometheus /prometheus/*
 	respond @metrics 404
@@ -87,8 +89,8 @@ http://:8080 {
 # atlas_reverse_proxy behind authentik forward auth.
 (atlas_protected_proxy) {
 	{args[0]}.atlas.vandaele.io, http://{args[0]}.atlas.vandaele.io:8080 {
-		import atlas_hide_metrics
 		route {
+			import atlas_hide_metrics
 			import atlas_forward_auth
 			reverse_proxy {args[1]}
 		}
@@ -109,6 +111,7 @@ http://:8080 {
 		@rclone_bootstrap `path('/') || (path('/login') && !query({'url': '*'}) )`
 
 		route {
+			import atlas_hide_metrics
 			import atlas_forward_auth
 
 			handle @rclone_bootstrap {
