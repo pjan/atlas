@@ -352,7 +352,10 @@ services:
 
   # App exporters reach the VPN-bound applications through Gluetun's
   # downloaders-vpn alias on media_network. exportarr is distroless (no shell),
-  # so Prometheus' up metric replaces a container healthcheck.
+  # so Prometheus' up metric replaces a container healthcheck. exportarr
+  # v2.3.0 leaks memory on every request its application answers with an
+  # error (it never closes those response bodies), so memswap_limit equal to
+  # mem_limit keeps it out of swap: at the limit it is OOM-killed and restarts.
   exportarr-sonarr:
     image: ghcr.io/onedr0p/exportarr:v2.3.0
     container_name: exportarr-sonarr
@@ -373,6 +376,7 @@ services:
       - media_network
       - monitoring_network
     mem_limit: 128m
+    memswap_limit: 128m
     cpus: 0.5
     pids_limit: 64
     logging:
@@ -401,6 +405,7 @@ services:
       - media_network
       - monitoring_network
     mem_limit: 128m
+    memswap_limit: 128m
     cpus: 0.5
     pids_limit: 64
     logging:
@@ -429,6 +434,7 @@ services:
       - media_network
       - monitoring_network
     mem_limit: 128m
+    memswap_limit: 128m
     cpus: 0.5
     pids_limit: 64
     logging:
@@ -457,6 +463,7 @@ services:
       - media_network
       - monitoring_network
     mem_limit: 128m
+    memswap_limit: 128m
     cpus: 0.5
     pids_limit: 64
     logging:
@@ -485,6 +492,7 @@ services:
       - media_network
       - monitoring_network
     mem_limit: 128m
+    memswap_limit: 128m
     cpus: 0.5
     pids_limit: 64
     logging:
@@ -513,6 +521,7 @@ services:
       - media_network
       - monitoring_network
     mem_limit: 128m
+    memswap_limit: 128m
     cpus: 0.5
     pids_limit: 64
     logging:
