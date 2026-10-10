@@ -1174,10 +1174,10 @@ Port: 8080
 
 SABnzbd uses port `8085` inside Gluetun's shared network namespace because qBittorrent already uses `8080`. The repo-managed LinuxServer custom init script patches SABnzbd's service runner before startup so the web UI binds `0.0.0.0:8085`. Treat `SABNZBD_PORT=8085` and the custom init script as the source of truth for the internal listening port.
 
-SABnzbd validates the HTTP `Host` header to protect against DNS-rebinding attacks. Because Caddy preserves the incoming hostname, add the Atlas hostname under `Config > Special > host_whitelist`:
+SABnzbd validates the HTTP `Host` header to protect against DNS-rebinding attacks. Because Caddy preserves the incoming hostname, add the Atlas hostname under `Config > Special > host_whitelist`, together with `downloaders-vpn`, the name `exportarr-sabnzbd` reaches SABnzbd by (without it, SABnzbd answers every exporter request `403 Hostname verification failed`):
 
 ```text
-sabnzbd.atlas.vandaele.io
+sabnzbd.atlas.vandaele.io, downloaders-vpn
 ```
 
 Keep entries lowercase and comma-separated. Do not disable the check with a wildcard or rewrite the upstream `Host` header in Caddy. The setting persists in `/volume2/appdata/sabnzbd/sabnzbd.ini` and does not require a Komodo variable or secret. See the [SABnzbd hostname-verification documentation](https://sabnzbd.org/wiki/extra/hostname-check.html) for background.
@@ -1186,7 +1186,7 @@ On a fresh install, SABnzbd rejects `sabnzbd.atlas.vandaele.io` before the setti
 
 ```sh
 docker stop sabnzbd
-sed -i 's/^host_whitelist = .*/host_whitelist = sabnzbd.atlas.vandaele.io/' \
+sed -i 's/^host_whitelist = .*/host_whitelist = sabnzbd.atlas.vandaele.io, downloaders-vpn/' \
   /volume2/appdata/sabnzbd/sabnzbd.ini
 docker start sabnzbd
 ```
@@ -1201,7 +1201,7 @@ sudo vi /volume2/appdata/sabnzbd/sabnzbd.ini
 Under `[misc]`, set:
 
 ```ini
-host_whitelist = sabnzbd.atlas.vandaele.io
+host_whitelist = sabnzbd.atlas.vandaele.io, downloaders-vpn
 ```
 
 Then restart the container:
