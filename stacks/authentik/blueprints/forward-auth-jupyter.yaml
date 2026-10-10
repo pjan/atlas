@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+# JupyterHub behind authentik forward auth (README "authentik"), in front of
+# its OIDC login (oidc-jupyterhub.yaml), which the forward-auth session makes
+# silent. The only forward-auth app open to family as well as admins: anyone
+# past it can run code in their own container. Only the hub's health
+# endpoint skips the check.
+version: 1
+metadata:
+  name: Atlas - Forward auth - jupyter
+  labels:
+    # Applied by the authentik stack's post_deploy, in order, never by the
+    # worker's queue (README "Blueprints").
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider
+    identifiers:
+      name: jupyter
+    attrs:
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      mode: forward_single
+      external_host: https://jupyter.atlas.vandaele.io
+      access_token_validity: hours=24
+      skip_path_regex: "^/hub/health$"
+
+  - model: authentik_core.application
+    id: application
+    identifiers:
+      slug: jupyter-forward-auth
+    attrs:
+      name: Jupyter (forward auth)
+      provider: !KeyOf provider
+      meta_launch_url: https://jupyter.atlas.vandaele.io
+      # The dashboard shows Jupyter once, as its OIDC application
+      # (oidc-jupyterhub.yaml).
+      meta_hide: true
+      policy_engine_mode: any
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf application
+      group: !Find [authentik_core.group, [name, admins]]
+      order: 0
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf application
+      group: !Find [authentik_core.group, [name, family]]
+      order: 1

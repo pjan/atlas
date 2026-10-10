@@ -12,9 +12,9 @@ set -eu
 # Dependency order: groups first, then what binds to them; the outpost last,
 # because it lists every forward-auth provider. The validator keeps this list
 # equal to the blueprint files.
-BLUEPRINTS="groups brand admins-mfa reputation login google invitations grafana links oidc-autobrr oidc-outline oidc-qui
+BLUEPRINTS="groups brand admins-mfa reputation login google invitations grafana links oidc-autobrr oidc-jupyterhub oidc-outline oidc-qui
 forward-auth-adguard forward-auth-autobrr forward-auth-bazarr
-forward-auth-dispatcharr forward-auth-houndarr forward-auth-lidarr forward-auth-prowlarr
+forward-auth-dispatcharr forward-auth-houndarr forward-auth-jupyter forward-auth-lidarr forward-auth-prowlarr
 forward-auth-qbittorrent forward-auth-qui forward-auth-radarr
 forward-auth-rclone forward-auth-sabnzbd forward-auth-slskd
 forward-auth-sonarr forward-auth-speedtest forward-auth-spottarr

@@ -25,6 +25,7 @@ file name:
 | bazarr.svg | svg/bazarr.svg |
 | dispatcharr.svg | svg/dispatcharr.svg |
 | grafana.svg | svg/grafana.svg |
+| jupyterhub.svg | svg/jupyter.svg |
 | komodo.svg | svg/komodo.svg |
 | lidarr.svg | svg/lidarr.svg |
 | outline.svg | svg/outline.svg |

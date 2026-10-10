@@ -1235,6 +1235,7 @@ config_files = [
   { path = "blueprints/forward-auth-bazarr.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/forward-auth-dispatcharr.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/forward-auth-houndarr.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/forward-auth-jupyter.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/forward-auth-lidarr.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/forward-auth-prowlarr.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/forward-auth-qbittorrent.yaml", services = ["worker"], requires = "Redeploy" },
@@ -1255,6 +1256,7 @@ config_files = [
   { path = "blueprints/links.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/login.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/oidc-autobrr.yaml", services = ["worker"], requires = "Redeploy" },
+  { path = "blueprints/oidc-jupyterhub.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/oidc-outline.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/oidc-qui.yaml", services = ["worker"], requires = "Redeploy" },
   { path = "blueprints/outpost.yaml", services = ["worker"], requires = "Redeploy" },
@@ -1278,6 +1280,7 @@ config_files = [
   { path = "branding/icons/google-photos.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/grafana.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/healthchecks.svg", services = ["server"], requires = "None" },
+  { path = "branding/icons/jupyterhub.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/komodo.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/lidarr.svg", services = ["server"], requires = "None" },
   { path = "branding/icons/outline.svg", services = ["server"], requires = "None" },
@@ -1332,6 +1335,7 @@ GRAFANA_OIDC_CLIENT_SECRET = [[GRAFANA_OIDC_CLIENT_SECRET]]
 AUTOBRR_OIDC_CLIENT_SECRET = [[AUTOBRR_OIDC_CLIENT_SECRET]]
 QUI_OIDC_CLIENT_SECRET = [[QUI_OIDC_CLIENT_SECRET]]
 OUTLINE_OIDC_CLIENT_SECRET = [[OUTLINE_OIDC_CLIENT_SECRET]]
+JUPYTERHUB_OIDC_CLIENT_SECRET = [[JUPYTERHUB_OIDC_CLIENT_SECRET]]
 GOOGLE_OAUTH_CLIENT_ID = [[GOOGLE_OAUTH_CLIENT_ID]]
 GOOGLE_OAUTH_CLIENT_SECRET = [[GOOGLE_OAUTH_CLIENT_SECRET]]
 """
