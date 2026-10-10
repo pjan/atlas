@@ -1559,6 +1559,139 @@ Monitoring: `probe_health` checks `https://outline.atlas.vandaele.io/_health`, a
 
 Break-glass: when authentik is down nobody can log in to Outline; sessions that are already open keep working. Fix authentik ([Break-Glass](#break-glass)).
 
+### Jupyter
+
+The `jupyterhub` stack runs [JupyterHub](https://jupyter.org/hub) 6.0.1, notebooks for pjan and family, at:
+
+```text
+https://jupyter.atlas.vandaele.io
+```
+
+Access takes two authentik logins, the second silent:
+- **Forward auth** (`forward-auth-jupyter.yaml`) for `admins` and `family`. This is the only forward-auth app open to family; only `/hub/health` skips it.
+- **JupyterHub's own OIDC login** (`oidc-jupyterhub.yaml`), the "Jupyter" tile on the authentik dashboard.
+
+JupyterHub checks the groups claim again: `admins` become JupyterHub admins, `family` plain users, and anyone else is refused. Admins cannot open other users' servers (`admin_access` is off). Logging out ends the JupyterHub session, not the authentik one.
+
+Layout:
+
+- **`jupyterhub`, the hub:**
+  - `atlas-jupyterhub:local`, built from `hub/Dockerfile`;
+  - runs as `1000:100`, read-only, with no capabilities;
+  - keeps its SQLite database and cookie secret in `/volume2/appdata/jupyterhub/data` (`0700`);
+  - joins `proxy_network` (for Caddy, and to reach authentik through Atlas DNS), `monitoring_network`, `jupyter_users`, and `jupyter_docker`.
+- **One user server per user**, `jupyter-<user>` from `atlas-jupyter-user:local` (Jupyter's `scipy-notebook` plus Atlas' extensions, every package pinned):
+  - the hub starts it through the socket proxy and removes it when it stops; it is not part of the Compose project;
+  - its home is `/volume2/appdata/jupyterhub/home/<user>`, mounted at `/home/jovyan`; the hub creates it as `1000:100` (`0700`), named by DockerSpawner's escaped username (lowercase letters and digits);
+  - read-only root filesystem, tmpfs `/tmp`, no capabilities, 2 GiB, 2 CPUs, 512 PIDs;
+  - at most 2 servers run at once (`active_server_limit`), because the NAS has little free memory;
+  - servers idle for 4 hours are stopped; a kernel computing without output and without an open browser counts as idle.
+- **`jupyterhub-socket-proxy`**, the hub's only access to Docker:
+  - it allows inspecting, creating, starting, stopping, and removing `jupyter-*` containers, with binds only from the homes;
+  - it runs in UGOS' `docker` group (`121`), not as root;
+  - it cannot refuse a privileged container, so a compromised hub is root on the NAS.
+- **`jupyterhub-egress-proxy`**, Squid on Alpine, the user servers' only way out (`egress/squid.conf`).
+- **Networks:**
+  - `jupyter_users` holds the hub, the egress proxy, and the user servers. It is internal and has no gateway address on the host (`inhibit_ipv4`): on a plain internal network user servers could reach the NAS' SSH, SMB, Komodo, and UGOS ports through the gateway (checked 2026-10-10).
+  - `jupyter_egress` is the egress proxy's route out.
+  - `jupyter_docker` holds the hub and the socket proxy.
+
+**Internet from notebooks:** HTTP and HTTPS through the egress proxy (the `HTTP(S)_PROXY` variables). That covers pip, uv, mamba, git over HTTPS, and `requests`/`httpx`. It does not cover:
+- git over SSH or any other TCP, such as an external database;
+- private, CGNAT (Tailscale), link-local, or loopback addresses: the proxy checks the address a name resolves to;
+- any Atlas app: every `*.atlas.vandaele.io` name resolves to the NAS.
+
+**JupyterLab:**
+- **Extensions:**
+  - language server with ruff (completion, hover, diagnostics);
+  - code formatter (ruff, on save);
+  - cell execution time;
+  - resource usage (the server's own memory and CPU, against its limits);
+  - archive download, spellchecker, search and replace across files, quick open, git with nbdime;
+  - vim keys, off by default (**Settings → Vim**).
+- **Libraries:** pandas, polars, DuckDB, pyarrow, scikit-learn, matplotlib, Plotly, itables, httpx, and uv.
+- **Defaults:** the admin defaults (line numbers, cell timing, theme following the device, no Jupyter news) are in `user/overrides.json`; users can change them.
+- **Extension installs:** the extension manager is read-only. Users install packages, not extensions, into their home.
+
+**Environments** belong in the home, with a manifest next to them, never inside them: the backup leaves out every virtualenv, conda environment, and package cache (see [Backups](#what-is-backed-up-where)). A uv project, registered as a kernel:
+
+```sh
+uv init ~/analysis && cd ~/analysis
+uv add pandas ipykernel
+uv run python -m ipykernel install --user --name analysis --display-name "Python (analysis)"
+```
+
+A conda environment, with its manifest beside it:
+
+```sh
+mamba create --yes -p ~/envs/geo python=3.13 geopandas ipykernel
+mamba env export -p ~/envs/geo > ~/envs/geo.yml
+~/envs/geo/bin/python -m ipykernel install --user --name geo
+```
+
+mamba warns that it cannot create `/opt/conda/envs`: the image is read-only, and environments live in the home instead.
+
+After a restore, rebuild them in place:
+- uv projects: `uv sync` in each project;
+- conda environments: `mamba env create -p ~/envs/geo -f ~/envs/geo.yml`;
+- plain virtualenvs: `uv venv` and `uv pip install -r requirements.txt`.
+
+The kernels come back with their environments. An environment without a manifest is lost.
+
+**Images and updates:**
+- `pre_deploy` builds the hub, user, and egress images. The first build takes several minutes; the user image is about 6 GB.
+- A change to any image file redeploys the stack.
+- Renovate proposes the base images as one group and never merges them by itself.
+- The package versions in `user/Dockerfile` (and `jupyterlab-vim`) are updated by hand.
+- `jupyterhub-singleuser` in `user/Dockerfile` must equal the hub's JupyterHub version.
+- **Restarting or redeploying the hub stops every user server**, so deploy when nobody is working, or warn family.
+
+Komodo variables (both secret):
+
+```text
+JUPYTERHUB_CRYPT_KEY            openssl rand -hex 32
+JUPYTERHUB_OIDC_CLIENT_SECRET   openssl rand -hex 32 (the authentik stack receives it too)
+```
+
+`JUPYTERHUB_CRYPT_KEY` encrypts the stored login state; keep it unchanged.
+
+First setup:
+
+1. Create both Komodo variables, then run the Resource Sync. Redeploy `authentik` (its `post_deploy` applies `oidc-jupyterhub.yaml` and `forward-auth-jupyter.yaml`) and wait until it is healthy.
+2. Deploy `jupyterhub` (the first build takes several minutes) and wait until its three containers are healthy, then deploy `caddy` by hand.
+3. In the Cloudflare Tunnel dashboard, add the public hostname `jupyter.atlas.vandaele.io` with service `http://caddy:8080`.
+4. Log in as `pjan`, start a server, and in a terminal check:
+   - `pip install --user tabulate` works;
+   - `curl -m 5 --noproxy '*' http://192.168.2.200:22` fails;
+   - `curl -m 10 https://sonarr.atlas.vandaele.io` fails with `CONNECT tunnel failed, response 403` (the proxy refuses it).
+
+   Then let a family member log in.
+5. Through the tunnel (from a phone off Wi-Fi), leave a notebook open and idle for 20 minutes, then run a cell: the kernel WebSocket must still answer.
+
+**Backups and restore:**
+- The nightly `appdata-backup` Action stops `jupyterhub`; the hub then stops and removes every user server, so running kernels end at 05:00.
+- `/volume2/appdata/jupyterhub` (the hub's data and the homes) is copied stopped, without environments and caches.
+- To restore, stop the stack, restore `jupyterhub` as in [Restoring From The Local Snapshot](#restoring-from-the-local-snapshot), start it, and rebuild environments as above.
+
+**Monitoring:**
+- `probe_health` checks `https://jupyter.atlas.vandaele.io/hub/health`; `probe_routes`, `probe_routes_public`, and `probe_gate` cover the route, so [`ProbeFailed`](#application-probes) covers it.
+- Prometheus job `jupyterhub` reads `/hub/metrics` (users, running servers, spawns, requests, no usernames). The hub serves it without a token to containers only, and `jupyter.caddy` answers `404` for it.
+- User servers appear as stack `unmanaged` on Atlas Containers; `ContainerUnhealthy` does not cover them.
+- A notebook that hits its memory limit loses its kernel (the server keeps running) and raises [`ContainerOOMKilled`](#container-oom-kill).
+
+**Break-glass:**
+- authentik down: nobody can open Jupyter.
+- A server that does not stop: an admin stops it at `https://jupyter.atlas.vandaele.io/hub/admin`.
+- The hub down: redeploy `jupyterhub`.
+
+**Accepted risks (pjan, 2026-10-10):**
+- family accounts log in with a password only, yet can run code on the NAS;
+- a compromised hub is root on the NAS;
+- all users share one web origin, so a malicious notebook opened by another user can act as that user; open no notebooks from untrusted sources;
+- notebooks reach the internet over HTTP(S) only.
+
+The design and its evidence are in `plans/jupyterhub.md`, which is not in the repository.
+
 ### Cloudflared
 
 The `cloudflared` stack runs a remotely managed Cloudflare Tunnel connector for Atlas. It joins `proxy_network` and has no host ports; Cloudflare edge traffic is forwarded into Caddy over Docker networking.
