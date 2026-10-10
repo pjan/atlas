@@ -66,6 +66,21 @@ http://:8080 {
 		header_up X-Forwarded-Proto https
 		header_up X-Forwarded-For {client_ip}
 		copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Entitlements X-Authentik-Email X-Authentik-Name X-Authentik-Uid X-Authentik-Jwt X-Authentik-Meta-Jwks X-Authentik-Meta-Outpost X-Authentik-Meta-Provider X-Authentik-Meta-App X-Authentik-Meta-Version
+		# Without a session the outpost redirects to the authentik login. A
+		# browser's background requests (fetch, XHR, WebSocket) would follow
+		# that redirect over and over; they get 401 instead. Page loads
+		# (Sec-Fetch-Mode: navigate) and clients without Sec-Fetch-Mode
+		# (probes, apps) still get the redirect.
+		@login_redirect status 3xx
+		handle_response @login_redirect {
+			# route keeps this order; Caddy would otherwise copy the redirect first.
+			route {
+				@background header_regexp Sec-Fetch-Mode ^(cors|no-cors|same-origin|websocket)$
+				respond @background 401
+				copy_response_headers
+				copy_response
+			}
+		}
 	}
 }
 
