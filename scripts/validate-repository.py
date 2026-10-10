@@ -177,6 +177,8 @@ VALIDATION_VALUES = {
     "GRAFANA_SECRETS_MANAGER_KEY": "validation-only-secrets-manager-key",
     "HTTP_BIND_IP": "127.0.0.1",
     "HTTP_PORT": "18080",
+    "JUPYTERHUB_DATA_DIR": "/volume2/appdata/jupyterhub/data",
+    "JUPYTERHUB_HOME_DIR": "/volume2/appdata/jupyterhub/home",
     "KOMETA_TIMES": "03:00",
     "KOMODO_BOOTSTRAP_DIR": "/volume2/docker/komodo",
     "LIDARR_API_KEY": "0123456789abcdef0123456789abcdef",

@@ -1157,6 +1157,58 @@ OUTLINE_OIDC_CLIENT_SECRET = [[OUTLINE_OIDC_CLIENT_SECRET]]
 """
 
 [[stack]]
+name = "jupyterhub"
+description = "JupyterHub notebooks for admins and family, logging in through authentik"
+deploy = true
+tags = ["apps"]
+
+[stack.config]
+server = "atlas"
+repo = "pjan/atlas"
+branch = "main"
+run_directory = "stacks/jupyterhub"
+file_paths = ["compose.yaml"]
+# The hub, egress proxy, and user images are built here by pre_deploy, never
+# pulled; Compose pulls the socket proxy when its tag changes.
+auto_pull = false
+poll_for_updates = false
+links = ["https://jupyter.atlas.vandaele.io"]
+# An image file change redeploys the stack, so pre_deploy rebuilds it.
+# Restarting or redeploying the hub stops every user server.
+config_files = [
+  { path = "hub/Dockerfile", services = ["jupyterhub"], requires = "Redeploy" },
+  { path = "hub/jupyterhub_config.py", services = ["jupyterhub"], requires = "Restart" },
+  { path = "user/Dockerfile", services = ["jupyterhub"], requires = "Redeploy" },
+  { path = "user/overrides.json", services = ["jupyterhub"], requires = "Redeploy" },
+  { path = "user/jupyter_server_config_atlas.py", services = ["jupyterhub"], requires = "Redeploy" },
+  { path = "egress/Dockerfile", services = ["egress-proxy"], requires = "Redeploy" },
+  { path = "egress/squid.conf", services = ["egress-proxy"], requires = "Restart" },
+]
+pre_deploy.path = "."
+pre_deploy.command = """
+set -eu
+sh ../../scripts/ensure-docker-network.sh proxy_network
+sh ../../scripts/ensure-docker-network.sh monitoring_network
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/jupyterhub" 0 0 0755
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/jupyterhub/data" 1000 100 0700
+sh ../../scripts/atlas-hostfs.sh ensure-dir \
+  "[[APPDATA_DIR]]/jupyterhub/home" 1000 100 0750
+docker compose -f compose.yaml build --pull jupyterhub egress-proxy
+docker build --pull --tag atlas-jupyter-user:local user
+"""
+pre_deploy.shell_mode = true
+environment = """
+TZ = [[TZ]]
+JUPYTERHUB_DATA_DIR = [[APPDATA_DIR]]/jupyterhub/data
+JUPYTERHUB_HOME_DIR = [[APPDATA_DIR]]/jupyterhub/home
+JUPYTERHUB_CRYPT_KEY = [[JUPYTERHUB_CRYPT_KEY]]
+JUPYTERHUB_OIDC_CLIENT_SECRET = [[JUPYTERHUB_OIDC_CLIENT_SECRET]]
+JUPYTERHUB_METRICS_TOKEN = [[JUPYTERHUB_METRICS_TOKEN]]
+"""
+
+[[stack]]
 name = "authentik"
 description = "authentik login for Atlas applications, public at auth.atlas.vandaele.io"
 deploy = true

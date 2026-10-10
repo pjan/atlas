@@ -1,0 +1,29 @@
+{
+  "@jupyterlab/notebook-extension:tracker": {
+    "recordTiming": true,
+    "codeCellConfig": {
+      "lineNumbers": true,
+      "lineWrap": false
+    }
+  },
+  "@jupyterlab/apputils-extension:themes": {
+    "adaptive-theme": true
+  },
+  "jupyterlab_code_formatter:settings": {
+    "preferences": {
+      "default_formatter": {
+        "python": [
+          "ruff",
+          "ruffformat"
+        ]
+      }
+    },
+    "formatOnSave": true
+  },
+  "@axlair/jupyterlab_vim:plugin": {
+    "enabled": false
+  },
+  "@jupyterlab/apputils-extension:notification": {
+    "fetchNews": "false"
+  }
+}

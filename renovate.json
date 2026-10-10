@@ -49,11 +49,13 @@
         "prometheuscommunity/json-exporter",
         "prometheuscommunity/smartctl-exporter",
         "qmcgaw/gluetun",
+        "quay.io/jupyterhub/jupyterhub",
         "rclone/rclone",
         "recyclarr/recyclarr",
         "redis",
         "slskd/slskd",
-        "spottarr/spottarr"
+        "spottarr/spottarr",
+        "wollomatic/socket-proxy"
       ],
       "versioning": "semver",
       "ignoreUnstable": true
@@ -127,6 +129,18 @@
       "description": "Review every MariaDB update by hand and deploy it on its own: an update of MariaDB together with Youtarr, whose migrations run when it starts, can corrupt tables.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["mariadb"],
+      "automerge": false
+    },
+    {
+      "description": "Use the date tags (YYYY-MM-DD) of Jupyter's notebook image; its other tags (hub-, lab-, python-, latest) are aliases.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["quay.io/jupyter/scipy-notebook"],
+      "versioning": "regex:^(?<major>\\d{4})-(?<minor>\\d{2})-(?<patch>\\d{2})$"
+    },
+    {
+      "description": "Review every JupyterHub stack update by hand, as one group: the hub, user, and egress images are built on the NAS, and the hub and user images must keep the same JupyterHub version (jupyterhub-singleuser in user/Dockerfile).",
+      "matchFileNames": ["stacks/jupyterhub/**"],
+      "groupName": "jupyterhub",
       "automerge": false
     },
     {

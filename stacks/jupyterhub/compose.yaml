@@ -1,0 +1,194 @@
+# JupyterHub, notebooks for pjan and family (README "Jupyter"), at
+# https://jupyter.atlas.vandaele.io behind authentik forward auth and its own
+# authentik OIDC login. The hub starts one container per user
+# (jupyter-<user>, from atlas-jupyter-user:local, built by pre_deploy from
+# user/Dockerfile) through the socket proxy; those containers are not part of
+# this Compose project. The nightly appdata backup stops this stack, and the
+# hub then stops and removes every user container.
+
+services:
+  # The hub and its proxy: :8000 for Caddy, :8081 (hub API) for user servers.
+  # It reaches authentik through proxy_network (Atlas DNS sends
+  # auth.atlas.vandaele.io to Caddy on the NAS), Docker only through the
+  # socket proxy, and user servers on jupyter_users.
+  jupyterhub:
+    build: hub
+    image: atlas-jupyterhub:local
+    container_name: jupyterhub
+    restart: unless-stopped
+    user: "1000:100"
+    working_dir: /srv/jupyterhub/data
+    command: ["jupyterhub", "-f", "/srv/jupyterhub/jupyterhub_config.py"]
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - socket-proxy
+      - egress-proxy
+    environment:
+      - TZ=${TZ}
+      - JUPYTERHUB_CRYPT_KEY=${JUPYTERHUB_CRYPT_KEY:?JUPYTERHUB_CRYPT_KEY is required}
+      - JUPYTERHUB_OIDC_CLIENT_SECRET=${JUPYTERHUB_OIDC_CLIENT_SECRET:?JUPYTERHUB_OIDC_CLIENT_SECRET is required}
+      - JUPYTERHUB_METRICS_TOKEN=${JUPYTERHUB_METRICS_TOKEN:?JUPYTERHUB_METRICS_TOKEN is required}
+      # Host path of the homes: the Docker daemon resolves user server binds.
+      - JUPYTERHUB_HOMES_ON_HOST=${JUPYTERHUB_HOME_DIR:?JUPYTERHUB_HOME_DIR is required}
+    volumes:
+      - type: bind
+        source: ./hub/jupyterhub_config.py
+        target: /srv/jupyterhub/jupyterhub_config.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${JUPYTERHUB_DATA_DIR:?JUPYTERHUB_DATA_DIR is required}
+        target: /srv/jupyterhub/data
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${JUPYTERHUB_HOME_DIR:?JUPYTERHUB_HOME_DIR is required}
+        target: /srv/jupyterhub/home
+        bind:
+          create_host_path: false
+    expose:
+      - "8000"
+    networks:
+      - proxy_network
+      - monitoring_network
+      - jupyter_users
+      - jupyter_docker
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 256
+    stop_grace_period: 1m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/hub/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # The hub's only way to Docker: inspect, create jupyter-*, start, stop, and
+  # remove, with binds only from the homes. It cannot refuse a privileged
+  # container, so a compromised hub is root on the NAS (README "Jupyter").
+  socket-proxy:
+    image: wollomatic/socket-proxy:1.13.1
+    container_name: jupyterhub-socket-proxy
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # The docker group of UGOS (/var/run/docker.sock is root:docker 0660).
+    group_add:
+      - "121"
+    command:
+      - -listenip=0.0.0.0
+      - -allowfrom=jupyterhub
+      - -allowhealthcheck
+      - -watchdoginterval=300
+      - -stoponwatchdog
+      - -allowbindmountfrom=${JUPYTERHUB_HOME_DIR:?JUPYTERHUB_HOME_DIR is required}
+      - '-allowGET=^/(v1\.[0-9]+/)?(version|_ping|containers/(jupyter-[a-z0-9._-]+|[0-9a-f]{64})/json|images/[a-zA-Z0-9_./:@-]+/json)$'
+      - '-allowHEAD=^/_ping$'
+      - '-allowPOST=^/v1\.[0-9]+/containers/(create|(jupyter-[a-z0-9._-]+|[0-9a-f]{64})/(start|stop|wait|kill))$'
+      - '-allowDELETE=^/v1\.[0-9]+/containers/(jupyter-[a-z0-9._-]+|[0-9a-f]{64})$'
+    volumes:
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
+        bind:
+          create_host_path: false
+    networks:
+      jupyter_docker:
+        aliases:
+          - socket-proxy
+    mem_limit: 64m
+    cpus: 0.5
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "/healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # The user servers' only way out: HTTP(S) to the internet, never to private,
+  # CGNAT (Tailscale), link-local, or loopback addresses (egress/squid.conf).
+  egress-proxy:
+    build: egress
+    image: atlas-jupyter-egress:local
+    container_name: jupyterhub-egress-proxy
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - type: bind
+        source: ./egress/squid.conf
+        target: /etc/squid/squid.conf
+        read_only: true
+        bind:
+          create_host_path: false
+    networks:
+      jupyter_users:
+        aliases:
+          - egress-proxy
+      jupyter_egress: {}
+    mem_limit: 256m
+    cpus: 1
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "3128"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+networks:
+  # The hub, the egress proxy, and every user server. No route out, and no
+  # gateway address on the host (inhibit_ipv4): on a plain internal network
+  # user servers could reach the NAS' SSH, SMB, Komodo, and UGOS ports.
+  jupyter_users:
+    name: jupyter_users
+    internal: true
+    driver_opts:
+      com.docker.network.bridge.inhibit_ipv4: "true"
+  # The egress proxy's route to the internet; nothing else joins it.
+  jupyter_egress:
+    name: jupyter_egress
+  # The hub and the socket proxy only.
+  jupyter_docker:
+    name: jupyter_docker
+    internal: true
+  proxy_network:
+    name: proxy_network
+    external: true
+  monitoring_network:
+    name: monitoring_network
+    external: true
