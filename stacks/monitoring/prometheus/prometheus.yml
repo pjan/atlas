@@ -447,6 +447,10 @@ scrape_configs:
         labels: {module: http_gate, service: houndarr-gate}
       - targets: ["https://houndarr.atlas.vandaele.io/"]
         labels: {module: http_gate, __exporter: "blackbox-public:9115", service: houndarr-gate-public}
+      - targets: ["https://jupyter.atlas.vandaele.io/"]
+        labels: {module: http_gate, service: jupyter-gate}
+      - targets: ["https://jupyter.atlas.vandaele.io/"]
+        labels: {module: http_gate, __exporter: "blackbox-public:9115", service: jupyter-gate-public}
       - targets: ["https://lidarr.atlas.vandaele.io/"]
         labels: {module: http_gate, service: lidarr-gate}
       - targets: ["https://lidarr.atlas.vandaele.io/"]

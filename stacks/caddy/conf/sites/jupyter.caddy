@@ -1,0 +1,15 @@
+# JupyterHub (README "Jupyter") behind authentik forward auth, in front of its
+# own authentik OIDC login. Clients use HTTPS on every path, so the hub is told
+# the scheme is https: atlas_protected_proxy cannot add the header, and on the
+# tunnel listener (plain HTTP) Caddy would otherwise pass http.
+
+# HTTPS on :443 (LAN, Tailscale) and the tunnel on :8080.
+jupyter.atlas.vandaele.io, http://jupyter.atlas.vandaele.io:8080 {
+	import atlas_hide_metrics
+	route {
+		import atlas_forward_auth
+		reverse_proxy jupyterhub:8000 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+}

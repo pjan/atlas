@@ -1558,6 +1558,7 @@ config_files = [
   { path = "conf/sites/dispatcharr.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/grafana.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/houndarr.caddy", services = ["caddy"], requires = "Restart" },
+  { path = "conf/sites/jupyter.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/komodo.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/outline.caddy", services = ["caddy"], requires = "Restart" },
   { path = "conf/sites/plex.caddy", services = ["caddy"], requires = "Restart" },
