@@ -9,10 +9,11 @@
 
 The rules the file implements are in `pjan/atlas-dashboards` `CONVENTIONS.md`.
 
-**Extra hues.** Grafana's `createTheme()` ignores hue names it doesn't have, so `module.js` appends the extra names' hues (gray, indigo, violet, lime, teal, cyan, pink: the order of `names`) to the built theme's `theme.visualization.hues`, each with the five shades (base as primary) resolved through the theme's own colour names. Two things follow:
+**Extra hues.** Grafana's `createTheme()` ignores hue names it doesn't have, so `module.js` appends the extra names' hues (gray, indigo, violet, lime, lemon, teal, cyan, pink: the order of `names`) to the built theme's `theme.visualization.hues`, each with the five shades (base as primary) resolved through the theme's own colour names. Two things follow:
 
 - Every colour picker in Grafana lists them as rows after Grafana's six hues, so they can be picked like `green`. Grafana sizes the picker for its six hues and doesn't let it scroll, so `module.js` adds one style rule (since 4.1.1) that makes the hue rows scroll inside the picker; it finds them through the picker's structure and the swatches' labels, as Grafana's class names are generated; the theme probe checks it after a Grafana upgrade.
 - Panel plugins that read the theme's hues see them: the plus plugins give a colour without a name (the hex series palette) the shades of its nearest hue, so a lime series gets the lime shades.
+- **lemon** (since 4.2.0) is Atlas's own yellow, at OKLCH hue 95.5° between amber (Grafana's `yellow` here) and lime. It exists so the plus plugins' shades of the Viridis scheme end in yellow instead of lime, while Magma's top still takes lime: any angle from 94.3° to 96.9° does both, and 95.5° balances the two margins. Changing lime or amber means re-checking that window (the sweep is in the Table plus plan).
 
 Dashboards that use these names depend on the Atlas theme: without it, Grafana reads `lime`, `teal`, `pink`, … as CSS colours (`lime` is `#00ff00`), and `super-light-gray` and the other shade names as unknown (timeline boxes in them render black).
 
