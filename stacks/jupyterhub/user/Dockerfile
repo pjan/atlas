@@ -3,7 +3,7 @@
 # pre_deploy builds it as atlas-jupyter-user:local. jupyterhub-singleuser must
 # equal the hub's JupyterHub version (hub/Dockerfile); Renovate groups both
 # base images. The pinned packages are updated by hand.
-FROM quay.io/jupyter/scipy-notebook:2026-10-05@sha256:2479174ae36ec84373f3c352cb6d5801382c0aa6642e739f04bea409f6cedae1
+FROM quay.io/jupyter/scipy-notebook:2026-10-12@sha256:8f8a5763d9a01e7f488eff8d9379654788e9cc08286dbcbc6bcda129c1b0edcd
 
 RUN mamba install --yes --quiet \
       jupyterhub-singleuser=6.0.1 \
