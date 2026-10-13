@@ -84,7 +84,7 @@ services:
   # reaches it on proxy_network (outline.caddy), which is also its way to
   # authentik (through Atlas DNS and Caddy) and to the internet.
   outline:
-    image: outlinewiki/outline:1.10.1
+    image: outlinewiki/outline:1.11.0
     container_name: outline
     restart: unless-stopped
     # The nodejs user of the image.
