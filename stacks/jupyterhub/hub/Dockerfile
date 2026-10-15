@@ -3,7 +3,7 @@
 # jupyterhub pre_deploy builds it. Keep the JupyterHub version equal to the
 # one in user/Dockerfile's base image (its hub-<version> tag); Renovate
 # groups both.
-FROM quay.io/jupyterhub/jupyterhub:6.0.1@sha256:b148e8513aceb98f59bfffea51f245e9c45d99e3e504a4a92e9f3bf73589fd42
+FROM quay.io/jupyterhub/jupyterhub:6.1.0@sha256:bfc876d8875368a60934200553569ca4d5087839f26e0710957d6006d40a38da
 
 RUN python3 -m pip install --no-cache-dir \
       dockerspawner==14.0.0 \
