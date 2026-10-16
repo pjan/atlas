@@ -84,10 +84,10 @@ Never create a `*.atlas` record in Cloudflare: public DNS has one proxied CNAME 
 
 Komodo manages the app stacks, but Komodo itself is bootstrapped manually. Do not rely on Komodo to update/restart itself.
 
-SSH into the NAS:
+SSH into the NAS (the `atlas` alias and dedicated key are provisioned by `pjan/nix-config`):
 
 ```sh
-ssh <nas-user>@192.168.2.200
+ssh atlas
 sudo -i
 cd /volume2/docker/komodo
 ```
@@ -524,7 +524,7 @@ The test suite covers allowlist rejection, dry-run behavior, atomic managed-file
 Run the canary after these changes are on `main` and the Atlas Resource Sync has cloned the updated repository. Start on the NAS:
 
 ```sh
-ssh <nas-user>@192.168.2.200
+ssh atlas
 sudo -i
 
 ATLAS_HOSTFS=$(docker exec komodo-periphery sh -eu -c '
