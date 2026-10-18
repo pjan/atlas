@@ -58,7 +58,7 @@ services:
   # Serves the UI and API on :3011. Caddy reaches it on youtarr_network, which
   # is also its way to YouTube and to Plex's LAN listener.
   youtarr:
-    image: dialmaster/youtarr:v1.88.0
+    image: dialmaster/youtarr:v1.89.0
     container_name: youtarr
     restart: unless-stopped
     # Reaps the yt-dlp and ffmpeg processes of every download.
