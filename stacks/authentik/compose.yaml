@@ -55,7 +55,7 @@ services:
   # Caddy reaches it on proxy_network; Prometheus and blackbox on
   # monitoring_network.
   server:
-    image: ghcr.io/goauthentik/server:2026.8.4
+    image: ghcr.io/goauthentik/server:2026.8.5
     container_name: authentik-server
     restart: unless-stopped
     command: server
@@ -126,7 +126,7 @@ services:
   # (google.yaml) is validated against, and every 3 hours refreshed from,
   # Google's OpenID configuration and signing keys.
   worker:
-    image: ghcr.io/goauthentik/server:2026.8.4
+    image: ghcr.io/goauthentik/server:2026.8.5
     container_name: authentik-worker
     restart: unless-stopped
     command: worker
