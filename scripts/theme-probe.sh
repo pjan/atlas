@@ -14,7 +14,7 @@
 set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-PLAYWRIGHT_IMAGE='mcr.microsoft.com/playwright:v1.64.1-noble@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf'
+PLAYWRIGHT_IMAGE='mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea'
 # The npm package must match the browsers in the image: take its version from the tag.
 playwright_version=${PLAYWRIGHT_IMAGE#*:v}
 playwright_version=${playwright_version%%-*}
