@@ -1,6 +1,6 @@
 services:
   soularr:
-    image: mrusse08/soularr:v1.2.2
+    image: mrusse08/soularr:v1.2.3
     container_name: soularr
     restart: unless-stopped
     user: "${PUID}:${PGID}"
