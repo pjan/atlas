@@ -80,7 +80,7 @@ services:
   # remove, with binds only from the homes. It cannot refuse a privileged
   # container, so a compromised hub is root on the NAS (README "Jupyter").
   socket-proxy:
-    image: wollomatic/socket-proxy:1.13.1
+    image: wollomatic/socket-proxy:1.13.2
     container_name: jupyterhub-socket-proxy
     restart: unless-stopped
     read_only: true
