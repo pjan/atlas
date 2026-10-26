@@ -1,6 +1,6 @@
 services:
   unpackerr:
-    image: golift/unpackerr:0.16.1
+    image: golift/unpackerr:v1.0.0
     container_name: unpackerr
     restart: unless-stopped
     init: true
