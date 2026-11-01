@@ -64,7 +64,7 @@ services:
   # reloads it with SIGHUP, which keeps the previous configuration if the new
   # one is invalid (a restart would crash-loop instead).
   alertmanager:
-    image: prom/alertmanager:v0.34.1
+    image: prom/alertmanager:v0.34.2
     container_name: alertmanager
     restart: unless-stopped
     user: "65534:65534"
