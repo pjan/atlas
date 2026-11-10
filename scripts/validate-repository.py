@@ -47,7 +47,7 @@ PALETTE_REFERENCE_PATTERN = re.compile(
 HEX_COLOR_PATTERN = re.compile(r"#[0-9a-f]{6}")
 # Reads the alerting YAML files (the standard library has no YAML parser).
 # renovate: datasource=docker depName=mikefarah/yq
-YQ_IMAGE = "mikefarah/yq:4.54.2@sha256:5d56494617dce8311106e905aac5c080a2087c905a7f7de2984db2e2cc60ab2e"
+YQ_IMAGE = "mikefarah/yq:4.54.3@sha256:7834187596ad56fd5a81436114e0b0b9dd54c91bb43946d1f7145b2be5f9c3d2"
 # The alert contract (README "Alerts").
 ALERT_NAME_PATTERN = re.compile(r"[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]*)*")
 ALERT_CHECK_PATTERN = re.compile(r"[a-z]+\.[a-z0-9]+(?:-[a-z0-9]+)*")
