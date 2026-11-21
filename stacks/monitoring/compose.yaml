@@ -304,7 +304,7 @@ services:
   # Root with only CAP_SYSLOG reads /dev/kmsg for OOM events
   # (kernel.dmesg_restrict=1 on UGOS).
   cadvisor:
-    image: ghcr.io/google/cadvisor:v0.60.6
+    image: ghcr.io/google/cadvisor:v0.61.1
     container_name: cadvisor
     restart: unless-stopped
     user: "0:0"
