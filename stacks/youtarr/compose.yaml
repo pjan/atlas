@@ -8,7 +8,7 @@ services:
   mariadb:
     # 11.4 LTS, not upstream's 10.3 (end of life); Renovate keeps it below
     # 11.5, whose default collation changes.
-    image: mariadb:11.4.13
+    image: mariadb:11.4.14
     container_name: youtarr-mariadb
     restart: unless-stopped
     # The mysql user of the image.
